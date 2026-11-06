@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Job page (phone)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F7FB}
+a{color:#3C51C4}a:hover{color:#22376B}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 844px; position: relative; font-family: 'Open Sans', Arial, sans-serif; color: #22376B; background: #F5F7FB">
+<header style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: #FFFFFF; border-bottom: 1px solid #E3E8F2"><img src="/_blob/3bbf4febd79e89c461ef7e11e5cfb335" alt="Home Insulation Victoria" style="width: 92px; height: auto"><a href="AddJobPhone.dc.html" style="background: #3C51C4; color: #FFFFFF; font-size: 14px; font-weight: 700; padding: 10px 14px; border-radius: 10px; text-decoration: none">+ Add a job</a></header>
+<main style="padding: 18px 16px 96px">
+<div style="max-width: 1120px">
+<div role="group" aria-label="Prototype controls" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 12px; border: 1px dashed #CED6E6; border-radius: 12px; margin-bottom: 22px; font-size: 13px; color: #5B6785">
+<span style="font-weight: 700">Prototype · try a job type:</span>
+<sc-for list="{{kinds}}" as="k" hint-placeholder-count="3"><button type="button" onClick="{{k.pick}}" style="{{k.style}}">{{k.label}}</button></sc-for>
+<label style="display: flex; align-items: center; gap: 6px; font-weight: 700">Problem:
+<select onChange="{{pickProb}}" style="font-family: inherit; font-size: 13px; padding: 7px 8px; border: 1px solid #CED6E6; border-radius: 8px; color: #22376B; background: #FFFFFF"><sc-for list="{{probs}}" as="p"><option value="{{p.id}}">{{p.label}}</option></sc-for></select></label>
+<span style="flex-grow: 1"></span>
+<button type="button" onClick="{{restart}}" style="background: none; border: 0; font-family: inherit; font-size: 13px; font-weight: 700; color: #3C51C4; cursor: pointer; min-height: 36px">Start again</button>
+</div>
+
+<a href="Main.dc.html" style="font-size: 14px; font-weight: 700; text-decoration: none">‹ Action items</a>
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-top: 10px">
+<div style="min-width: 0">
+<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap"><span style="{{srcStyle}}">{{src}}</span><span style="font-size: 14px; color: #5B6785; font-weight: 600">{{hv}}</span></div>
+<h1 style="margin: 8px 0 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px">{{addr}}</h1>
+<div style="font-size: 16px; color: #5B6785; margin-top: 2px">{{owner}} · {{phone}}</div>
+</div>
+<div style="display: flex; gap: 8px">
+<a href="#" style="background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6; font-weight: 700; font-size: 15px; padding: 12px 18px; border-radius: 10px; text-decoration: none">Call</a>
+<a href="#" style="background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6; font-weight: 700; font-size: 15px; padding: 12px 18px; border-radius: 10px; text-decoration: none">Email</a>
+</div>
+</div>
+
+<ol aria-label="Progress" style="list-style: none; margin: 24px 0 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px">
+<sc-for list="{{dots}}" as="d" hint-placeholder-count="6"><li style="display: flex; flex-direction: column; gap: 7px; min-width: 0"><span style="{{d.bar}}"></span><span style="{{d.text}}">{{d.label}}</span></li></sc-for>
+</ol>
+
+<section aria-label="Next step" style="margin-top: 20px; background: #FFFFFF; border: 2px solid {{s.edge}}; border-radius: 18px; padding: 24px 26px">
+<div style="display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-start">
+<div style="flex: 1 1 320px; min-width: 0">
+<span style="{{s.chipStyle}}">{{s.chip}}</span>
+<h2 style="margin: 12px 0 0; font-size: 24px; font-weight: 800; line-height: 1.25">{{s.title}}</h2>
+<p style="margin: 8px 0 0; font-size: 16px; color: #5B6785; line-height: 1.55">{{s.text}}</p>
+<sc-if value="{{s.hasChips}}" hint-placeholder-val="{{ false }}"><div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px"><sc-for list="{{s.chips}}" as="c"><span style="{{c.style}}">{{c.t}}</span></sc-for></div></sc-if>
+<sc-if value="{{s.more}}" hint-placeholder-val="{{ false }}"><details style="margin-top: 14px"><summary style="cursor: pointer; font-size: 14px; font-weight: 700; color: #3C51C4; min-height: 32px">What happens from here</summary><p style="margin: 6px 0 0; font-size: 14px; color: #5B6785; line-height: 1.55">{{s.more}}</p></details></sc-if>
+</div>
+<div style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<sc-if value="{{s.measure}}" hint-placeholder-val="{{ false }}">
+<div style="font-size: 14px; font-weight: 700">How did you measure?</div>
+<div role="radiogroup" aria-label="How did you measure" style="display: flex; gap: 8px; flex-wrap: wrap"><sc-for list="{{methods}}" as="m"><button type="button" role="radio" aria-checked="{{m.on}}" onClick="{{m.pick}}" style="{{m.style}}">{{m.label}}</button></sc-for></div>
+<sc-if value="{{needsUpload}}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{upload}}" style="{{uploadStyle}}">{{uploadLabel}}</button></sc-if>
+</sc-if>
+<sc-for list="{{s.fields}}" as="f" hint-placeholder-count="2">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">{{f.label}}
+<sc-if value="{{f.isSelect}}" hint-placeholder-val="{{ true }}"><select style="font-family: inherit; font-size: 16px; padding: 13px 12px; border: 1px solid #CED6E6; border-radius: 12px; color: #22376B; background: #FFFFFF"><sc-for list="{{f.options}}" as="o"><option>{{o}}</option></sc-for></select></sc-if>
+<sc-if value="{{f.isInput}}" hint-placeholder-val="{{ false }}"><input value="{{f.value}}" style="font-family: inherit; font-size: 16px; padding: 13px 14px; border: 1px solid #CED6E6; border-radius: 12px; color: #22376B"></sc-if>
+</label>
+</sc-for>
+<sc-if value="{{s.ticks}}" hint-placeholder-val="{{ false }}">
+<fieldset style="border: 1px solid #CED6E6; border-radius: 12px; padding: 4px 14px 6px; margin: 0"><legend style="font-size: 14px; font-weight: 700; padding: 0 4px">Crew</legend>
+<sc-for list="{{s.ticks}}" as="t"><label style="display: flex; align-items: center; gap: 12px; padding: 10px 0; font-size: 16px"><input type="checkbox" checked="{{t.on}}" style="width: 22px; height: 22px; accent-color: #07BF61">{{t.name}}</label></sc-for>
+</fieldset>
+</sc-if>
+<sc-if value="{{s.button}}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{go}}" style="width: 100%; min-height: 54px; background: {{btnBg}}; color: #FFFFFF; font-family: inherit; font-weight: 800; font-size: 17px; border: 0; border-radius: 12px; cursor: pointer">{{s.button}}</button></sc-if>
+<sc-if value="{{blockNote}}" hint-placeholder-val="{{ false }}"><p style="margin: -4px 0 0; font-size: 13px; color: #8A4B00; text-align: center">{{blockNote}}</p></sc-if>
+<sc-if value="{{s.links}}" hint-placeholder-val="{{ false }}"><div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap"><sc-for list="{{s.links}}" as="l"><a href="#" style="font-size: 15px; font-weight: 700; padding: 6px 0">{{l}}</a></sc-for></div></sc-if>
+<sc-if value="{{s.waiting}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{next}}" style="width: 100%; min-height: 44px; background: #FFFFFF; color: #5B6785; font-family: inherit; font-weight: 600; font-size: 14px; border: 1px dashed #CED6E6; border-radius: 12px; cursor: pointer">Prototype: skip to the next step</button></sc-if>
+</div>
+</div>
+</section>
+
+<div role="tablist" aria-label="Job information" style="display: flex; gap: 4px; margin-top: 28px; border-bottom: 1px solid #E3E8F2; overflow-x: auto">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button type="button" role="tab" aria-selected="{{t.sel}}" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button></sc-for>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E3E8F2; border-top: 0; border-radius: 0 0 16px 16px; padding: 8px 24px 16px">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="5"><div style="display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid #EEF1F7; font-size: 15px"><span style="color: #5B6785">{{r.k}}</span><span style="font-weight: 700; text-align: right; color: {{r.ink}}">{{r.v}}</span></div></sc-for>
+<sc-if value="{{isPhotos}}" hint-placeholder-val="{{ false }}"><button type="button" style="margin-top: 14px; min-height: 48px; padding: 0 18px; background: #FFFFFF; color: #3C51C4; border: 2px dashed #9FB0E8; border-radius: 12px; font-family: inherit; font-weight: 700; font-size: 15px; cursor: pointer">+ Add photos</button></sc-if>
+</div>
+</div>
+</main>
+<nav aria-label="Main" style="position: absolute; left: 0; right: 0; bottom: 0; display: flex; background: #FFFFFF; border-top: 1px solid #E3E8F2; padding: 6px 4px 18px"><a href="Main.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #3C51C4; text-decoration: none">Action items</a><a href="Calendar.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #5B6785; text-decoration: none">Calendar</a><a href="Jobs.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #5B6785; text-decoration: none">Jobs</a><a href="Money.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #5B6785; text-decoration: none">Money</a><a href="Business.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #5B6785; text-decoration: none">My business</a></nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { kind: 'own', i: 0, tab: 'details', m: 'Aerial photo', up: false, prob: '' }; }
+  renderVals() {
+
+    const st = this.state;
+    const own = st.kind === 'own', rc = st.kind === 'rc';
+    const O = own ? 'Jo' : 'Helen';
+    const chip = (t, k) => ({ t, style: 'font-size: 13px; font-weight: 700; border-radius: 999px; padding: 6px 12px; ' + (k === 'ok' ? 'background: #E7F8EF; color: #067A40' : k === 'warn' ? 'background: #FEF3E2; color: #8A4B00' : 'background: #FDECEA; color: #B42318') });
+    const sel = (label, options) => ({ label, isSelect: true, isInput: false, options, value: '' });
+    const inp = (label, value) => ({ label, isSelect: false, isInput: true, value, options: [] });
+    const first = own
+      ? [{ dot: 0, you: true, title: 'Measure and quote', text: 'Measure up, then add the areas, product, access and your price. Or do the Ready Check in Mitti under HV-3821.', button: 'Measure and quote', more: 'We put the quote together with your price, the PIESA fee and our $349 fee, less the rebate, and send it to Jo.' },
+         { dot: 1, you: false, title: 'Quote being prepared', text: "We're sending it to Jo. You'll get an email when it goes." },
+         { dot: 1, you: false, title: 'Quote with Jo', text: 'Sent Fri 6 Nov · valid until Sun 6 Dec. We touch base on day 3 and 2 days before it expires.', links: ['See the quote', 'Offer a discount', 'Change my price'] }]
+      : [rc ? { dot: 0, you: true, title: 'Do the Ready Check', text: "Call Helen, pop out and do the Ready Check in Mitti (form's under HV-3300). We'd love it within 5 business days.", button: 'Open the Mitti form', links: ["Can't do this one"], more: "Once the form's done we put the quote together and send it to Helen. You're paid your agreed rates." }
+            : { dot: 0, you: true, title: "Quote from Helen's photos", measure: true, text: "Measure the ceiling from an aerial photo or floor plan, upload it, then add the sqm, product and access. We do the quote. We'd love it within 2 business days.", fields: [inp('Install area (m²)', '128'), inp('Removal area (m²)', '0'), sel('Product', ['★ Earthwool R5.0', '★ Bradford Gold R5.0', '★ Earthwool R4.0', 'Bradford Gold R3.5', 'Bradford Gold R4.1', 'Bradford Gold R6.0', 'Bradford Gold R7.0', 'Earthwool R3.5', 'Pink Batts R2.5', 'Pink Batts R3.0', 'Pink Batts R3.5', 'Pink Batts R4.1', 'Pink Batts R5.0', 'Pink Batts R6.0', 'Pink Batts R7.0']), sel('Access', ['Easy', 'Difficult'])], button: 'Send', links: ["Can't quote this one"], more: "We put the quote together and send it to Helen. You're paid your agreed rates 7 days after we approve the install paperwork." },
+         { dot: 1, you: false, title: 'Quote being prepared', text: "We're sending it to Helen. You'll get an email when it goes." },
+         { dot: 1, you: false, title: 'Quote with Helen', text: "Sent Fri 6 Nov · valid until Sun 6 Dec. You'll hear from us the moment Helen says yes or no." }];
+    const mid = [
+      { dot: 2, you: true, title: O + ' said yes. Book the PIESA.', text: 'Call ' + O + ', agree a day and time, and book it here. The PIESA fee is paid.', fields: [sel('Electrician', ['James Spark (Main)', 'Peter Orlando']), sel('Day', ['Thu 12 Nov', 'Fri 13 Nov', 'Mon 16 Nov']), sel('Arrival', ['9:00am', '10:00am', '1:00pm'])], button: 'Book', more: O + ' gets a confirmation. James does the PIESA in Mitti and you both get the result. Any electrical upgrades you quote and invoice to the owner directly.' },
+      { dot: 2, you: false, title: 'PIESA booked', text: 'Thu 12 Nov, 9:00am · James Spark. ' + O + ' has been told.', links: ['Change time', 'Change electrician'] },
+      { dot: 3, you: false, title: "PIESA done. We're collecting the deposit.", text: "All clear. We've asked " + O + " to pay the deposit. We'll email you the moment it's in.", chips: [chip('PIESA passed', 'ok')] },
+      { dot: 4, you: true, title: O + "'s deposit is in. Book the install by Sat 12 Dec.", text: 'Call ' + O + ", agree a day and time, and book it here. You pick who's going later.", chips: [chip('Deposit paid', 'ok'), chip('Certificate not uploaded yet', 'warn')], fields: [sel('Day', ['Wed 25 Nov', 'Thu 26 Nov', 'Fri 27 Nov']), sel('Arrival', ['8:00am', '9:00am'])], button: 'Book the install', more: "2 days before, the day and your Lead lock and we tell ESC. Days after Sat 12 Dec can't be picked." },
+      { dot: 4, you: true, title: 'Pick the Lead and crew by Mon 23 Nov', text: 'Install booked for Wed 25 Nov, 8:00am.', fields: [sel('Lead Installer', ['Deep Singh', 'Tom Lowe'])], ticks: [{ name: 'Raj Kumar', on: true }, { name: 'Wayne Fletcher', on: true }, { name: 'Tom Lowe', on: false }], button: "Save who's going", links: ['Change the day'], more: 'Each person gets their safety plan to sign by text when you save. Your Lead also gets the Mitti install form.' },
+      { dot: 4, you: false, title: 'Install booked', text: 'Wed 25 Nov, 8:00am · Lead: Deep · Crew: Raj, Wayne.', chips: [chip('Safety plan: Deep ✓', 'ok'), chip('Safety plan: Raj ✓', 'ok'), chip('Safety plan: Wayne not signed · Remind', 'warn')], links: ['Change the day', "Change who's going", "Couldn't get in"], more: "The afternoon before you get a GO or DON'T START email. Your Lead still does the PIISA onsite before starting." }
+    ];
+    const end = own
+      ? [{ dot: 5, you: false, title: 'Install done · Wed 25 Nov', text: 'Jo pays the balance on install day.', chips: [chip('Install form ✓', 'ok'), chip('Rebate form ✓', 'ok'), chip('Balance not paid yet', 'warn')], more: "If Jo hasn't paid we touch base on days 1, 3 and 7." },
+         { dot: 6, you: false, title: 'Paid · Wed 2 Dec · $2,500.00', text: 'Sent to your account ending 4417. This job is done.', chips: [chip('Paid', 'ok')] }]
+      : [{ dot: 5, you: false, title: 'Install done · Wed 25 Nov', text: 'We check the install paperwork, then pay you your agreed rates 7 days after we approve it.', chips: [chip('Install form ✓', 'ok'), chip('Paperwork being checked', 'warn')] },
+         { dot: 6, you: false, title: 'Paid · Wed 9 Dec · $1,920.00', text: 'Sent to your account ending 4417. This job is done.', chips: [chip('Paid', 'ok')] }];
+    const S = first.concat(mid, end);
+    const i = Math.min(st.i, S.length - 1);
+    const PB = {
+      declined: { dot: 1, closed: true, title: O + ' said no', text: 'This job is closed. Nothing for you to do.' },
+      expired: { dot: 1, closed: true, title: 'Quote expired', text: "We've asked " + O + " if they'd like a new one. Nothing for you to do." },
+      cancelled: { dot: S[i].dot, closed: true, cancel: true, title: "This job's been cancelled", text: 'Owner changed their mind. We\'ve told ' + O + '. Please cancel anything you\'ve booked on your end, like your electrician and crew.' },
+      hold: { dot: S[i].dot, closed: true, title: 'On hold', text: "Waiting on the owner's landlord. We'll let you know the moment it's back on. Nothing for you to do." },
+      noaccess: { dot: 4, you: true, title: "Couldn't get in on Wed 25 Nov", text: 'Call ' + O + ', agree a new day and book it here. Install by Sat 12 Dec.', fields: [sel('Day', ['Mon 30 Nov', 'Tue 1 Dec', 'Wed 2 Dec']), sel('Arrival', ['8:00am', '9:00am'])], button: 'Book', more: 'Our office has been told.' },
+      part: { dot: 4, you: true, title: 'Part installed', text: "Tell us what's left and book a day to finish it.", fields: [inp("What's left", 'Back bedroom, 18 m²'), sel('Day', ['Mon 30 Nov', 'Tue 1 Dec']), sel('Arrival', ['8:00am', '9:00am'])], button: 'Book', more: "Our office has been told. No paperwork approval or pay until it's finished." },
+      elec: { dot: 4, you: true, stop: true, title: 'Electrician needed on install day', text: 'The PIESA says an electrician must be there. Book them for Wed 25 Nov, 8:00am.', fields: [sel('Electrician', ['James Spark (Main)', 'Peter Orlando'])], button: 'Book electrician', more: "Until they're booked, you get a DON'T START email the afternoon before." }
+    };
+    const pb = PB[st.prob];
+    const s = Object.assign({ chips: [], fields: [], links: null, ticks: null, button: '', more: '' }, pb || S[i]);
+    const last = i === S.length - 1;
+    s.hasChips = s.chips.length > 0;
+    s.chip = s.stop ? "Don't start" : s.cancel ? 'Cancelled' : s.you ? 'Your turn' : s.closed ? (st.prob === 'hold' ? 'On hold' : 'Closed') : last ? 'Done' : 'Nothing for you to do';
+    s.chipStyle = 'font-size: 13px; font-weight: 800; border-radius: 999px; padding: 6px 12px; ' + (s.stop || s.cancel ? 'background: #FDECEA; color: #B42318' : s.you ? 'background: #E7F8EF; color: #067A40' : 'background: #EEF1F7; color: #5B6785');
+    s.edge = s.stop || s.cancel ? '#B42318' : s.you ? '#07BF61' : '#E3E8F2';
+    s.waiting = !s.button && !last && !pb;
+    const dots = ['Measure', 'Quote', 'PIESA', 'Deposit', 'Install', 'Paid'].map((label, n) => {
+      const done = n < s.dot, now = n === s.dot;
+      return { label, bar: 'display: block; height: 6px; border-radius: 3px; background: ' + (done ? '#07BF61' : now ? '#3C51C4' : '#E3E8F2'), text: 'font-size: 11px; font-weight: ' + (now ? '800' : '600') + '; color: ' + (now ? '#22376B' : done ? '#067A40' : '#8792AB') + '; overflow: hidden; text-overflow: ellipsis; white-space: nowrap' };
+    });
+    const g = v => ({ ink: '#067A40', v }), w = v => ({ ink: '#8A4B00', v }), n = v => ({ ink: '#22376B', v }), dim = { ink: '#8792AB', v: '–' };
+    const T = {
+      details: i === 0 ? (own
+        ? [Object.assign({ k: 'Added' }, n('By you, Fri 6 Nov')), Object.assign({ k: 'Owner agreed to be contacted' }, g('✓')), Object.assign({ k: 'Measurements' }, w('Not measured yet'))]
+        : [Object.assign({ k: 'Given to you' }, n('Fri 6 Nov')), Object.assign({ k: 'Removal' }, w(rc ? 'Check at the Ready Check' : 'Check in the photos')), Object.assign({ k: 'Home built' }, n('More than 5 years ago')), Object.assign({ k: 'Measurements' }, w(rc ? 'From your Ready Check' : 'From the photos'))]) : [
+        Object.assign({ k: 'Install area' }, n(own ? '142.2 m² · 2 areas' : '128 m²')),
+        Object.assign({ k: "What's up there now" }, n('Nothing')),
+        Object.assign({ k: 'Removal' }, n('None')),
+        Object.assign({ k: 'Product' }, n('Earthwool R5.0')),
+        Object.assign({ k: 'Access' }, n('Easy')),
+        own ? Object.assign({ k: 'Your price' }, n('$2,500.00')) : Object.assign({ k: 'Your pay' }, n('Your agreed rates')),
+        Object.assign({ k: 'You get paid' }, last ? g(own ? 'Paid Wed 2 Dec' : 'Paid Wed 9 Dec') : n(own ? '7 days after Jo pays in full' : '7 days after we approve the paperwork'))
+      ],
+      told: [[i >= 2, 'Fri 6 Nov', 'Quote sent'], [i >= 3, 'Mon 9 Nov', 'Said yes, PIESA fee paid'], [i >= 4, 'Mon 9 Nov', 'PIESA booked for Thu 12 Nov'], [i >= 5, 'Thu 12 Nov', 'PIESA result and deposit request'], [i >= 7, 'Fri 13 Nov', 'Install booked for Wed 25 Nov'], [i >= 9, 'Wed 25 Nov', 'Balance due today'], [last, 'Fri 27 Nov', 'Paid in full, thank you']].filter(x => x[0]).reverse().map(x => ({ k: x[1], v: x[2], ink: '#22376B' })),
+      papers: [
+        Object.assign({ k: 'Customer agreement + ESC consent' }, i >= 3 ? g('✓') : dim),
+        Object.assign({ k: 'PIESA' }, i >= 5 ? g('✓') : dim),
+        Object.assign({ k: 'Certificate of Electrical Safety' }, i >= 9 ? g('✓') : i >= 5 ? w('Upload') : dim),
+        Object.assign({ k: 'Safety plan' }, i >= 9 ? g('All signed') : i >= 8 ? w('2 of 3 signed') : dim),
+        Object.assign({ k: 'Install form + rebate form' }, i >= 9 ? g('✓') : dim)
+      ],
+      photos: [
+        Object.assign({ k: own || rc ? 'Ready Check' : "Owner's photos" }, own || rc ? (i >= 1 ? n('14 photos') : dim) : n('9 photos, 1 video')),
+        Object.assign({ k: 'PIESA' }, i >= 5 ? n('8 photos') : dim),
+        Object.assign({ k: 'Install (before and after)' }, i >= 9 ? n('22 photos') : dim)
+      ]
+    };
+    if (!T.told.length) T.told.push({ k: 'Nothing yet', v: '', ink: '#22376B' });
+    const tabDefs = [['details', 'Job details'], ['told', 'What ' + O + "'s been told"], ['papers', 'Paperwork'], ['photos', 'Photos']];
+    const tabs = tabDefs.map(([id, label]) => ({ label, sel: st.tab === id ? 'true' : 'false', pick: () => this.setState({ tab: id }),
+      style: 'font-family: inherit; font-size: 15px; font-weight: 700; padding: 12px 16px; min-height: 48px; background: ' + (st.tab === id ? '#FFFFFF' : 'transparent') + '; border: 1px solid ' + (st.tab === id ? '#E3E8F2' : 'transparent') + '; border-bottom: 0; border-radius: 12px 12px 0 0; margin-bottom: -1px; cursor: pointer; white-space: nowrap; flex: none; color: ' + (st.tab === id ? '#22376B' : '#5B6785') }));
+    const kinds = [['own', 'Your customer'], ['photos', 'Our lead · photos'], ['rc', 'Our lead · Ready Check']].map(([id, label]) => ({ label, pick: () => this.setState({ kind: id, i: 0, up: false }),
+      style: 'font-family: inherit; font-size: 13px; font-weight: 700; padding: 8px 12px; min-height: 36px; border-radius: 999px; cursor: pointer; ' + (st.kind === id ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6') }));
+    const m = st.m, needsUpload = m !== 'On site', upName = m === 'Floor plan' ? 'floor plan' : 'aerial photo';
+    const methods = ['Aerial photo', 'Floor plan', 'On site'].map(label => ({ label, on: m === label ? 'true' : 'false', pick: () => this.setState({ m: label }),
+      style: 'font-family: inherit; font-size: 14px; font-weight: 700; min-height: 44px; padding: 8px 14px; border-radius: 10px; cursor: pointer; ' + (m === label ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6') }));
+    const blocked = !pb && s.measure && needsUpload && !st.up;
+    return {
+      methods, needsUpload, upload: () => this.setState({ up: true }),
+      uploadLabel: st.up ? '✓ ' + upName + ' uploaded' : 'Upload the ' + upName + ' (needed)',
+      uploadStyle: 'width: 100%; min-height: 50px; border-radius: 12px; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; ' + (st.up ? 'background: #E7F8EF; color: #067A40; border: 1px solid #BFE9D2' : 'background: #FFFFFF; color: #3C51C4; border: 2px dashed #9FB0E8'),
+      btnBg: blocked ? '#9AA5BE' : '#07BF61', blockNote: blocked ? 'Upload the ' + upName + ' to send.' : '',
+      go: () => { if (pb) { this.setState({ prob: '' }); return; } if (!blocked) this.setState({ i: Math.min(S.length - 1, i + 1) }); },
+      probs: [['', 'None'], ['declined', 'Owner said no'], ['expired', 'Quote expired'], ['cancelled', 'Cancelled'], ['hold', 'On hold'], ['noaccess', "Couldn't get in"], ['part', 'Part installed'], ['elec', 'Electrician needed']].map(([id, label]) => ({ id, label })),
+      pickProb: e => this.setState({ prob: e.target.value }),
+      kinds, dots, s, tabs, rows: T[st.tab], isPhotos: st.tab === 'photos',
+      src: own ? 'Your customer' : 'Our lead',
+      srcStyle: 'font-size: 13px; font-weight: 800; border-radius: 999px; padding: 5px 11px; ' + (own ? 'background: #EAEEFB; color: #3C51C4' : 'background: #E7F8EF; color: #067A40'),
+      hv: own ? 'HV-3821' : 'HV-3300', addr: own ? '12 Example Street, Melton' : '24 Demo Road, Point Cook',
+      owner: own ? 'Jo Lowe' : 'Helen Journey', phone: own ? '0477 511 901' : '0411 220 334',
+      next: () => this.setState({ i: Math.min(S.length - 1, i + 1) }), restart: () => this.setState({ i: 0, up: false })
+    };
+  }
+}
+</script>
+</body>
+</html>
