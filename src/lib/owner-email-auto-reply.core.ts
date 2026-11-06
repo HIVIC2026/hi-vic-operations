@@ -104,6 +104,8 @@ export type AutoReplyInput = {
   /** From address is a partner business / worker / applicant, or a staff member. */
   senderIsPartnerOrStaff: boolean;
   job: OwnerJobFacts | null;
+  /** Firm-quote job (read by the server): the AI never answers these on its own; the office gets a draft. */
+  isFirmQuote?: boolean;
 };
 
 export type AutoReplyDecision =
@@ -255,6 +257,7 @@ export function decideOwnerAutoReply(i: AutoReplyInput): AutoReplyDecision {
   if (text.length > MAX_AUTO_CHARS) return { kind: "draft", reason: "long email — a person should read it" };
   if ((text.match(/\?/g) ?? []).length > 2) return { kind: "draft", reason: "several questions" };
   if (NEVER_STAGES.has(f.stage)) return { kind: "draft", reason: `job is ${f.stage.replace(/_/g, " ")}` };
+  if (i.isFirmQuote) return { kind: "draft", reason: "firm-quote job — the office answers" };
   const topics = topicsIn(text);
   if (!topics.length) return { kind: "draft", reason: "no standard question recognised" };
   const picks = topics.map((t) => answerFor(t, f));
