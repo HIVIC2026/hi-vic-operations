@@ -150,17 +150,23 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
   });
   const firmIds = new Set<string>();
   const firmDueBy = new Map<string, string | null>();
-  if (liveAt !== null) {
+  // TEST office (testJobIds): the TEST-only exception applies (qa_test + TEST owner email) with the switch NULL.
+  if (liveAt !== null || testJobIds) {
     // Proceed moves the saved response to the existing release queue. Keep only recorded firm requests
     // there in Enquiries until ordinary allocation/quoting progression, never closed/duplicate rows.
-    const saved = await all("saved firm enquiries", (a, b) => admin.from("office_enquiry_index")
+    const saved: Row[] = testJobIds ? await all("saved TEST firm enquiries", (a, b) => admin.from("jobs")
+      .select("id,job_number,created_at,source,channel,owners(full_name,email,phone)").eq("source", "qa_test").eq("channel", "hivic_sourced")
+      .in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"]).eq("stage", "ready_check_ready_to_schedule")
+      .order("created_at", { ascending: false }).order("id").range(a, b))
+      .then(rows => rows.map(r => { const owner = r["owners"] as { full_name?: string; email?: string; phone?: string } | null; return { ...r, owner_name: owner?.full_name, owner_email: owner?.email, owner_phone: owner?.phone, enquiry_status: null, needs_first_response: false, latest_attempt_status: null, latest_attempt_at: null }; }))
+    : await all("saved firm enquiries", (a, b) => admin.from("office_enquiry_index")
       .select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, latest_attempt_at, owner_name, owner_email, owner_phone")
       .eq("office_bucket", "active").eq("channel", "hivic_sourced").eq("source", "base44")
-      .gte("created_at", liveAt).eq("spot_saved", true).eq("owner_progressed", false)
+      .gte("created_at", liveAt!).eq("spot_saved", true).eq("owner_progressed", false)
       .in("stage", ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule"])
       .order("created_at", { ascending: false }).order("id").range(a, b));
     const candidates = [...new Map([...index, ...saved].filter(r => isFirmQuoteJob({
-      createdAt: String(r["created_at"]), source: s(r["source"]), liveAt, hasMedia: true,
+      createdAt: String(r["created_at"]), source: s(r["source"]), liveAt, hasMedia: true, ownerEmail: s(r["owner_email"]),
     })).map(r => [String(r["id"]), r])).values()];
     const candidateIds = candidates.map(r => String(r["id"]));
     const [media, requests, assignments, quotes] = await Promise.all([
@@ -174,7 +180,7 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
     for (const r of candidates) {
       const id = String(r["id"]);
       const docs = media.filter(d => d["job_id"] === id) as { kind: string; mime_type: string | null; storage_path: string | null }[];
-      if (!isFirmQuoteJob({ createdAt: String(r["created_at"]), source: s(r["source"]), liveAt, hasMedia: hasOwnerMedia(docs) })) continue;
+      if (!isFirmQuoteJob({ createdAt: String(r["created_at"]), source: s(r["source"]), liveAt, hasMedia: hasOwnerMedia(docs), ownerEmail: s(r["owner_email"]) })) continue;
       firmIds.add(id);
       const events = requests.filter(e => e["job_id"] === id) as { event_type: string; details: unknown }[];
       firmDueBy.set(id, firmQuoteRequestDueBy(events));

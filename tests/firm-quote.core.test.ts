@@ -45,3 +45,17 @@ test("invalid reminder timestamps fail closed", () => {
   expect(firmQuoteDay4Due({ ...reminder, now: new Date("invalid") })).toBe(false);
 });
 test("due date uses Jo's weekday day month format", () => expect(formatDueDate("2026-11-20")).toBe("Friday 20 November"));
+// TEST-only exception (Jo, option A, 7 Nov 2026).
+import { isFirmQuoteJob as fq, isTestFirmQuoteOwnerEmail, FIRM_QUOTE_TEST_FROM } from "../src/lib/firm-quote.core";
+test("switch NULL: real website enquiry is not a firm-quote job; TEST job with TEST owner email is", () => {
+  const at = "2026-11-07T00:00:00Z";
+  expect(fq({ source: "base44", createdAt: at, liveAt: null, hasMedia: true, ownerEmail: "owner@gmail.com" })).toBe(false);
+  expect(fq({ source: "base44", createdAt: at, liveAt: null, hasMedia: true, ownerEmail: "x@hivic-test.example" })).toBe(false);
+  expect(fq({ source: "qa_test", createdAt: at, liveAt: null, hasMedia: true, ownerEmail: "x@hivic-test.example" })).toBe(true);
+  expect(fq({ source: "qa_test", createdAt: at, liveAt: null, hasMedia: true, ownerEmail: "someone@hotmail.com" })).toBe(false);
+  expect(fq({ source: "qa_test", createdAt: at, liveAt: null, hasMedia: false, ownerEmail: "x@hivic-test.example" })).toBe(false);
+  expect(fq({ source: "qa_test", createdAt: "2026-11-06T21:29:59Z", liveAt: null, hasMedia: true, ownerEmail: "x@hivic-test.example" })).toBe(false);
+  expect(FIRM_QUOTE_TEST_FROM).toBe("2026-11-06T21:30:00Z");
+  expect(isTestFirmQuoteOwnerEmail(" JOLOWEXO@hotmail.com")).toBe(true);
+  expect(isTestFirmQuoteOwnerEmail("a@hivic-test.example.com")).toBe(false);
+});

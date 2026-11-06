@@ -13,7 +13,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
 } } }));
 const { firmQuoteLiveAt, isFirmQuoteJobId } = await import("../src/lib/firm-quote.server");
 beforeEach(() => { liveAt = null; failure = null; failedTable = null; job = { source: "base44", created_at: "2026-11-06T06:00:00Z" }; docs = [{ kind: "intake_media", mime_type: "image/jpeg", storage_path: "job/intake/photo.jpg" }]; reads.length = 0; });
-test("null switch returns null and skips job/media reads", async () => { expect(await firmQuoteLiveAt()).toBeNull(); expect(await isFirmQuoteJobId("job")).toBe(false); expect(reads).not.toContain("jobs"); expect(reads).not.toContain("documents"); });
+test("null switch returns null and skips media reads for real enquiries", async () => { expect(await firmQuoteLiveAt()).toBeNull(); expect(await isFirmQuoteJobId("job")).toBe(false); expect(reads).not.toContain("documents"); });
 test("missing PostgreSQL column reads as off", async () => { failure = { code: "42703", message: "column workflow_settings.firm_quote_flow_live_at does not exist" }; expect(await firmQuoteLiveAt()).toBeNull(); expect(await isFirmQuoteJobId("job")).toBe(false); });
 test("missing schema-cache column reads as off", async () => { failure = { code: "PGRST204", message: "Could not find the 'firm_quote_flow_live_at' column of 'workflow_settings' in the schema cache" }; expect(await firmQuoteLiveAt()).toBeNull(); });
 test("other read errors never masquerade as a missing column", async () => { failure = { code: "42501", message: "permission denied" }; await expect(firmQuoteLiveAt()).rejects.toThrow(); });
@@ -33,7 +33,7 @@ test("media read failure blocks rather than selecting a legacy email", async () 
 const { firmQuoteJobIdsFrom } = await import("../src/lib/firm-quote.server");
 const rows = Array.from({ length: 300 }, (_, i) => ({ id: `j${i}`, source: "base44", created_at: "2026-11-06T06:00:00Z" }));
 const photo = (job_id: string) => ({ job_id, kind: "intake_media", mime_type: "image/jpeg", storage_path: `${job_id}/intake/photo.jpg` });
-test("batched check with the switch off makes one settings read for 300 jobs and finds none", async () => {
+test("batched check with the switch off makes one settings read for 300 real jobs and finds none", async () => {
   expect(await firmQuoteJobIdsFrom(rows, [])).toEqual(new Set());
   expect(reads).toEqual(["workflow_settings"]);
 });
@@ -51,3 +51,31 @@ test("batched check: a failed media read blocks only when a job could be firm-qu
   await expect(firmQuoteJobIdsFrom(rows, null)).rejects.toThrow("Could not verify owner media for firm quote.");
 });
 test("batched check: a failed activation read still blocks", async () => { failure = { code: "42501", message: "denied" }; await expect(firmQuoteJobIdsFrom(rows, [])).rejects.toThrow(); });
+
+// TEST-only exception (Jo, option A, 7 Nov 2026): switch NULL, TEST jobs with TEST owner emails only.
+test("switch NULL: a real website enquiry with photos is still refused", async () => {
+  job = { source: "base44", created_at: "2026-11-07T00:00:00Z", owners: { email: "owner@gmail.com" } } as typeof job;
+  expect(await isFirmQuoteJobId("job")).toBe(false);
+  expect(reads).not.toContain("documents");
+});
+test("switch NULL: a real enquiry with a TEST-looking email is still refused (source must be qa_test)", async () => {
+  job = { source: "base44", created_at: "2026-11-07T00:00:00Z", owners: { email: "qa@hivic-test.example" } } as typeof job;
+  expect(await isFirmQuoteJobId("job")).toBe(false);
+});
+test("switch NULL: a TEST job with a TEST owner email and photos runs the firm-quote flow", async () => {
+  job = { source: "qa_test", created_at: "2026-11-07T00:00:00Z", owners: { email: "qa.owner@hivic-test.example" } } as typeof job;
+  expect(await isFirmQuoteJobId("job")).toBe(true);
+  job = { source: "qa_test", created_at: "2026-11-07T00:00:00Z", owners: { email: "jolowexo@hotmail.com" } } as typeof job;
+  expect(await isFirmQuoteJobId("job")).toBe(true);
+});
+test("switch NULL: TEST job with a real-looking email, or made before the exception, stays legacy", async () => {
+  job = { source: "qa_test", created_at: "2026-11-07T00:00:00Z", owners: { email: "jo@dcconstructionsolutions.com.au" } } as typeof job;
+  expect(await isFirmQuoteJobId("job")).toBe(false);
+  job = { source: "qa_test", created_at: "2026-11-06T21:29:59Z", owners: { email: "qa.owner@hivic-test.example" } } as typeof job;
+  expect(await isFirmQuoteJobId("job")).toBe(false);
+});
+test("switch NULL: a failed job read keeps the existing non-firm path", async () => { failedTable = "jobs"; failure = { code: "42501", message: "denied" }; expect(await isFirmQuoteJobId("job")).toBe(false); });
+test("batched, switch NULL: only TEST-exception jobs qualify; real enquiries never", async () => {
+  const mixed = [{ id: "real", source: "base44", created_at: "2026-11-07T00:00:00Z", owners: { email: "o@gmail.com" } }, { id: "t", source: "qa_test", created_at: "2026-11-07T00:00:00Z", owners: { email: "q@hivic-test.example" } }];
+  expect([...await firmQuoteJobIdsFrom(mixed, [photo("real"), photo("t")])]).toEqual(["t"]);
+});
