@@ -30,3 +30,20 @@ export async function setDoNotContactFromStop(db: any, phone: string, sid: strin
   }
   return turnedOn;
 }
+
+/** An email unsubscribe turns on "Do not contact" for its own job (Jo 7 Nov, same as STOP). Skips cancelled/deleted jobs and
+ *  a job already on. Returns whether it turned it on. Read failures throw (fail closed). */
+export async function setDoNotContactFromUnsubscribe(db: any, jobId: string, now: string): Promise<boolean> {
+  const { data: job, error } = await db.from("jobs").select("id, stage, deleted_at").eq("id", jobId).maybeSingle();
+  if (error) throw new Error("Could not read job for unsubscribe Do not contact");
+  if (!job || job.deleted_at || job.stage === "cancelled") return false;
+  const { data, error: readError } = await db.from("workflow_events").select("job_id, event_type, created_at").eq("job_id", jobId).in("event_type", [DO_NOT_CONTACT_SET_EVENT, DO_NOT_CONTACT_CLEARED_EVENT]);
+  if (readError) throw new Error("Could not read Do not contact for unsubscribe");
+  if (doNotContactOn(data ?? [])) return false;
+  const { error: insertError } = await db.from("workflow_events").insert({
+    job_id: jobId, actor_id: null, event_type: DO_NOT_CONTACT_SET_EVENT, internal: true, created_at: now,
+    summary: "Owner unsubscribed: do not contact", details: { source: "email_unsubscribe", note: "Owner unsubscribed" },
+  });
+  if (insertError) throw new Error("Could not turn on Do not contact after unsubscribe");
+  return true;
+}

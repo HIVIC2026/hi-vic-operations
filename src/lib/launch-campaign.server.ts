@@ -176,7 +176,7 @@ export async function optOutCampaign(token: unknown, reason?: import("./not-inte
   const { unsubscribeUrlForJob, recordUnsubscribe } = await import("./emailsafety.server");
   const url = new URL(await unsubscribeUrlForJob(c.job.id));
   const unsubscribeToken = url.searchParams.get("t");
-  if (!unsubscribeToken || !(await recordUnsubscribe(unsubscribeToken))) throw new Error("We couldn't update your preference. Please try again.");
+  if (!unsubscribeToken || !(await recordUnsubscribe(unsubscribeToken, { closeJob: false }))) throw new Error("We couldn't update your preference. Please try again.");
   const { error } = await admin.from("lead_campaign_responses").upsert({
     job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, opted_out_at: now, spot_saved_at: null,
     video_requested: c.group === "onsite", desk_check_status: "not_needed", updated_at: now,

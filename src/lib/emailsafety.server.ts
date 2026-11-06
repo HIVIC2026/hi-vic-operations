@@ -32,14 +32,17 @@ export async function unsubscribeUrlForJob(jobId: string): Promise<string> {
   return unsubscribeUrl(token);
 }
 
-/** Idempotent opt-out. Also stores a withdrawn contact consent so every consent gate closes. Returns false for unknown tokens. */
-export async function recordUnsubscribe(token: string): Promise<boolean> {
+/** Idempotent opt-out. Also stores a withdrawn contact consent so every consent gate closes. Returns false for unknown tokens.
+ *  `closeJob: false` = the caller cancels the job itself (the campaign "not interested" flow keeps its own reason). */
+export async function recordUnsubscribe(token: string, o: { closeJob?: boolean } = {}): Promise<boolean> {
   if (!isWellFormedToken(token)) return false;
   const { data: row } = await admin.from("customer_email_optouts").select("id, job_id, opted_out_at").eq("token", token).maybeSingle();
   if (!row) return false;
   if (row.opted_out_at) return true;
   const at = new Date().toISOString();
-  await admin.from("customer_email_optouts").update({ opted_out_at: at }).eq("id", row.id).is("opted_out_at", null);
+  const { data: won } = await admin.from("customer_email_optouts").update({ opted_out_at: at }).eq("id", row.id).is("opted_out_at", null).select("id").maybeSingle();
+  // A second click (or a racing one) that did not record the opt-out does nothing more.
+  if (!won) return true;
   const { data: job } = await admin.from("jobs").select("owner_id").eq("id", row.job_id).maybeSingle();
   if (job?.owner_id) {
     const snapshot = { reason: "email_unsubscribe", at };
@@ -48,5 +51,18 @@ export async function recordUnsubscribe(token: string): Promise<boolean> {
     await admin.from("owner_contact_consents").insert({ job_id: row.job_id, owner_id: job.owner_id, source: "unsubscribe", consent_key: `unsubscribe:${row.id}`, consent_status: "not_granted", contact_consent: false, snapshot, sha256 });
   }
   await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: "unsubscribed" }).eq("job_id", row.job_id).in("status", ["pending", "queued"]);
+  // Jo 7 Nov 2026: the same rule as a STOP text — Do not contact on the job, then an open enquiry or saved spot is
+  // cancelled "Opted out (unsubscribed)"; later work stays open. The opt-out above is already saved either way.
+  if (o.closeJob === false) return true;
+  try {
+    const { setDoNotContactFromUnsubscribe } = await import("./do-not-contact-stop.server");
+    await setDoNotContactFromUnsubscribe(admin, row.job_id, at);
+    const { closeOptedOutJob } = await import("./sms-stop.server");
+    const closed = await closeOptedOutJob(admin, row.job_id, "email_unsubscribe", at);
+    if (closed.failure) console.error("unsubscribe: releasing the installer failed", row.job_id, closed.failure);
+  } catch (e) {
+    // The owner's opt-out is saved and every email/consent gate already reads it; the job clean-up is logged for the office.
+    console.error("unsubscribe: job clean-up failed", row.job_id, (e as Error).message);
+  }
   return true;
 }
