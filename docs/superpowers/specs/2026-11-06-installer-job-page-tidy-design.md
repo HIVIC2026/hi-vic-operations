@@ -14,9 +14,8 @@ nobody will use. Jo: "They're never going to do a Mitti Ready Check. Get rid of 
 - Every installer quotes from the desk, on Home Insulation Victoria leads and on their own customers. The per-installer
   "Ready Check / From photos" setting goes. Every business works as "From photos" does today (`quoteMethodOf` always
   returns `photos`, and the office switch in `pilot.functions.ts` / partner settings is removed).
-- The own-customer Measure & quote box shows one way only: a green **"Desktop quote"** button that opens the existing
-  "enter the details" form (sizes, removal, existing insulation + R-value, how measured with plan/aerial upload, access,
-  price inc GST, optional photos). The "Do a Ready Check on site" option, its "Tap this… within 15 minutes" text, the
+- The quote box on the job page shows one way only: a green **"Desktop quote"** button that opens the new desktop
+  quote form (A7). The "Do a Ready Check on site" option, its "Tap this… within 15 minutes" text, the
   "Mitti form ready" line and the Mitti link all go.
 - The portal stops making a Mitti Ready Check form automatically for new jobs (own customers after Add a job, and
   Home Insulation Victoria leads when given to an installer). The Mitti install form (A5) and the electrician's forms are unchanged.
@@ -52,6 +51,44 @@ nobody will use. Jo: "They're never going to do a Mitti Ready Check. Get rid of 
 - "Our lead" → **"Home Insulation Victoria lead"** on Action items cards.
 - "Our leads are paid…" → **"Home Insulation Victoria leads are paid…"** in the two installer pay lines
   (`installer-screens.core.ts`). Office screens are unchanged.
+
+### A7. Desktop quote form (approved mock-ups: "Desktop quote · own customer · phone" and
+"Desktop quote · Home Insulation Victoria lead · phone" on the installer portal redesign canvas)
+Replaces the old "enter the details" form. Built in the redesign look: light, compact, white cards, small grey toggles
+with the picked option in white and green, every control lined up on the same edges, same text size throughout.
+Every question is required. Follow-ups only show when they apply. No photos (the owner has already sent them).
+
+**Owner** (always shown, never folded): name, mobile, email, address. Editable on own customers; read-only on
+Home Insulation Victoria leads. The address uses the same verified address finder as Add a job (type, pick from the
+list, "✓ Address found"); an address not picked from the list blocks Submit.
+
+**Ceiling areas:** a −/+ counter (1–6). Each area folds to one line once done, e.g.
+"Whole house (excl. garage) · 142.2 m² · remove 142.2 m² ✓"; tap to open. For each area:
+1. Part of the home: Whole house excluding garage / Extension / Other (Other → type which part).
+2. Measured from: Floor plan / Aerial / Other. Other → "Where are the measurements from?" (required). Then upload the
+   floor plan, aerial image or proof (required).
+3. Ceiling area (m²).
+4. Existing insulation: Yes / No. If Yes:
+   - Type: Batts / Loose fill
+   - R-value: Below R2.0 / R2.0 or above. R2.0 or above → "Not eligible. Existing R2.0 or above can't get the
+     rebate." and that area is left out of the totals.
+   - Remove or top up? Remove → removal area (m²). Top up → mandatory tick "I confirm the existing insulation is in
+     good enough condition to lay over". "Why is it being kept?" is NOT asked here: the install-day Mitti form (A5,
+     BEFORE page) already asks it per area and fills PIISA Part 6.
+
+**Product** (list without ECOWOOL). **Your price inc GST** typed in: own customers only. Home Insulation Victoria
+leads never show or ask a price.
+
+**Summary card:** install area, removal, product, price (own customers), then "Still to do:" listing exactly what's
+missing, then the tick "I confirm these sizes are accurate. My price stands if they're wrong." (leads: "I confirm
+these sizes are accurate.").
+
+**Bottom bar** (always on screen): Save, and **Submit quote** (stays pale until nothing is left to do). After submit
+the quote goes to Jo to check, as today.
+
+**Home Insulation Victoria leads only:** a small red link "Can't take this job? Decline it" → reason (Not eligible /
+Too far away / No safe access / Too busy right now / Other) + "Tell us more", buttons "Keep job" / "Decline job". The job
+goes back to Home Insulation Victoria. ("Can this home be quoted?" was removed; declining replaces it on leads.)
 
 ### Testing
 - Unit tests on the pure cores: `action-items.core.ts` (card words, PIESA hidden/late, count), `job-page-rows.core.ts`
