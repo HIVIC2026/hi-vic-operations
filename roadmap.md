@@ -1190,8 +1190,8 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] Jo 7 Nov 10am: carry on the TEST journey — BLOCKED: needs Jo's approval to sign in as the TEST logins (approval card unavailable this turn).
 
 ## Jo 7 Nov ~9:50am answers (in order; switch NULL, TEST inbox only, no publish, no real records)
-- [ ] 1. TEST office: see TEST job details in Choose installer + Give to TEST installers; TEST installer set up incl. coverage; test proving TEST office still can't see a real job
-- [ ] 2. Carry on whole TEST job from handover — report only (passed / broken / not tested, timings)
-- [ ] 3a. Owner estimate after Proceed: no Save my spot wording, show rebate (approved words only) — tests first, sha
-- [ ] 3b. One pile: photo enquiry only in Enquiries › With photos until given — tests first, sha
-- [ ] 3c. Office job page Ready Check wording on firm-quote jobs: propose before → after, STOP for Jo's OK
+- [x] 1. TEST office: see TEST job details in Choose installer + Give to TEST installers; TEST installer set up incl. coverage; test proving TEST office still can't see a real job (on-screen check BLOCKED: TEST sign-in approval unavailable)
+- [ ] 2. Carry on whole TEST job from handover — BLOCKED: TEST sign-in approval unavailable (needs Jo to approve signing in as the TEST logins)
+- [x] 3a. Owner estimate after Proceed: no Save my spot wording, show rebate (approved words only) — c3280e0d1
+- [x] 3b. One pile: photo enquiry only in Enquiries › With photos until given — 3a0ebf81c
+- [ ] 3c. Office job page Ready Check wording on firm-quote jobs: proposal sent, WAITING for Jo's OK
