@@ -1,133 +1,212 @@
-# Installer portal redesign: design spec (6 Nov 2026)
+# Installer portal redesign: design spec (v2, 6 Nov 2026)
 
-Status: DRAFT for Jo's review. Every installer-facing word below was approved by Jo on 6 Nov 2026. The source is `docs/superpowers/handoffs/2026-11-06-installer-portal-redesign-handoff.md`. A word marked *(draft)* has not been approved.
-Mock-ups: `docs/superpowers/mockups/2026-11-06-installer-portal/`. Audit page: https://claude.ai/artifact/4N9YDro7BhDLS3gTGmad4C. ChatGPT audit triage: handoff, "ChatGPT audit" section.
+Status: for Jo's review. Every screen and every word below was approved by Jo on 6 Nov 2026 on the design canvas.
+Canvas (the source of truth for the look): https://claude.ai/artifact/J4b2MUfmHFMkD1FeUFwYsF. A copy of its source is in `docs/superpowers/mockups/2026-11-06-installer-portal/canvas/`.
+Decision log: `docs/superpowers/handoffs/2026-11-06-installer-portal-redesign-handoff.md`. Where this spec and the log disagree, **this spec wins** (v2 replaces v1's screens, layouts and step 7/8 wording).
 
 ## 1. Goal
 
-All installer bosses (on a phone) and their office staff (on a computer) use one simple portal. Every job shows **one Next step**. That step either says what they must do or says who we're waiting on. The portal covers all three job types:
+Every installer boss and office (on a phone or a computer) always knows the one thing to do next on every job. Nothing gets lost or frozen. Every page is fast.
 
-1. **Own customer**: they measure, set their own price, and we send the quote.
-2. **Our lead from photos**: they measure from the owner's photos (a desktop job). We quote from Home Insulation Victoria's prices and pay them their agreed rates.
-3. **Our lead with a Ready Check**: they visit and fill in the Mitti Ready Check. After that it runs the same as 2.
+No installer is using the current installer portal, so the new pages **replace** the old installer pages directly. There's no parallel run and no per-installer switch. Nothing goes live to real installers until Jo says go (§10).
 
-From "Quote with the owner" onward, the words are the same on every journey. Only the payment step at the end differs.
+## 2. Must not change
 
-## 2. Out of scope / must not change
+- Domain guards and workflow rules: `AGENTS.md`, `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md`, `src/config/workflow-decisions.ts`. This work changes screens and the rules listed in §7 only.
+- The $349 fee, PIESA fees, the 50% deposit, 30-day quote validity and the chase timings.
+- Mitti forms. Office screens are out of scope.
+- No live SQL, sends or publish without Jo's explicit yes. Each part is its own pull request, and Jo merges.
 
-- Domain guards and workflow rules (`AGENTS.md`, `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md`, `src/config/workflow-decisions.ts`). This redesign changes screens, words and the decisions listed in §6. Nothing else changes.
-- The $349 fee, PIESA fee handling, the 50% deposit and the quote validity rules all stay as they are today.
-- Mitti forms and question wording stay as they are.
-- Office screens are out of scope (they're a separate handoff).
-- No live SQL, no sends, no publish without Jo's explicit yes. Each screen gets its own pull request, and Jo merges.
+## 3. Look (all pages)
 
-## 3. Screens (approved mock-ups)
+- Home Insulation Victoria website look: Open Sans; navy #22376B text; grey #5B6785 secondary; blue #3C51C4 links and selected; green #07BF61 main buttons and done; light #F5F7FB background; lines #E3E8F2. White cards with a 16px radius. Large fields (16px text, 48px+ tall). Touch targets 44px or more.
+- Colours mean one thing each: **green** = your turn or done; **grey** = waiting on someone else; **amber** #8A4B00 on #FEF3E2 = reminder or something missing; **red** #B42318 on #FDECEA = stop / don't start / cancelled. Every coloured state also says what it is in words.
+- **Computer:** left menu (logo, + Add a job, Action items with a count, Calendar, Jobs, Money, My business; business and user name at the bottom).
+- **Phone:** top bar (logo, + Add a job) and a bottom menu with the same five items.
+- Short, plain words. Owners are called by name, never "her" or "she". Never "HIV": always "Home Insulation Victoria" or "us"/"we".
 
-Look: `docs/templates/installer/portal/M7-business.html` tokens (#22376B ink, #5A6785 sub, #3C51C4 blue, #07BF61 green, #E4E9F5 lines, #F7F8FC bg, Outfit headings, Figtree body). Built from `src/components/portal/kit.tsx` + `.portal-theme` tokens.
+## 4. Screens
 
-**Colours (decision):** green = done/confirmed, **amber = reminder / to do**, red = stop or don't start only. Every chip says its state in words too.
+### 4.1 Action items (home)
+- "Good morning, {first name}" · "{n} jobs need you today." · search (name, address or HV number).
+- **Fix before work starts** (red box): jobs where something would stop the install, e.g. "Book an electrician for install day" + the install date chip + a red button.
+- **Your turn:** each row is led by the bold action ("Pick the Lead and crew", "Sam said yes. Book the PIESA.", "Measure and quote"), then the address, then owner · HV · Your customer / Our lead, with one green button. A date chip appears only for a real deadline.
+- **Waiting on someone else:** folded by default, with a count. When opened, each job shows "Waiting on {James (electrician) / Home Insulation Victoria / owner name}".
+- **This week:** bookings by day, colour-coded like the Calendar, linking to the Calendar.
+- Tapping a row opens the Job page.
 
-### 3.1 My work (`mw-*.png`)
-- Table on a computer, cards on a phone. Header: "Good morning, {Business} crew!" plus counts. Tabs: **Your turn** (the default; only jobs where they must act, most urgent first, overdue in red) and **All jobs** (includes waiting, booked and finished jobs, plus filters for cancelled and closed). There's a search box and a "+ Add a job" button.
-- Each card shows: a source chip (Your customer / Our lead) · owner name · `HV-3821 · 12 Smith St, Melton` (`cardAddress`, PR #184) · the Next step title as a green tag · its due line (only when there's a real deadline) · one button. There's no Mitti form reference on cards.
-- Our lead with a Ready Check: the card says "Do the Ready Check" · "New job" · button "Open the job" *(draft)*.
+### 4.2 Job page
+- **Header:** source tag (Your customer / Our lead), HV number, address, owner name and mobile, Call and Email buttons.
+- **Progress:** 6 steps: Measure · Quote · PIESA · Deposit · Install · Paid.
+- **Next step box:** a chip (Your turn / Nothing for you to do / Don't start / Cancelled / Closed / On hold / Done), a title, 1–2 lines of text, status chips, a "What happens from here" fold-out, and on the right the fields and one big button. The border is green when it's their turn, grey when waiting, and red for stop or cancelled.
+- **Booking fields (every booking):** Day · Arrival · **Put it in the calendar?** Yes/No · **How long** (shown only if Yes: 1 hour, 2 hours, Half day, Full day, 2 days). **Change the day / Change time** opens the same fields in the box with **Save changes**. Saving moves it on the Calendar and tells the owner, and ESC when needed.
+- **Tabs below:** Job details · What {owner}'s been told · Paperwork · Photos. Job details shows only what's known. At the measure stage it shows the date given or added, the contact OK and "Not measured yet" / "From the photos" / "From your Ready Check", and never the owner's own size guess. Once measured: install area and spaces, what's up there now, **removal**, product, access, price (own customers) or "Your agreed rates" (our leads), and when they get paid.
 
-### 3.2 Job page (`s4b-*.png`)
-- **Header:** source chip, job number, owner name, full address, Call and Email buttons.
-- **Progress:** 6 dots: **Measure** · Quote · PIESA · Deposit · Install · Paid ("Measure" replaces "Ready Check" on all jobs).
-- **Next step box:** full width, green left bar. It has a short title, 1–2 lines of text, status chips, and a "What happens from here ›" link that opens the long version. On a computer, the fields and the big green button sit beside the text; on a phone they're stacked.
-- **Below the box:** two columns on a computer, stacked on a phone. Left: **Job details** (install m² · areas, removal, existing insulation, product brand + R value, roof/access, notes) and **Money**. Right: **Photos & videos** (+ Add photos; shows Ready Check, A5, PIESA and uploaded photos), **What the owner's been told**, **Paperwork**.
+### 4.3 Calendar
+- **Computer:** a week grid (Mon–Fri, 7am–3pm) with ‹ › week arrows, person filters (Everyone, then each person) and **+ Add a Ready Check**. Each booking is a block whose length is its How long. It shows type and start–finish time, place, who, and any flag (red "Don't start…", amber "Raj to sign safety plan", "Pick Lead and crew"). Colours: Install green, PIESA blue, Ready Check orange.
+- **Phone:** a day-by-day list (today marked, "Nothing booked" on empty days), with person filters that scroll sideways.
+- **Tap a booking:** Day, Arrival, How long, the rule line, **Save changes**, Open the job. Saving moves the booking at once and confirms: "Saved: {day}, {start} – {finish}. The job and the owner are updated." Rule lines:
+  - Install: "Must happen by {30-day date}. We tell ESC and the owner about any change."
+  - PIESA: "The owner gets a new booking text and email."
+  - Ready Check: "Just for your diary. The owner isn't messaged."
+- **Still to book:** jobs ready to book, each with a button.
+- Who can change bookings: the boss and office logins only (Leads and crew never log in).
 
-### 3.3 Add a job (`aj-*.png`)
-- One form: owner, address, contact, how they measured, and product (brand + R value). If they pick floor plan or aerial, the upload is **required**. The required tick "owner agreed to Home Insulation Victoria contacting them" stays.
-- **New:** a **Save for now** button. It needs only the owner, contact and address, and saves a draft they can finish later. The full checks run only on Send. A draft shows in My work as "Measure and quote".
-- Pressing Send twice returns the same job (no duplicate job or quote).
+### 4.4 Jobs
+- Search filters as you type (name, address, HV).
+- Tabs with counts: **Open · Your customers · Our leads · Done · Closed**.
+- Each row: address; owner · HV · source; where it's at plus the key date; one tag (Fix first / Your turn / Waiting / Done / Closed).
+- When the search finds nothing: "No jobs match. Try a different name, address or HV number."
 
-### 3.4 My business (`mb-*-3.png`)
-- Six roomy tiles with icons and chips, and no sub-lines: **Team · Electricians · Details** (includes who books safety checks, and whether they take our leads) · **Rates** (read only, inc GST, "To change these, call or email Home Insulation Victoria"; no request button) · **Documents** (insurance and agreement merged, uploads, expiry) · **Bank** (no "pending" word).
-- **New:** a bank detail change needs Home Insulation Victoria's office to OK it before any pay goes there. Until then, pay goes to the old account.
-- The How it works guide is removed.
+### 4.5 Add a job (own customers)
+- **Owner:** name, mobile, email, property address, and the required tick "{Name} agreed to Home Insulation Victoria contacting them".
+- **Ceiling:**
+  - How did you measure: On site / Floor plan / Aerial photo. Floor plan or aerial needs an upload, and Send is greyed out until it's done.
+  - **Ceiling spaces:** starts with "Main house" + m²; "+ Add another ceiling space"; total m² worked out automatically.
+  - What's up there now: Nothing / Old, staying / Old, removing. Removing shows a removal m² field.
+- **Product and access:** the product picker (§4.8). Access is **Easy or Difficult**. Difficult adds the installer's difficult access fee.
+- **Price:** **Use my rates** (shown as sums: install m² × the chosen product's rate + removal m² × removal rate + difficult fee) or **Type my own price**. It starts on the installer's default (§4.9 Rates). Photos are optional.
+- **Quote summary** (beside the form on a computer, under it on a phone): owner, address, install, removal, product, access, price, and a live **Before you can send** checklist. **Send for quote** is green only when everything's ticked. "We check it, then send {name} the quote." **Save for now** saves a draft (owner, contact and address only); full checks run on Send. Sending twice gives the same job.
 
-## 4. Next step boxes: approved words
+### 4.6 Our leads: the first step on the Job page
+- **From photos:** "Quote from {name}'s photos". How did you measure (Aerial photo / Floor plan / On site), with the upload required for aerial or plan (Send greyed until uploaded), then install m², removal m², product, access, **Send**, and "Can't quote this one" (pick a reason: photos not good enough / too far / too busy / other; it goes back to our office). No price is entered: we quote from Home Insulation Victoria's prices and pay the installer their agreed rates.
+- **With a Ready Check:** "Do the Ready Check". Call the owner and do it in Mitti under the HV number, "We'd love it within 5 business days". Button: Open the Mitti form, plus "Can't do this one". No date to book.
+- Installers **never** see Home Insulation Victoria's price on our leads, anywhere (§8).
 
-Example people and dates (real 2026 weekdays): owner Jo (own customer) / Helen (our leads), HV-3821. Quote sent Fri 6 Nov, valid until Sun 6 Dec. PIESA Thu 12 Nov 9:00am with James Spark. Install by Sat 12 Dec. Install Wed 25 Nov 8:00am, Lead and crew picked by Mon 23 Nov. The portal always fills in real names, dates and amounts. Use the owner's name, never "her" or "she".
+### 4.7 Steps and approved words
+Each step keeps the v1 words approved on 6 Nov (handoff log, journeys 1–3), with these canvas changes:
+- **Book the PIESA:** "{name} said yes. Book the PIESA." Fields: Electrician (Main pre-selected, changeable), Day, Arrival, calendar/How long. Button: Book.
+- **Book the install:** "{name}'s deposit is in. Book the install by {30-day date}." Day, Arrival, calendar/How long. Days after the 30-day date can't be picked ("After {date} a new PIESA is needed. Call Home Insulation Victoria."). Lead and crew are picked later.
+- **Pick the Lead and crew by {2 days before}:** one Lead Installer (approved, ESC-registered only), tick any number of approved crew, then **Save who's going**. If they aren't picked by 2 days before, the installer office gets one email.
+- **Install booked:** a safety plan chip per person (signed ✓ / not signed · Remind, at most once an hour per person). Links: Change the day · Change who's going · Couldn't get in. GO email line added: "Your Lead still does the PIISA onsite before starting."
+- **Paid:** "Paid · {date} · {amount}". Sent to account ending {last 4}.
+- **Problem boxes** (replace the normal box when they apply):
+  - Owner said no / Quote expired: grey, "Nothing for you to do".
+  - **Cancelled** (red): "Please cancel anything you've booked on your end, like your electrician and crew."
+  - **On hold:** "We'll let you know the moment it's back on."
+  - **Couldn't get in:** rebook with Day, Arrival and calendar fields; our office is told.
+  - **Part installed:** What's left, then rebook; our office is told; no paperwork approval or pay until finished.
+  - **Electrician needed on install day** (red, Don't start): book the electrician.
 
-### Journey 1: own customer (no deadlines on their own jobs)
-1. **Measure and quote.** "Measure up on site, then add the sqm, what's in the ceiling, product, access, photos and your price here, or do the Ready Check in Mitti (the form's already there under HV-3821). Press Send for quote and we take it from there." Button: **Measure and quote**.
-2. **Quote being prepared.** "We put the quote together with your price, the PIESA fee and our $349 fee, less the owner's rebate, and send it to the owner. You'll get an email when it goes out. Nothing for you to do."
-3. **Quote with the owner.** "Sent Fri 6 Nov · valid until Sun 6 Dec. We touch base with Jo on day 3 and 2 days before it expires. You'll hear from us the moment Jo accepts or declines." Button: See the quote. Links: Offer a discount · Change my price. We check any discount before the owner sees it.
-4. **"Jo said yes. Book the PIESA."** "Call Jo, agree a day and time, and book it here. The PIESA fee is already paid." Fields: Electrician (Main pre-selected from their approved list, changeable) · Day · Arrival. Button: **Book**. *What happens from here:* "We'll give you the green light to proceed to the PIESA. Call the owner and book the day and time, and please don't forget to book it here. The owner gets a confirmation. Your electrician is chosen from the approved people in your list. They do the PIESA and you both get the results. Any electrical upgrades are quoted and invoiced to the owner directly by you."
-5. **PIESA booked.** "PIESA booked · Thu 12 Nov, 9:00am · James Spark. The owner's been told. Nothing for you to do." Links: Change time · Change electrician. *What happens from here:* "The PIESA form appears in your electrician's Mitti. They do the check on the day. The result comes back here, the owner gets their copy, and you get yours. Any electrical upgrades are quoted and invoiced to the owner directly by you."
-6. **PIESA done. We're collecting the deposit.** "All clear. We've sent Jo the result and asked Jo to pay the deposit. Nothing for you to do." *What happens from here:* "We touch base with Jo on day 3 and day 7. We'll email you the moment it's paid so you can book the install."
-   - *If upgrades are needed:* "Upgrades needed. Quote and invoice the owner directly, then upload the Certificate of Electrical Safety here when they're done." Button: Upload certificate. The certificate is an **amber reminder and never blocks booking**. The existing GO / DON'T START rule (3 Nov) still sends DON'T START until the certificate is in and checked.
-7. **"Jo's deposit is in. Book the install by Sat 12 Dec."** "Call Jo, agree a day and time, and book it here. The install must happen by Sat 12 Dec (30 days from the PIESA). You pick who's going later." Fields: **Day · Arrival only**. Button: **Book the install**. Chips: Deposit paid ✓ · Certificate of Electrical Safety not uploaded yet · Upload (amber). *What happens from here:* "2 days before, the day and your Lead are locked and we notify the ESC. Your Lead and each crew member get a text with the safety plan to sign as soon as you pick them, and again the afternoon before if they haven't signed. Your Lead also gets the Mitti install form."
-   - **Hard block:** days after the install-by date can't be picked. Message: "After Sat 12 Dec a new PIESA is needed. Call Home Insulation Victoria." The install-by date is 30 days from the official PIESA date (existing `thirtyDayEnd`).
-8. **Install booked.** "Wed 25 Nov, 8:00am. Install by Sat 12 Dec. Pick your Lead Installer and crew by Mon 23 Nov (2 days before)." Pick one **Lead Installer**; **tick any number of crew**. Button: **Save who's going**. Link: Change the day. Only approved people (ESC-registered Leads; anyone with current CII) can be picked.
-   - If nobody is picked by 2 days before, the installer office gets one email.
-   - Once people are picked, each gets a safety plan chip: signed ✓ / not signed · **Remind** (re-sends that person's sign link, at most once an hour per person). Chips: Consent signed ✓ · Deposit paid ✓ · Certificate (amber if missing).
-   - On the day, the button becomes **Today's job**. *What happens from here:* "The afternoon before, you get a GO or DON'T START email. Your Lead signs the safety plan and does the install form in Mitti. The owner pays the balance on install day."
-9. **Install done · Wed 25 Nov.** "Jo pays the balance on install day." Chips: Install form ✓ · Rebate form signed ✓ · Balance not paid yet · Certificate uploaded ✓. *What happens from here:* "If Jo hasn't paid, we touch base on days 1, 3 and 7. Once Jo's paid in full, this job moves to Done."
-10. **Paid:** "Paid ✓ {date} · {amount}". The installer is paid **7 calendar days after the owner pays in full**.
+### 4.8 Product picker (Add a job, quote from photos)
+Every ESC-approved product for new jobs (Bradford Gold, Earthwool, Pink Batts; no ECOWOOL), from `ESC_APPROVED_PRODUCTS`. **★ Your favourites** come first (A–Z), then all other approved products A–Z by brand and R-value. Products under R5.0 stay available for topping up. The existing Activity 48 minimum check (`ACTIVITY_48_MIN_R`) still applies to the total installed R-value.
 
-### Journey 2: our lead from photos (no price entered; installers never see our price)
-1. **Quote from the owner's photos.** "Have a look at Helen's photos and videos, add the sqm, what's in the ceiling, product and access, then press Send. We'll do the quote and send it to Helen. You're paid your agreed rates for the job. We'd love it within 2 business days." Button: **Measure from photos**. Link: **Can't quote this one**. It asks for a reason (Photos not good enough / Too far / Too busy / Other), then the job goes back to our office. *What happens from here:* "We put the quote together and send it to Helen. You'll get an email when it goes. You're paid your agreed rates 7 days after we approve the install paperwork."
-2. **Quote being prepared.** "We're putting the quote together and sending it to Helen. You'll get an email when it goes. Nothing for you to do."
-3. **Quote with the owner.** "Sent Fri 6 Nov · valid until Sun 6 Dec. We touch base with Helen on day 3 and 2 days before it expires. You'll hear from us the moment Helen accepts or declines." No buttons or links.
-4–8. Same as journey 1, with Helen as the owner. No booking deadline is shown (Jo: no).
-9. **Install done · Wed 25 Nov.** "We check the install paperwork, then pay you your agreed rates 7 days after we approve it." (7 **calendar** days.)
-10. **Paid:** "Paid ✓ {date} · {amount}".
+### 4.9 My business
+- **Hub:** one list (Team · Business details · Rates · Products · Documents · Bank). Each line shows its state, amber when something needs fixing.
+- **Team:** "{n} people · {n} need something" + Add a person. Three boxes: **Lead Installers · Crew · Electricians**. Each person shows **Approved ✓** or **Missing: {what}**, with Boss and Main tags.
+  - **Person panel:** a Missing box with an Upload or Add button per item; for installers a Lead Installer / Crew switch with what each means; for electricians **Make main** (picked first when booking a PIESA); then details (CII, ESC registered, date of birth "On file" only, Mitti; or licence, REC, public liability), Edit details, Remove from team.
+  - **Add a person:** name, mobile, role, and "We'll need…" (Lead: CII, date of birth for ESC, email for Mitti; Crew: CII; Electrician: licence, REC, public liability).
+- **Business details:** business name, ABN, office phone and email ("Owners get this phone and email, never a worker's"), logo (shows on quotes for their own customers), **Who books the PIESA?** (Your office / Your electrician / Either), **Take our leads?** (Yes/No; open jobs carry on).
+- **Rates:** show only, "To change these, call or email Home Insulation Victoria".
+  - **Pricing your own jobs** default: Use my rates / Type my own price.
+  - **Install, per product:** every approved product, with a switch between Your customers and Our leads.
+  - **Other rates:** removal per m², difficult access per job, PIESA. All inc GST, with the effective date.
+- **Products:** every approved product A–Z. Tap to star as a favourite.
+- **Documents:** public liability ($5m or more) with expiry and Upload; the partner agreement. People's certificates live on Team. "If anything runs out, new jobs stop until our office approves the new one."
+- **Bank:** shows the account name, masked BSB and the last 4 digits. Change bank details → new account → **Send for checking** → "Our office is checking your new account. We keep paying into account ending {last 4} until it's done."
 
-### Journey 3: our lead with a Ready Check
-1. **Do the Ready Check.** "Call Helen, pop out and do the Ready Check in Mitti (form's under HV-3821). We'd love it within 5 business days." Button *(draft)*: Open the Mitti form. Link: **Can't do this one** (same reasons as journey 2). There's no date to book and no price to enter. *What happens from here:* "Once the Mitti form's done, we put the quote together from what you found and send it to Helen. You're paid your agreed rates 7 days after we approve the install paperwork."
-2 onward: same as journey 2.
+### 4.10 Money
+- **Top:** Coming to you (total, number of payments) · Next payment (amount, date) · Paid this month.
+- **Coming to you,** grouped with each group's rule:
+  - **Due soon:** date set.
+  - **Paperwork being checked:** installs on our leads are paid 7 calendar days after we approve the install paperwork; PIESAs once we approve the safety check form.
+  - **Waiting on the owner:** own customers are paid 7 calendar days after the owner pays in full.
+  - Rows show address, Install or PIESA, amount and date or status, and open the job.
+- **Paid tab:** date, jobs, amount, Remittance.
+- Shows the bank line with a link to change it.
+- Visible to the boss, and to office staff only if the boss turns it on (2 Nov rule).
 
-### Boxes on every journey
-- **Owner declined:** "Jo said no. This job is closed. Nothing for you to do."
-- **Quote expired:** "Quote expired. We've asked Jo if they'd like a new one. Nothing for you to do."
-- **Cancelled:** "This job's been cancelled ({reason}). We've told Jo. Please cancel anything you've booked on your end, like your electrician and crew."
-- **On hold:** "On hold · {reason}. We'll let you know the moment it's back on. Nothing for you to do."
-- **Couldn't get in:** Today's job has a **Couldn't get in** button. The box then says: "Couldn't get in on {day}. Call Jo, agree a new day and book it here. Install by {30-day date}." Day + Arrival + Book. The office gets a flag.
-- **Part installed:** "Part installed. Tell us what's left and book a day to finish it." What's left + Day + Arrival + Book. The office gets a flag. There's no paperwork approval or pay until the job is finished.
-- **Electrician must attend install day** (when the PIESA says so): the job page shows who and when. GO / DON'T START sends DON'T START if they aren't booked.
+## 5. Messages, templates and touchpoints
+Every new or changed message is drafted, shown to Jo **one at a time**, and approved before it's built (her rule). Each one sounds like Home Insulation Victoria: informative, clear, plain, using the installer office's phone and email and never a worker's. Messages to installer offices go by email only (never text). Automatic messages keep the 8pm–7am hold.
 
-## 5. Messages
-- **GO email (afternoon before):** add one line, "Your Lead still does the PIISA onsite before starting." No other changes.
-- **Safety plan texts:** go to each Lead and crew member as soon as they're picked, and again the afternoon before if unsigned. Nothing is sent before people are picked.
-- **Lead and crew not picked:** one email to the installer office 2 days before the install.
-- Existing chase timings stay: quote day 3 and 2 days before expiry; deposit day 3 and 7; balance days 1, 3 and 7.
+| # | Touchpoint | Who gets it | When | New or changed |
+|---|---|---|---|---|
+| 1 | You're booked (PIESA) | Owner, text + email | PIESA booked | Changed: shows the finish time when the booking is in the calendar |
+| 2 | You're booked (install) | Owner, text + email | Install booked | Changed: as above |
+| 3 | Your booking has moved | Owner, text + email | PIESA or install day/time changed (from the job or the Calendar) | **New** |
+| 4 | New install day (couldn't get in / finishing off) | Owner, text + email | Rebooked after Couldn't get in or Part installed | **New** |
+| 5 | ESC install notice update | ESC (robot) | Install day changed after the lock, keeping ESC's minimum notice | Changed: now also from the Calendar |
+| 6 | Pick your Lead and crew | Installer office, email | 2 days before the install if not picked | **New** (replaces the 2pm day-before email) |
+| 7 | Safety plan to sign | Lead and each crew member, text link | When they're picked; again the afternoon before if unsigned | Changed: sent on picking, not on booking |
+| 8 | Safety plan reminder | That person, text link | Remind tapped (at most once an hour each) | Same |
+| 9 | GO / DON'T START | Installer office, email (DON'T START copied to info@) | Afternoon before + 6:30am | Changed: GO adds "Your Lead still does the PIISA onsite before starting."; new DON'T START reason "electrician needed on install day" |
+| 10 | Quote sent / owner said no / quote expired / job cancelled / on hold | Installer office, email | When it happens | Changed: words match the new boxes; cancelled asks them to cancel their electrician and crew |
+| 11 | Can't quote this one / can't do this one | Our office (info@) | Installer declines, with reason | Changed: our-lead photo and Ready Check jobs |
+| 12 | Couldn't get in / part installed / measurements don't match / electrician needed | Our office (Needs me + info@) | When it happens | **New** office flags |
+| 13 | Bank change to approve | Our office | Installer sends new bank details | **New** |
+| 14 | Bank details updated | Installer office, email | Office approves the change | **New** |
+| 15 | Owner quote (email + page + PDF) | Owner | Quote sent | Changed: removal line, difficult access fee line, per-product price; installer logo only on their own customers; never "about" |
+| 16 | Ready Check diary visit | Nobody | Installer adds a Ready Check to the calendar | **New: sends nothing**; a test proves no owner message goes |
 
-## 6. Rule changes in this redesign (Jo, 6 Nov)
-1. Booking the install takes Day + Arrival only. Lead and crew are picked later (installers pick on Fridays for the next week), and crew can be any number of people.
-2. An install day after the 30-day date can't be picked (hard block).
-3. **Change the day after the lock** (2 days before): the installer can still change it, and the portal re-notifies ESC automatically. The existing `lockedLine` ("Email us to move this install") is replaced. The new date must still meet ESC's minimum notice; if it doesn't, the earliest allowed day is shown.
-4. Installer pay: our leads, 7 calendar days after we approve the install paperwork. Own customers, 7 calendar days after the owner pays in full.
-5. Portal vs Mitti measurements: the newest one wins, and the office is flagged to check both.
-6. Bank detail changes need the office's OK first.
-7. Amber reminders; red only for stop.
-8. The first progress dot becomes "Measure".
+**How we know they work:**
+- Every template has a test that fills it with a real TEST job and checks the rules: right person, right job details, office phone (not a worker's), names in normal case, no "HIV", no "about", no percentages for the deposit, no price on our leads to installers.
+- The nightly journey catches **every message sent** to the TEST inbox and checks each touchpoint fired once, at the right time, to the right person, and nothing went to a real person. Missing, extra or doubled messages fail the run.
+- New messages stay held until Jo approves their wording and says switch them on.
 
-## 7. Build rules (from the audit, no new features)
-- Home Insulation Victoria's price on our leads is hidden everywhere: screens, server responses, files, email logs and exports. On our leads, installers see status words, their agreed rates and their pay only.
-- No double sends: Send, Book, Save who's going, Pay and Give each create one record, even on a double tap or a retry.
-- Never show success until the server confirms the save (speed step 2 rule). Keep typed values if a save fails, and offer Retry.
-- Phone widths 320–430px, 200% zoom and long names stay readable with no sideways scrolling. Touch targets are big.
-- Lead and crew pickers only list people who are approved for the install date.
+## 6. New things the portal stores
+- Booking: `in_calendar` (yes/no) and `duration` per booking (install, PIESA, Ready Check, rebooks).
+- Diary-only Ready Check visits: no owner messages.
+- Per-installer product favourites.
+- Per-installer, per-product install rates for own customers and for our leads (effective-dated, read only to installers), plus removal, difficult access and PIESA rates. Accepted quotes keep the rates they were made with.
+- Per-installer pricing default (Use my rates / Type my own price).
+- Measurement method + plan/aerial upload on our-lead photo quotes. Removal m² on all quotes.
+- Job draft state ("Save for now") from Add a job.
+- Problem states: on hold (with reason), couldn't get in, part installed (what's left), electrician needed on install day.
+- A pending bank change waiting for office approval.
+- All SQL goes in `docs/pending-migrations/`, is proven on PGlite, and is only run live with Jo's yes.
 
-## 8. Code map
-- `src/lib/next-step-box.core.ts`: box kinds, titles and text. Add kinds: `pick_crew`, `owner_declined`, `quote_expired`, `cancelled`, `on_hold`, `no_access`, `part_installed`, `electrician_attend`. Remove `book_ready_check` and `ready_check_booked`, and replace them with `do_ready_check`.
-- `src/lib/my-work.core.ts` (cards, PR #184), `src/routes/_authenticated/field.$jobId.tsx` (job page), `src/lib/installer-job-sections.core.ts`, `src/lib/business-screen.core.ts` (rows → 6 tiles), `src/lib/installer-electricians.core.ts` (Main electrician pre-pick), `src/lib/in-house-booking.core.ts` (install booking without people, multi-crew), `src/lib/certificate-chase.core.ts` (`thirtyDayEnd` for the hard block).
-- Run `bun scripts/scan-retired-terms.ts` first. Run tests one file at a time. Each screen gets its own pull request.
+## 7. Rule changes in this redesign (Jo, 6 Nov)
+1. Booking the install asks Day + Arrival (+ calendar). Lead and crew are picked later, with any number of crew.
+2. No install day after the 30-day date (hard block).
+3. The installer can change a booking after the lock; the portal re-notifies ESC.
+4. Pay: our leads 7 calendar days after paperwork approval; own customers 7 calendar days after the owner pays in full; PIESAs once the safety check form is approved.
+5. Portal vs Mitti measurements: the newest wins and the office is flagged.
+6. Bank changes need the office's OK first.
+7. Amber for reminders, red only for stop.
+8. The first progress step is "Measure".
+9. Access is Easy or Difficult only, with a per-installer difficult access fee.
+10. Each installer has a rate per product and a pricing default.
+11. Our-lead photo quotes need a measurement method and an upload, like own leads.
+12. Every booking has "Put it in the calendar?" and a How long; bookings can be moved and edited from the Calendar or the job.
 
-## 9. Order of build (each its own pull request)
-1. Next step box words and kinds (pure core + tests).
-2. Job page layout.
-3. My work.
-4. Book the install (day + arrival, hard block) + Save who's going (Lead + multi-crew) + office email 2 days before.
-5. Change the day after lock with ESC re-notice.
-6. Problem-job boxes (declined, expired, cancelled, on hold, couldn't get in, part installed, electrician attends).
-7. Add a job: Save for now.
-8. My business tiles + bank change OK.
-9. Pay timing (7 calendar days, own customers after paid in full) + GO email line + amber chips.
+## 8. Reliable, fast, never loses information (build rules)
+- **Speed:** every screen gets its data in one database trip (speed step 2), and shows the last copy instantly while fresh data loads. Targets are measured on a mid-range phone on 4G: each screen readable in **under 2 seconds**, and every tap answered within 0.1 seconds. Buttons that change money, bookings or sends (Send, Book, Save changes, Save who's going, Pay, Give) wait for the real save.
+- **No freezing:** no screen does more than one heavy load. Long lists page in. A failed load shows a clear message and a Retry button, never a blank page or an endless spinner.
+- **Never loses information:** long forms save a draft as you type, and Save for now is offered too. It never says "Saved" until the server confirms. If a save fails, what was typed stays and Retry appears. Double taps and retries create one record.
+- **Price privacy:** Home Insulation Victoria's price on our leads never appears in installer screens, server responses, files, email logs or exports. There are tests for this.
+- **Access:** an installer only ever sees their own business's jobs and people. There are tests for URL and API access across businesses.
 
-## 10. Checks before Jo sees it
-Per pull request: unit tests for each box kind and word; a TEST-job screen walk (`bun run portal-qa`, journey `--screens`) on phone and computer widths; a check that our lead's price never appears in the installer's responses; screenshots sent to Jo. Nothing goes live until Jo says go.
+## 9. How it's checked (pages and functions)
+- Every part: tests first, then code. A separate reviewer checks it against this spec and the canvas. Then the design-review skill. Then phone and computer screenshots to Jo.
+- **Nightly automatic journey** (existing TEST job, `bun run portal-qa` / `journey --screens`): all three job types from start to Paid, plus every problem box, as boss, office, Lead, crew and electrician, at phone (390px) and computer (1280px) widths. It also runs:
+  - double tap
+  - lost connection mid-save
+  - failed upload
+  - Mitti and portal measurements on the same job
+  - a booking moved after the lock
+  - the price-privacy check
+  - the cross-business access check
+  - Results go in the 6am report. Gaps are reported as NOT RUN, never PASS.
+- **Speed check:** load times per screen are recorded against the §8 targets. Any page over target is fixed before go-live.
+
+## 10. Build order and go-live
+Each step is its own pull request, merged by Jo:
+1. Shared look and layout (menu, top bar, colours, fields, buttons).
+2. Action items.
+3. Job page and the Next step box, all steps and problem boxes.
+4. Bookings: calendar fields, How long, change/move, the 30-day block, Lead and crew pick, the 2-day office email, ESC re-notice.
+5. Calendar (computer and phone).
+6. Jobs.
+7. Add a job, including drafts, products, favourites and per-product pricing.
+8. Our-lead first steps (photo quote with measurement and upload; Ready Check).
+9. My business: Team, Business details, Rates, Products, Documents, Bank (with office approval).
+10. Money.
+11. Speed pass and reliability pass (§8), then the full nightly journey green.
+
+**Go-live:** first Tom's test businesses. Then, when Jo says go, real installers (she'll pick who goes first).
+
+## 11. Code map (starting points)
+- `src/routes/_authenticated/field.tsx` (installer shell), `field.index.tsx` (home), `field.$jobId.tsx` (job), `field.money.tsx`, `field.business*.tsx` (My business pages).
+- `src/lib/next-step-box.core.ts` (box kinds and words), `my-work.core.ts` (home list), `installer-job-sections.core.ts`, `business-screen.core.ts`, `team-screen.core.ts`, `installer-electricians.core.ts` (Main electrician), `in-house-booking.core.ts` (bookings), `certificate-chase.core.ts` (`thirtyDayEnd`), `esc-approved-products.core.ts` (products, R5.0 minimum), `photo-quote.core.ts`, `safety-check-price.core.ts`.
+- Look: `src/styles.css` (`.portal-theme`) and `src/components/portal/kit.tsx`.
+- Before workflow work: `bun scripts/scan-retired-terms.ts`. Read `src/AGENTS.md` and `src/lib/AGENTS.md` first.
