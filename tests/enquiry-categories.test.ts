@@ -57,7 +57,7 @@ test("views and counts: the opening view leaves out opted out and gone quiet", (
   expect(inView("offered", "active")).toBe(true);
   expect(inView("quiet", "all")).toBe(true);
   expect(inView("offered", "not_sent")).toBe(false);
-  expect(categoryCounts(["offered", "quiet", "quiet", "opted_out", "not_sent"])).toEqual({ offered: 1, not_sent: 1, opted_out: 1, quiet: 2, needs_me: 0, active: 2, all: 5 });
+  expect(categoryCounts(["offered", "quiet", "quiet", "opted_out", "not_sent"])).toEqual({ with_photos: 0, offered: 1, not_sent: 1, opted_out: 1, quiet: 2, needs_me: 0, active: 2, all: 5 });
 });
 
 test("emails live on the office Emails tab (decision 414), not on Enquiries", () => {
@@ -75,7 +75,7 @@ test("Wrote to us: the owner emailed in the last 14 days and we haven't written 
 
 test("failed first email is on Needs me only (Jo 30 Oct 2026)", () => {
   for (const v of ENQUIRY_VIEWS) expect(inView("needs_me", v)).toBe(false);
-  expect(categoryCounts(["needs_me", "offered"])).toEqual({ offered: 1, not_sent: 0, opted_out: 0, quiet: 0, needs_me: 0, active: 1, all: 1 });
+  expect(categoryCounts(["needs_me", "offered"])).toEqual({ with_photos: 0, offered: 1, not_sent: 0, opted_out: 0, quiet: 0, needs_me: 0, active: 1, all: 1 });
   expect(CLOSABLE.needs_me).toBeUndefined();
   expect(enquiryCategory({ ...base, optedOut: true, sendFailed: true }, NOW)).toBe("opted_out");
   expect(enquiryCategory({ ...base, sendFailed: false }, NOW)).toBe("offered");

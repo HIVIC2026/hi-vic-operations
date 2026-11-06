@@ -32,13 +32,14 @@ import { ActionsMenu, ColumnHead, Pager, ReasonDialog, heardLabel, type ColumnFi
 import { JobPeek, type Peek } from "@/components/portal/job-peek";
 import { Pill, PillTabs, btnClass, listCard } from "@/components/portal/kit";
 import { ageLabel } from "@/lib/office-needs.core";
+import { firmQuoteRequestTag } from "@/lib/firm-quote.core";
 
 const INSULATION_WORDS: Record<InsulationChip, string> = { no: "no insulation", some: "some insulation", not_sure: "insulation not sure" };
 
 /** The groups as one row of pill tabs (tabs start with Offered a spot — Jo 28 Oct 2026: In play removed as a duplicate).
  *  Then each group, then every open enquiry. Saved spots and not-eligible leads are links into Jobs. A failed read shows "–", never 0. */
 function Groups({ view, counts, onPick }: { view: EnquiryView; counts: CategoryCounts | null; onPick: (v: EnquiryView) => void }) {
-  const c = (k: keyof CategoryCounts) => (counts ? counts[k] : null);
+  const c = (k: keyof CategoryCounts) => (counts ? counts[k] ?? (k === "with_photos" ? 0 : null) : null);
   return (
     <div className="grid gap-2 lg:flex lg:items-center lg:justify-between lg:gap-4">
       <PillTabs label="Enquiry groups" value={view} onChange={onPick} options={[
@@ -100,7 +101,7 @@ export function EnquiriesScreen() {
   const onFilter = (k: string, v: ColumnFilterValue) => { setFilters({ ...filters, [k]: v } as ColumnFilters); setPage(1); };
   const pick = (v: EnquiryView) => { setView(v); setPage(1); setPicked(new Set()); };
   const meta = view === "all" ? { label: "Every open enquiry", hint: "Everything before a spot is saved, in one list." }
-    : ENQUIRY_CATEGORIES.find((x) => x.key === view)!;
+    : ENQUIRY_CATEGORIES.find((x) => x.key === view) ?? { label: "Offered a spot", hint: "Estimate sent with the Save my spot offer. Reminders go out on day 2, 7 and 21." };
   const closeReason = view === "all" ? undefined : CLOSABLE[view === "active" ? "offered" : view];
   const viewCount = counts && view !== "all" ? counts[view === "active" ? "offered" : view] : null;
   // Literal class names (Tailwind only sees whole strings). Decision 286 columns: Job · Owner · Address · Size · Insulation · Estimate · Last heard.
@@ -144,6 +145,8 @@ export function EnquiriesScreen() {
                     // The owner emailed and we haven't written since: the email is on the job (open it to reply).
                     const wrote = r.ownerWroteAt ? <Link to="/admin/emails" aria-label="Owner wrote to us — open Emails" className="-my-2 inline-flex shrink-0 items-center rounded-full py-2 lg:my-0 lg:py-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue"><Pill tone="amber" className="gap-1"><Mail className="h-3 w-3" aria-hidden />Wrote to us · {ageLabel(r.ownerWroteAt, Date.now())}</Pill></Link> : null;
                     const bounced = r.emailBounced ? <Pill tone="rose" className="shrink-0">Email bounced</Pill> : null;
+                    const dueTag = firmQuoteRequestTag(r.firmQuoteDueBy);
+                    const firmTag = dueTag ? <Pill tone="amber" className="whitespace-normal">{dueTag}</Pill> : null;
                     const est = estimateLabel({ dollars: r.estimateDollars, kind: r.estimateKind });
                     const tick = (cls: string) => (
                       <input type="checkbox" className={cn("shrink-0 accent-[var(--hiv-blue)]", cls)} aria-label={`Select ${r.jobNumber}`} disabled={copyShown} checked={picked.has(r.id)} onChange={(e) => { const n = new Set(picked); if (e.target.checked) n.add(r.id); else n.delete(r.id); setPicked(n); }} />
@@ -162,14 +165,14 @@ export function EnquiriesScreen() {
                             <span className="truncate text-[13px] text-sub">{[r.suburb || r.address, r.areaM2 ? sizeLabel(r.areaM2) : null, INSULATION_WORDS[r.insulation]].filter(Boolean).join(" · ")}</span>
                             <span className="truncate text-[13px] text-sub">{r.waitingOn}</span>
                           </button>
-                          {(wrote || bounced) && <span className="mt-1 flex flex-wrap gap-1.5">{bounced}{wrote}</span>}
+                          {(wrote || bounced || firmTag) && <span className="mt-1 flex flex-wrap gap-1.5">{firmTag}{bounced}{wrote}</span>}
                           </div>
                         </div>
                         {/* Computer: the decision 286 columns; the owner opens the side panel. */}
                         <div className={cn("hidden min-h-[54px] items-center gap-x-3 px-5 py-2.5 text-[14px] hover:bg-mist/50 lg:grid", cols)}>
                           {selDesk}
                           <span className="text-[13px] text-sub">{r.jobNumber}</span>
-                          <span className="grid min-w-0"><button type="button" onClick={open} className="truncate text-left font-semibold text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue">{r.ownerName || "—"}</button><span className="flex min-w-0 items-center gap-1.5">{bounced}{wrote}<span className="truncate text-xs text-sub">{r.waitingOn}</span></span></span>
+                          <span className="grid min-w-0"><button type="button" onClick={open} className="truncate text-left font-semibold text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hiv-blue">{r.ownerName || "—"}</button>{firmTag && <span className="mt-1 flex min-w-0">{firmTag}</span>}<span className="flex min-w-0 items-center gap-1.5">{bounced}{wrote}<span className="truncate text-xs text-sub">{r.waitingOn}</span></span></span>
                           <span className="truncate">{r.address || "—"}</span>
                           <span>{sizeLabel(r.areaM2)}</span>
                           <span>{INSULATION_LABEL[r.insulation]}</span>
@@ -200,7 +203,7 @@ export function EnquiriesScreen() {
           const fresh = qc.getQueryData<typeof d>([...enquiriesListKey(view, search, filters, sort, page)]);
           setPicked(keepTicked(ids, before, (fresh?.rows ?? d?.rows ?? []).map((x) => x.id)));
           return false;
-        } const r = await cancel({ jobIds: ids, reason }); if (!r) return false; if (r.failed.length) toast.error(`${r.done} cancelled; ${r.failed.length} not: ${r.failed[0]!.error}`); else toast.success(`${r.done} cancelled`); refresh(); return true; }} />
+        } const r = await cancel({ jobIds: ids, reason }); if (!r) return false; if (r.failed.length) toast.error(`${r.done} cancelled; ${r.failed.length} not: ${r.failed[0]?.error}`); else toast.success(`${r.done} cancelled`); refresh(); return true; }} />
       {closeReason && (
         <ReasonDialog open={dialog === "close-all"} title={`Close all ${(viewCount ?? 0).toLocaleString("en-AU")} in ${meta.label}`} description="Each moves to Jobs › Closed with this reason; reminders stop; history is kept and any can be reopened." action="Close them" danger presets={[closeReason]} onOpenChange={(v) => setDialog(v ? "close-all" : null)} run={async (reason) => {
           // Every id in this group as the server sees it now, closed 200 at a time with the same audited cancel.

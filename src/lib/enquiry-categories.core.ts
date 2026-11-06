@@ -16,18 +16,19 @@
 // PURE: no I/O.
 import { SEND_FAILED_WINDOW_DAYS } from "./send-failed.core";
 
-export type EnquiryCategory = "offered" | "not_sent" | "opted_out" | "quiet" | "needs_me";
+export type EnquiryCategory = "with_photos" | "offered" | "not_sent" | "opted_out" | "quiet" | "needs_me";
 /** What the screen can ask for: one category, "active" (the default: still in the journey) or "all". */
 export type EnquiryView = EnquiryCategory | "active" | "all";
 
 export const ENQUIRY_CATEGORIES: readonly { key: EnquiryCategory; label: string; hint: string; active: boolean }[] = [
+  { key: "with_photos", label: "With photos", hint: "Enquiries that sent photos or video. Asked for firm quote shows the due date.", active: true },
   { key: "offered", label: "Offered a spot", hint: "Estimate sent with the Save my spot offer. Reminders go out on day 2, 7 and 21.", active: true },
   { key: "not_sent", label: "Email not sent yet", hint: "The first email hasn't gone out yet, or failed over 7 days ago. Failed emails from the last 7 days are on Needs me.", active: true },
   { key: "opted_out", label: "Opted out", hint: "The owner unsubscribed or said no thanks. Nothing more is sent.", active: false },
   { key: "quiet", label: "Gone quiet", hint: "No reply for 4 weeks or more, after the offer and reminders.", active: false },
 ];
 
-export const ENQUIRY_VIEWS = ["active", "all", "offered", "not_sent", "opted_out", "quiet"] as const;
+export const ENQUIRY_VIEWS = ["active", "all", "with_photos", "offered", "not_sent", "opted_out", "quiet"] as const;
 
 const DAY = 86_400_000;
 export const QUIET_AFTER_DAYS = 28;
@@ -49,6 +50,9 @@ export type CategoryFacts = {
   noResponseYet: boolean;
   /** Latest owner email, separately from answers submitted on the website. */
   inboundAt?: string | null;
+  /** Shared firm-quote classification, not simply an older enquiry with photos. */
+  firmQuote?: boolean;
+  closed?: boolean;
 };
 
 const t = (s: string | null) => (s ? Date.parse(s) : NaN);
@@ -65,6 +69,7 @@ export function enquiryBulkCloseBlocker(f: CategoryFacts, now: number): string |
 
 export function enquiryCategory(f: CategoryFacts, now: number): EnquiryCategory {
   if (f.optedOut) return "opted_out";
+  if (f.firmQuote && !f.closed) return "with_photos";
   if (f.sendFailed) {
     const at = t(f.sendFailedAt ?? null);
     return Number.isFinite(at) && now - at <= SEND_FAILED_WINDOW_DAYS * DAY ? "needs_me" : "not_sent";
@@ -79,7 +84,7 @@ export function enquiryCategory(f: CategoryFacts, now: number): EnquiryCategory 
 }
 
 /** Order on the opening view: what may need the office first, then the waiting piles. */
-export const CATEGORY_RANK: Record<EnquiryCategory, number> = { not_sent: 0, offered: 1, opted_out: 2, quiet: 3, needs_me: 9 };
+export const CATEGORY_RANK: Record<EnquiryCategory, number> = { with_photos: -1, not_sent: 0, offered: 1, opted_out: 2, quiet: 3, needs_me: 9 };
 
 export function inView(c: EnquiryCategory, v: EnquiryView): boolean {
   if (c === "needs_me") return false; // Needs me screen only (Jo 30 Oct 2026)
@@ -91,7 +96,7 @@ export function inView(c: EnquiryCategory, v: EnquiryView): boolean {
 export type CategoryCounts = Record<EnquiryCategory, number> & { active: number; all: number };
 
 export function categoryCounts(cats: EnquiryCategory[]): CategoryCounts {
-  const out: CategoryCounts = { offered: 0, not_sent: 0, opted_out: 0, quiet: 0, needs_me: 0, active: 0, all: 0 };
+  const out: CategoryCounts = { with_photos: 0, offered: 0, not_sent: 0, opted_out: 0, quiet: 0, needs_me: 0, active: 0, all: 0 };
   for (const c of cats) { if (c === "needs_me") continue; out[c]++; out.all++; if (inView(c, "active")) out.active++; }
   return out;
 }

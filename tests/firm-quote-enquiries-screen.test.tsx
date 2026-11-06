@@ -1,0 +1,27 @@
+import { GlobalRegistrator } from "@happy-dom/global-registrator";
+GlobalRegistrator.register();
+import { afterEach, expect, mock, test } from "bun:test";
+const counts = { with_photos: 2, offered: 0, not_sent: 1, opted_out: 0, quiet: 0, needs_me: 0, active: 3, all: 3 };
+mock.module("@/lib/office-screens.functions", () => ({ getEnquiriesList: {}, bulkCancelOfficeJobs: {} }));
+mock.module("@/lib/enquiry-groups.functions", () => ({ removeLeadsFn: {} }));
+mock.module("@tanstack/react-start", () => ({ useServerFn: () => async () => ({}) }));
+mock.module("@/hooks/use-me", () => ({ useMe: () => ({ data: { user: { id: "test-office" } } }), useAction: () => async () => ({}) }));
+mock.module("@/lib/office-last-copy", () => ({ isLastCopy: () => false, useRememberLastCopy: () => {} }));
+mock.module("@/components/portal/job-peek", () => ({ JobPeek: () => null }));
+mock.module("@tanstack/react-router", () => ({ Link: ({ children }: { children: unknown }) => children }));
+const rows = ["asked", "before"].map(id => ({ id, jobNumber: id, ownerName: "TEST Owner", suburb: "TEST", insulation: "no", areaM2: 120, estimateDollars: null, waitingOn: "", firmQuoteDueBy: id === "asked" ? "2026-11-17" : null }));
+mock.module("@tanstack/react-query", () => ({ keepPreviousData: {}, useQuery: () => ({ data: { rows, counts: { byCategory: counts }, total: 2, page: 1, totalPages: 1 }, dataUpdatedAt: 1 }), useQueryClient: () => ({ invalidateQueries: async () => {} }) }));
+const React = await import("react");
+const { render, cleanup, fireEvent } = await import("@testing-library/react");
+const { EnquiriesScreen } = await import("../src/components/portal/EnquiriesScreen");
+afterEach(cleanup);
+test("With photos tab opens with count and recorded due tags only on requested rows", () => {
+  const r = render(React.createElement(EnquiriesScreen));
+  const tab = r.getByRole("button", { name: "With photos 2" });
+  fireEvent.click(tab);
+  expect(tab.getAttribute("aria-pressed")).toBe("true");
+  expect(r.getByRole("region", { name: "With photos" })).toBeTruthy();
+  expect(r.getAllByText("Asked for firm quote · due Tuesday 17 November")).toHaveLength(2);
+  const before = r.container.querySelectorAll("li")[1];
+  expect(before?.textContent).not.toContain("Asked for firm quote");
+});

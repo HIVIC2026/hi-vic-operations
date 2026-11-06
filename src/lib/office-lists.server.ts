@@ -12,6 +12,8 @@ import { addressLine, estimateDollars, matchesColumnFilters, type ColumnFilters 
 import { savedPriceFromEstimate } from "./launch-campaign.core";
 import { CATEGORY_RANK, categoryCounts, enquiryCategory, inView, ownerWrote, type EnquiryCategory, type EnquiryView } from "./enquiry-categories.core";
 import { FIRST_RESPONSE_PURPOSES } from "./automatic-first-response.core";
+import { isFirmQuoteJob, FIRM_QUOTE_REQUESTED_EVENT, firmQuoteRequestDueBy } from "./firm-quote.core";
+import { hasOwnerMedia } from "./photo-quote.core";
 import { readAutoOfferSwitches } from "./auto-offer.server";
 import type { OfficeStatus } from "./office-status.core";
 import type { SpotReleaseState } from "./spot-release.core";
@@ -112,6 +114,7 @@ export type EnquiryListRow = {
   ownerWroteAt: string | null;
   /** The newest email to the owner bounced and the office hasn't cleared it (red "Email bounced" tag). */
   emailBounced: boolean;
+  firmQuoteDueBy: string | null;
 };
 
 /** Estimate column facts (decision 286): the latest issued / accepted installation quote, else the current website estimate. */
@@ -133,6 +136,8 @@ async function estimateMap(ids: string[]) {
 
 export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: string[]) {
   const now = Date.now();
+  // Off means the exact existing scope, with no owner-media or request reads.
+  const liveAt = testJobIds ? null : await (await import("./firm-quote.server")).firmQuoteLiveAt();
   const index: Row[] = testJobIds ? await all("TEST enquiries", (a, b) => admin.from("jobs")
     .select("id,job_number,created_at,source,channel,owners(full_name,email,phone)").eq("source", "qa_test").eq("channel", "hivic_sourced")
     .in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"])
@@ -143,6 +148,39 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
     q = q.in("source", ["base44", "portal", "email"]);
     return q.order("created_at", { ascending: false }).order("id").range(a, b);
   });
+  const firmIds = new Set<string>();
+  const firmDueBy = new Map<string, string | null>();
+  if (liveAt !== null) {
+    // Proceed moves the saved response to the existing release queue. Keep only recorded firm requests
+    // there in Enquiries until ordinary allocation/quoting progression, never closed/duplicate rows.
+    const saved = await all("saved firm enquiries", (a, b) => admin.from("office_enquiry_index")
+      .select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, latest_attempt_at, owner_name, owner_email, owner_phone")
+      .eq("office_bucket", "active").eq("channel", "hivic_sourced").eq("source", "base44")
+      .gte("created_at", liveAt).eq("spot_saved", true).eq("owner_progressed", false)
+      .in("stage", ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule"])
+      .order("created_at", { ascending: false }).order("id").range(a, b));
+    const candidates = [...new Map([...index, ...saved].filter(r => isFirmQuoteJob({
+      createdAt: String(r["created_at"]), source: s(r["source"]), liveAt, hasMedia: true,
+    })).map(r => [String(r["id"]), r])).values()];
+    const candidateIds = candidates.map(r => String(r["id"]));
+    const [media, requests, assignments, quotes] = await Promise.all([
+      byIds("firm enquiry media", candidateIds, (c, f, t) => admin.from("documents").select("job_id,kind,mime_type,storage_path").in("job_id", c).eq("kind", "intake_media").order("id").range(f, t)),
+      byIds("firm enquiry requests", candidateIds, (c, f, t) => admin.from("workflow_events").select("job_id,event_type,details").in("job_id", c).eq("event_type", FIRM_QUOTE_REQUESTED_EVENT).order("created_at").order("id").range(f, t)),
+      byIds("firm enquiry installers", candidateIds, (c, f, t) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).order("id").range(f, t)),
+      byIds("firm enquiry quotes", candidateIds, (c, f, t) => admin.from("quotes").select("job_id").in("job_id", c).order("id").range(f, t)),
+    ]);
+    const progressed = new Set([...assignments, ...quotes].map(r => String(r["job_id"])));
+    const existing = new Set(index.map(r => String(r["id"])));
+    for (const r of candidates) {
+      const id = String(r["id"]);
+      const docs = media.filter(d => d["job_id"] === id) as { kind: string; mime_type: string | null; storage_path: string | null }[];
+      if (!isFirmQuoteJob({ createdAt: String(r["created_at"]), source: s(r["source"]), liveAt, hasMedia: hasOwnerMedia(docs) })) continue;
+      firmIds.add(id);
+      const events = requests.filter(e => e["job_id"] === id) as { event_type: string; details: unknown }[];
+      firmDueBy.set(id, firmQuoteRequestDueBy(events));
+      if (!existing.has(id) && events.length > 0 && !progressed.has(id)) { index.push(r); existing.add(id); }
+    }
+  }
   const ids = index.map((r) => String(r["id"]));
   const [jobs, heard, answered, covered, estimateOf, inbound, campaignOpt, emailOpt, bounced] = await Promise.all([
     byIds("enquiry details", ids, (c, f, t) => admin.from("jobs").select("id, estimated_area_m2, properties(address_line, suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),
@@ -180,8 +218,9 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
     const ans = answeredAt.get(id) ?? null, inb = inboundAt.get(id) ?? null;
     const ownerAt = [ans, inb].filter((x): x is string => !!x).sort().at(-1) ?? null;
     const noResponseYet = !sends.some(x => (FIRST_RESPONSE_PURPOSES as readonly string[]).includes(x.purpose));
-    const category = enquiryCategory({ createdAt: String(r["created_at"]), enquiryStatus: s(r["enquiry_status"]), lastOutboundAt: last?.at ?? null, lastOwnerAt: ownerAt, inboundAt: inb, optedOut: optedOut.has(id), sendFailed: latestFailed, sendFailedAt: latestFailed ? s(r["latest_attempt_at"]) : null, noResponseYet }, now);
+    const category = enquiryCategory({ createdAt: String(r["created_at"]), enquiryStatus: s(r["enquiry_status"]), lastOutboundAt: last?.at ?? null, lastOwnerAt: ownerAt, inboundAt: inb, optedOut: optedOut.has(id), sendFailed: latestFailed, sendFailedAt: latestFailed ? s(r["latest_attempt_at"]) : null, noResponseYet, firmQuote: firmIds.has(id) }, now);
     return {
+      firmQuoteDueBy: category === "with_photos" ? firmDueBy.get(id) ?? null : null,
       emailBounced: bounced.has(id), category, ownerWroteAt: ownerWrote({ inboundAt: inb, lastOutboundAt: last?.at ?? null }, now),
       id, jobNumber: String(r["job_number"]), ownerName: tidy.fullName, street: tidy.street, suburb: tidy.suburb, postcode: tidy.postcode, address: addressLine(tidy), phone: s(r["owner_phone"]), email: s(r["owner_email"]),
       estimateDollars: est.dollars, estimateKind: est.kind,

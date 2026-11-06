@@ -1,3 +1,7 @@
+## Jo 6 Nov firm quote — Task 11 only
+- [x] New category/list tests failed before implementation; With photos, saved-request due tags and exclusive counts implemented. Older enquiries and normal exit scope retained.
+- [x] Each changed test file passes; all 15 firm-quote files pass (150 checks), affected enquiry/access files 27 checks pass. Unchanged legacy office-enquiry-page concurrency test fails on its missing mock .in method. Scan clear, preview build OK; Tasks 1–7, 9–10 and size-check removal unchanged. No SQL, sends, switches or publication; stop and report commit. Details: docs/firm-quote-task11-report.md.
+
 ## Jo 6 Nov restore missing Task 6
 - [x] Restored original Task 6 source/tests; area-batch retains all Task 7 additions, Tasks 1–5 and merges #189–191 intact. Only original calculator sentence removed.
 - [x] Each test file separately: all 12 firm-quote files 130/130; 29 total files 563/563. Retired-terms scan clear, preview build OK; no SQL, sends, switches or publishing. Stopped. Report: docs/firm-quote-task6-report.md.
