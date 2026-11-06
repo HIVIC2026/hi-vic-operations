@@ -41,7 +41,7 @@ a{color:#3C51C4}a:hover{color:#22376B}
 </sc-for>
 <button type="button" onClick="{{addArea}}" style="background: none; border: 0; padding: 0; min-height: 44px; font-family: inherit; font-size: 15px; font-weight: 700; color: #3C51C4; cursor: pointer">+ Add another ceiling space</button>
 <div style="font-size: 14px; font-weight: 700; margin: 16px 0 8px">What's up there now?</div><div role="radiogroup" style="display: flex; gap: 8px; flex-wrap: wrap"><sc-for list="{{now}}" as="c" hint-placeholder-count="3"><button type="button" role="radio" aria-checked="{{c.on}}" onClick="{{c.pick}}" style="{{c.style}}">{{c.label}}</button></sc-for></div>
-<sc-if value="{{removing}}" hint-placeholder-val="{{ false }}"><div style="margin-top: 14px; max-width: 240px"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; min-width: 0">Removal area (m²)<input type="text" value="142.2" style="font-family: inherit; font-size: 16px; padding: 14px; border: 1px solid #CED6E6; border-radius: 12px; color: #22376B; background: #FFFFFF; width: 100%; box-sizing: border-box; min-width: 0"></label></div></sc-if></section><section style="padding: 26px 0; border-top: 1px solid #E3E8F2"><h2 style="margin: 0 0 16px; font-size: 19px; font-weight: 800">Product and access</h2><label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; min-width: 0">Product<select style="font-family: inherit; font-size: 16px; padding: 14px; border: 1px solid #CED6E6; border-radius: 12px; color: #22376B; background: #FFFFFF; width: 100%; box-sizing: border-box; min-width: 0"><optgroup label="★ Your favourites"><option>★ Bradford Gold R5.0</option><option>★ Earthwool R4.0</option><option selected>★ Earthwool R5.0</option></optgroup><optgroup label="All other approved products"><option>Bradford Gold R3.5</option><option>Bradford Gold R4.1</option><option>Bradford Gold R6.0</option><option>Bradford Gold R7.0</option><option>Earthwool R3.5</option><option>Pink Batts R2.5</option><option>Pink Batts R3.0</option><option>Pink Batts R3.5</option><option>Pink Batts R4.1</option><option>Pink Batts R5.0</option><option>Pink Batts R6.0</option><option>Pink Batts R7.0</option></optgroup></select></label>
+<sc-if value="{{removing}}" hint-placeholder-val="{{ false }}"><div style="margin-top: 14px; max-width: 240px"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; min-width: 0">Removal area (m²)<input type="text" value="142.2" style="font-family: inherit; font-size: 16px; padding: 14px; border: 1px solid #CED6E6; border-radius: 12px; color: #22376B; background: #FFFFFF; width: 100%; box-sizing: border-box; min-width: 0"></label></div></sc-if></section><section style="padding: 26px 0; border-top: 1px solid #E3E8F2"><h2 style="margin: 0 0 16px; font-size: 19px; font-weight: 800">Product and access</h2><label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; min-width: 0">Product<select onChange="{{pickProduct}}" style="font-family: inherit; font-size: 16px; padding: 14px; border: 1px solid #CED6E6; border-radius: 12px; color: #22376B; background: #FFFFFF; width: 100%; box-sizing: border-box; min-width: 0"><optgroup label="★ Your favourites"><option>★ Bradford Gold R5.0</option><option>★ Earthwool R4.0</option><option selected>★ Earthwool R5.0</option></optgroup><optgroup label="All other approved products"><option>Bradford Gold R3.5</option><option>Bradford Gold R4.1</option><option>Bradford Gold R6.0</option><option>Bradford Gold R7.0</option><option>Earthwool R3.5</option><option>Pink Batts R2.5</option><option>Pink Batts R3.0</option><option>Pink Batts R3.5</option><option>Pink Batts R4.1</option><option>Pink Batts R5.0</option><option>Pink Batts R6.0</option><option>Pink Batts R7.0</option></optgroup></select></label>
 <p style="margin: 8px 0 0; font-size: 13px; color: #5B6785">Your favourites show first. <a href="Business.dc.html" style="font-weight: 700">Change favourites</a></p>
 <div style="font-size: 14px; font-weight: 700; margin: 18px 0 8px">Access</div><div role="radiogroup" style="display: flex; gap: 8px; flex-wrap: wrap"><sc-for list="{{access}}" as="c" hint-placeholder-count="3"><button type="button" role="radio" aria-checked="{{c.on}}" onClick="{{c.pick}}" style="{{c.style}}">{{c.label}}</button></sc-for></div>
 <sc-if value="{{difficult}}" hint-placeholder-val="{{ false }}"><p style="margin: 10px 0 0; font-size: 14px; color: #5B6785">Your difficult access fee is added to the price.</p></sc-if></section><section style="padding: 26px 0; border-top: 1px solid #E3E8F2"><h2 style="margin: 0 0 16px; font-size: 19px; font-weight: 800">Price</h2><div role="radiogroup" style="display: flex; gap: 8px; flex-wrap: wrap"><sc-for list="{{pricing}}" as="c" hint-placeholder-count="3"><button type="button" role="radio" aria-checked="{{c.on}}" onClick="{{c.pick}}" style="{{c.style}}">{{c.label}}</button></sc-for></div>
@@ -73,7 +73,7 @@ a{color:#3C51C4}a:hover{color:#22376B}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
 class Component extends DCLogic {
-  constructor(props) { super(props); this.state = { ok: true, m: 'Floor plan', up: false, now: 'Nothing', acc: 'Easy', pr: 'Use my rates', areas: [{ name: 'Main house', m2: 142.2 }] }; }
+  constructor(props) { super(props); this.state = { ok: true, m: 'Floor plan', up: false, now: 'Nothing', acc: 'Easy', pr: 'Use my rates', prod: 'Earthwool R5.0', areas: [{ name: 'Main house', m2: 142.2 }] }; }
   renderVals() {
 
     const s = this.state;
@@ -90,10 +90,12 @@ class Component extends DCLogic {
     if (needsUpload) checks.push({ t: upName.charAt(0).toUpperCase() + upName.slice(1) + ' uploaded', done: s.up });
     checks.push({ t: 'Your price', done: true });
     const ready = checks.every(c => c.done);
-    const R = { install: 16.5, removal: 8, difficult: 250 };
+    const RATE = { '2.5': 12, '3.0': 13, '3.5': 14, '4.0': 15, '4.1': 15, '5.0': 16.5, '6.0': 19, '7.0': 21 };
+    const prod = s.prod.replace('★ ', '');
+    const R = { install: RATE[prod.slice(-3)] || 16.5, removal: 8, difficult: 250 };
     const removalM2 = s.now === 'Old, removing' ? 142.2 : 0;
     const money = n => '$' + n.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const calc = [{ k: 'Install ' + total + ' m² × ' + money(R.install), v: money(total * R.install) }];
+    const calc = [{ k: prod + ': ' + total + ' m² × ' + money(R.install), v: money(total * R.install) }];
     if (removalM2) calc.push({ k: 'Removal ' + removalM2 + ' m² × ' + money(R.removal), v: money(removalM2 * R.removal) });
     if (s.acc === 'Difficult') calc.push({ k: 'Difficult access fee', v: money(R.difficult) });
     const autoTotal = total * R.install + removalM2 * R.removal + (s.acc === 'Difficult' ? R.difficult : 0);
@@ -102,7 +104,7 @@ class Component extends DCLogic {
     const lines = [
       { k: 'Install area', v: total + ' m²' },
       { k: 'Removal', v: s.now === 'Old, removing' ? '142.2 m²' : 'None' },
-      { k: 'Product', v: 'Earthwool R5.0' },
+      { k: 'Product', v: prod },
       { k: 'Access', v: s.acc === 'Difficult' ? 'Difficult (fee added)' : 'Easy' },
       { k: 'Your price', v: price }
     ];
@@ -110,7 +112,7 @@ class Component extends DCLogic {
       methods: group('m', ['On site', 'Floor plan', 'Aerial photo']),
       now: group('now', ['Nothing', 'Old, staying', 'Old, removing']),
       access: group('acc', ['Easy', 'Difficult']),
-      pricing: group('pr', ['Use my rates', 'Type my own price']), auto, manual: !auto, calc, price,
+      pricing: group('pr', ['Use my rates', 'Type my own price']), pickProduct: e => this.setState({ prod: e.target.value }), auto, manual: !auto, calc, price,
       removing: s.now === 'Old, removing', difficult: s.acc === 'Difficult',
       needsUpload, ok: s.ok, toggleOk: () => this.setState({ ok: !s.ok }),
       upload: () => this.setState({ up: true }),
