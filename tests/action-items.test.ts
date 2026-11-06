@@ -31,8 +31,16 @@ describe("actionItems", () => {
     const r = actionItems([row({ box: box({ kind: "waiting_electrician_book", yours: false, button: null }), electricianName: "JAMES WOOD" }), row({ box: box({ kind: "piesa_booked", yours: false, button: null }), electricianName: null })]);
     expect(r.waiting).toEqual([]);
     expect(r.turn.map((c) => [c.action, c.button])).toEqual([["Get James to book the PIESA", "Open"], ["PIESA booked · your electrician", null]]);
-    expect(r.count).toBe(1);
+    expect(r.count).toBe(2); // the count is the cards under Your turn (Jo 7 Nov: 6 needs-you vs 7 listed)
   });
+  test("needYou count equals your-turn cards", () => {
+    const action = (i: number) => row({ jobId: `a${i}`, channel: "installer_sourced", box: box({ kind: "enter_price", title: "Enter your price", button: null }) });
+    const booked = row({ jobId: "p", channel: "installer_sourced", electricianName: "JAMES WOOD", box: box({ kind: "piesa_booked", yours: false, button: null }) });
+    const r = actionItems([...[1, 2, 3, 4, 5, 6].map(action), booked]);
+    expect(r.turn).toHaveLength(7);
+    expect(r.count).toBe(r.turn.length);
+    expect(r.sub).toBe("7 jobs need you today.");
+  }, 1000);
   test("closed jobs are left out", () => {
     expect(actionItems([row({ box: box({ kind: "closed", yours: false }) })]).waiting).toEqual([]);
   });

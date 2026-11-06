@@ -3,7 +3,7 @@ import { cardAddress, type MyWorkRow } from "./my-work.core";
 import { displayName } from "./display-name.core";
 
 export type ActionRow = MyWorkRow & { stop: string | null; waitingOn: string | null; ownerFirst: string | null; installAt?: string | null; electricianName?: string | null; piesaAt?: string | null };
-/** `button` null: nothing to tap (e.g. PIESA booked: their own electrician does it). Not counted as needing them today. */
+/** `button` null: nothing to tap (e.g. PIESA booked: their own electrician does it). Still listed under Your turn, so still counted. */
 export type ActionCard = { jobId: string; action: string; address: string; meta: string; due: string | null; button: string | null; stop: boolean; overdue: boolean };
 export type WaitingCard = { jobId: string; address: string; status: string; waitingOn: string };
 export type WeekItem = { day: string; date: number; kind: "Install" | "PIESA" | "Ready Check"; time: string; place: string; who: string; flag: string | null; flagTone: "red" | "amber" | null };
@@ -42,7 +42,8 @@ export function actionItems(rows: ActionRow[]): { count: number; sub: string; fi
     else if (r.box.yours) turn.push({ jobId: r.jobId, action: r.box.title, address, meta: metaFor(r), due: r.box.bookBy ? `By ${niceDate(r.box.bookBy)}` : null, button: r.box.button ?? "Open", stop: false, overdue: r.box.overdue && !!r.box.bookBy });
     else if (r.box.kind !== "closed") waiting.push({ jobId: r.jobId, address, status: r.box.title, waitingOn: r.waitingOn ?? "Home Insulation Victoria" });
   }
-  const count = fix.length + turn.filter((c) => c.button).length;
+  // The count is exactly the cards shown (Fix before work starts + Your turn): Jo 7 Nov, "6 jobs need you" over 7 cards.
+  const count = fix.length + turn.length;
   const k = fix.length;
   const sub = count === 0 ? "Nothing needs you today." : count === 1 ? "1 job needs you today." : `${count} jobs need you today.${k >= 1 ? ` ${k} must be fixed before work starts.` : ""}`;
   return { count, sub, fix, turn, waiting };

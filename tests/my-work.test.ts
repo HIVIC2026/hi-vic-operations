@@ -65,11 +65,12 @@ describe("cards", () => {
     // tradeHome's street already ends with the suburb — it is not repeated
     expect(myWorkCards([row("e", {}, { jobNumber: "HV-3821", street: "12 Smith St, Melton", suburb: "Melton" })]).all[0]!.hvSuburb).toBe("HV-3821 · 12 Smith St, Melton");
   });
-  // Jo 6 Nov 2026: the own-customer "Measure and quote" card says just "New job", whatever the Mitti form's state.
-  test("own customer: Measure and quote reads New job with no Mitti form suffix", () => {
+  // Jo 7 Nov 2026: installers never do Mitti Ready Checks; a new own-customer job is "Enter your price" (desktop quote), reason "New job".
+  test("own customer: new job reads Enter your price, New job, with no Mitti wording", () => {
     const own = (r: Record<string, unknown>) => myWorkCards([row("o", { channel: "installer_sourced" }, { channel: "installer_sourced", ...r })]).yourTurn[0]!;
     for (const r of [{}, { mittiRequested: true }, { mittiLinked: true }, { mittiRequested: true, mittiLinked: true }]) {
-      expect(own(r)).toMatchObject({ step: "Measure and quote", reason: "New job", button: "Measure and quote" });
+      expect(own(r)).toMatchObject({ step: "Enter your price", reason: "New job", button: "Enter price" });
+      expect(JSON.stringify(own(r))).not.toContain("Mitti");
     }
   });
   test("own customer: completed form awaits price", () => {

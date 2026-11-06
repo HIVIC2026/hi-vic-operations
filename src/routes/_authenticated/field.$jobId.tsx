@@ -363,7 +363,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const priceOpenEarly = page.channel === "installer_sourced" && page.prices && page.price.entered === false && page.form.linked && box.kind !== "enter_price";
   const showPrice = (page.channel === "installer_sourced" && page.prices && (box.kind === "enter_price" || box.kind === "waiting_quote")) || priceOpenEarly;
   // Photo-quote installers Part 2: an own photo-quote job has no Ready Check — never the Mitti/portal Ready Check choice.
-  const ownReadyCheck = page.channel === "installer_sourced" && page.prices && !(page as { photoQuote?: boolean }).photoQuote && (showPrice || ['own_ready_check', 'book_ready_check', 'ready_check_booked'].includes(box.kind));
+  const ownReadyCheck = page.channel === "installer_sourced" && page.prices && !(page as { photoQuote?: boolean }).photoQuote && (showPrice || ['book_ready_check', 'ready_check_booked'].includes(box.kind));
   const mittiAudit = page.form.auditId;
   const ownCustomer = page.channel === "installer_sourced";
   const sections = installerJobSections({ ownCustomer, quoteSent: page.quote?.sent === true || page.quote?.accepted === true, siteNotes: page.rows.siteNotes, jobDetails: page.rows.jobDetails });

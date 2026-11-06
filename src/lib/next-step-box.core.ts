@@ -27,7 +27,7 @@ export type NextStepFacts = {
    *  time for photos. `photoQuoteSent`: the installer has sent the photo quote. */
   quoteMethod?: QuoteMethod; photoQuoteSent?: boolean;
 };
-export type NextStepKind = "quote_from_photos" | "own_ready_check" | "book_ready_check" | "ready_check_booked" | "ready_check_missing" | "enter_price" | "waiting_quote"
+export type NextStepKind = "quote_from_photos" | "book_ready_check" | "ready_check_booked" | "ready_check_missing" | "enter_price" | "waiting_quote"
   | "book_piesa" | "waiting_electrician_book" | "piesa_booked" | "upload_certificate" | "waiting_deposit" | "book_install"
   | "install_booked" | "install_locked" | "after_install" | "closed";
 export type NextStepBox = {
@@ -197,7 +197,8 @@ export function nextStepBox(f: NextStepFacts): NextStepBox {
     // Photo quotes: the photo quote stands in for the Ready Check — never "Do it in Mitti" or "Mitti form done".
     if (photos) return box("enter_price", W.enterPriceTitle, { yours: true });
     if (f.readyCheck.done) return box("enter_price", "Mitti form done — enter your price", { yours: true });
-    return box("own_ready_check", "Ready Check", { yours: true, button: "Do it in Mitti" });
+    // Jo 7 Nov 2026: installers never do Mitti Ready Checks — every job is a desktop quote, so the next step is the price.
+    return box("enter_price", W.enterPriceTitle, { yours: true });
   }
 
   // Ready Check done (or, for photos, the photo quote sent)
