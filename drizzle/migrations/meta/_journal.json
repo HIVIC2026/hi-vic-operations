@@ -1366,6 +1366,13 @@
       "when": 1793938799807,
       "tag": "0194_add_admin_config_events_bookings_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 195,
+      "version": "7",
+      "when": 1793941987767,
+      "tag": "0195_dedupe_mitti_product_electrician_events",
+      "breakpoints": true
     }
   ]
 }

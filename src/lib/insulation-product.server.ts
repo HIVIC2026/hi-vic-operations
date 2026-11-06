@@ -2,6 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { insulationProduct, resolveMittiProduct, type InsulationProduct, type MittiProductResolution } from "./insulation-product.core";
 import { contactAnswersFromEntries } from "./mitti.core";
+import { sameEventDetails } from "./event-details-same.core";
 import { logEvent } from "./workflow.server";
 
 /** Product for an owner rate-card quote on our leads: the latest complete product recorded from the form. */
@@ -19,7 +20,7 @@ export async function mittiProductForJob(jobId: string, actorId: string | null, 
   const details = { audit_id: auditId, ...resolved, declared_not_verified: true };
   const { data: prev, error: pe } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_product_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (pe) throw new Error("Could not check the job's product history.");
-  if (JSON.stringify(prev?.details ?? null) !== JSON.stringify(details))
+  if (!sameEventDetails(prev?.details, details))
     await logEvent(jobId, actorId, "mitti_product_recorded", resolved.product ? `Insulation product recorded for compliance (declared, not verified): ${resolved.product.option}` : resolved.reasons.join(" · "), details, { internal: true });
   return resolved;
 }

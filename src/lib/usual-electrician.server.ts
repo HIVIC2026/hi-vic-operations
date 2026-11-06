@@ -74,9 +74,8 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
   const { data: previous, error: pe } = await admin.from("workflow_events").select("details").eq("job_id", jobId)
     .eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (pe) throw new Error("Could not check the job's electrician history.");
-  const keys = Object.keys(details).sort();
-  const signature = (value: unknown) => JSON.stringify(keys.map((k) => [k, (value as Record<string, unknown> | null)?.[k] ?? null]));
-  if (signature(previous?.details) !== signature(details)) await logEvent(jobId, actorId, "mitti_electrician_recorded", resolved.ready ? "Ready Check electrician details recorded for compliance (declared, not verified)" : resolved.reasons.join(" · "), details, { internal: true });
+  const { sameEventDetails } = await import("./event-details-same.core");
+  if (!sameEventDetails(previous?.details, details)) await logEvent(jobId, actorId, "mitti_electrician_recorded", resolved.ready ? "Ready Check electrician details recorded for compliance (declared, not verified)" : resolved.reasons.join(" · "), details, { internal: true });
   return resolved;
 }
 /** The Team electrician (partner_workers row on the installer's own business) the quote names; null when they left the Team. */
