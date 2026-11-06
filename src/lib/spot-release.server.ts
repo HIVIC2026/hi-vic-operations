@@ -73,6 +73,8 @@ async function claim(jobId: string, actorId: string | null, type: string, summar
 type Step = "released" | "reminder" | "release_text";
 /** The owner's email (released / reminder) and text for one release step. Records nothing (the caller claimed the step). */
 async function sendTurnMessages(jobId: string, s: Extract<SpotReleaseState, { state: "pending" }> | { seq: number; businessId: string }, step: Step, link: string, opts: { approved?: { email: boolean; sms: boolean } } = {}): Promise<string> {
+  const skip = await (await import("./firm-quote.server")).skipSpotMessage(jobId);
+  if (skip) return skip.reason;
   const { data: job } = await admin.from("jobs").select("owner_id, source").eq("id", jobId).maybeSingle();
   if (!job) return "skipped — job not found";
   const [{ data: owner }, { data: biz }] = await Promise.all([
@@ -272,6 +274,7 @@ export async function sweepSpotReleases(now = new Date(), opts: { approved?: { e
 }
 
 async function runDue(jobId: string, s: Extract<SpotReleaseState, { state: "pending" }>, what: SpotReleaseDue, opts: { approved?: { email: boolean; sms: boolean } }): Promise<boolean> {
+  if (await (await import("./firm-quote.server")).skipSpotMessage(jobId)) return false;
   const base = { release_seq: s.seq, business_id: s.businessId, business_name: s.businessName, decision: 389 };
   if (what === "lapse") {
     const won = await claim(jobId, null, SPOT_RELEASE_LAPSED_EVENT, `${LAPSED_NEEDS_LINE} (released to ${s.businessName ?? "an installer"} 5 days ago)`,

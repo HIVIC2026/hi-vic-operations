@@ -1,5 +1,7 @@
 import { expect, mock, test } from "bun:test";
 let writes = 0, sends = 0;
+let firm = false;
+mock.module("../src/lib/firm-quote.server", () => ({ skipSpotMessage: async () => firm ? { status: "skipped", reason: "firm_quote_job" } : null }));
 const token = "a".repeat(64), jobId = "isolated";
 const tables: Record<string, unknown[]> = {
   office_enquiry_index: [{ id: jobId, job_number: "HV-QA", source: "base44", owner_name: "Jane Doe", owner_phone: "0491234567", created_at: "2026-10-21T04:08:00Z", spot_offered: true, spot_saved: false, deleted_at: null, removed: false, stage: "new_enquiry" }],
@@ -26,6 +28,15 @@ test("actual dry-run handler reads provider-linked recorded offer without any wr
   expect(result.recipientCount).toBe(1); expect(result.samples).toHaveLength(1);
   expect(result.samples[0]?.body).toContain("$3,728"); expect(result.samples[0]?.body).toContain("$1,470");
   expect(writes).toBe(0); expect(sends).toBe(0);
+});
+test("24-hour reminder skips firm quote with exact reason and no claim or send", async () => {
+  firm = true;
+  try {
+    const result = await runSaveSpotReminderBlast(true);
+    expect(result.recipientCount).toBe(0);
+    expect(result.skipped).toContainEqual({ jobId, jobNumber: "HV-QA", reason: "firm_quote_job" });
+    expect(writes).toBe(0); expect(sends).toBe(0);
+  } finally { firm = false; }
 });
 test("own estimate link qualifies without a provider-linked email URL", async () => {
   tables.job_communications = [{ ...(tables.job_communications[0] as object), provider_message_id: "different-provider" }];

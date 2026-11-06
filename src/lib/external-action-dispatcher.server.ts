@@ -1,12 +1,12 @@
 import type { Database } from "@/integrations/supabase/types";
 import type { OutboxDispatchResult } from "./external-action-outbox.server";
 import { SMS_MESSAGE_TYPES, type SmsMessageType } from "./sms.core";
-import type { RealSmsInput } from "./sms.server";
+import type { RealSmsInput, RealSmsResult } from "./sms.server";
 
 type OutboxRow = Database["public"]["Tables"]["external_action_outbox"]["Row"];
 
 type EmailResult = { sent: true; communicationId?: string | null } | { sent: false; reason: string };
-type SmsResult = { status: "sent" | "blocked" | "failed" | "sent_unknown" | "already"; detail: string; sid: string | null };
+type SmsResult = RealSmsResult;
 
 export type ExternalActionDispatchDeps = {
   sendInitialEstimateEmail: (jobId: string, actorId: string | null) => Promise<EmailResult>;
@@ -51,6 +51,7 @@ async function dispatchCustomerSms(row: OutboxRow, deps: ExternalActionDispatchD
   if (result.status === "sent") return { ok: true, completedRef: result.sid ? `sms:${result.sid}` : `sms:${row.idempotency_key}` };
   if (result.status === "already") return { ok: true, completedRef: `sms:already:${row.idempotency_key}` };
   if (result.status === "sent_unknown") return { ok: false, code: "DELIVERY_UNKNOWN", retryable: false };
+  if (result.status === "skipped") return { ok: false, code: result.detail, retryable: false };
   if (result.status === "blocked") return { ok: false, code: smsBlockCode(result.detail), retryable: false };
   return { ok: false, code: "PROVIDER_REJECTED", retryable: true };
 }

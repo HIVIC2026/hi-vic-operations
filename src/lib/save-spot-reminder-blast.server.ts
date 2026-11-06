@@ -61,6 +61,8 @@ async function loadPlan(jobIds?: string[], automatic = false) {
   const plan = selectBlast(rows, optouts.map((r) => r.phone), handled.map((r) => r.job_id), handled.map((r) => r.to_number), { now: Date.now(), ...(automatic ? { activatedAt: settings?.activatedAt ?? null } : {}) });
   const recipients = [];
   for (const r of plan.recipients) {
+    const skip = await (await import("./firm-quote.server")).skipSpotMessage(r.jobId);
+    if (skip) { plan.skipped.push({ jobId: r.jobId, jobNumber: r.jobNumber, reason: skip.reason }); continue; }
     if (automatic && recipients.length >= 10) break;
     const original = rows.find(x => x.id === r.jobId);
     const url = new URL(original?.link ?? "");

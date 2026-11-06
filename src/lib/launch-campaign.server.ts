@@ -332,6 +332,8 @@ const OWNER_BASE = "https://estimate.homeinsulationvictoria.com.au";
  * the TEST allowlist still decides who could ever receive them.
  */
 export async function queueSpotSavedConfirmations(jobId: string, token: string) {
+  const skip = await (await import("./firm-quote.server")).skipSpotMessage(jobId);
+  if (skip) return { queued: false as const, status: skip.status, reason: skip.reason };
   const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_queued").limit(1).maybeSingle();
   const { data: completed } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_completed").limit(1).maybeSingle();
   if (completed) return { queued: false as const };

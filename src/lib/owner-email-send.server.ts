@@ -8,6 +8,10 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
 export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: string | null; to: string; purpose: string; key: string; build: (unsubscribeUrl: string | null) => { subject: string; html: string; text: string; attachments?: import("./email-kit.core").EmailAttachment[] }; retryAfterDefiniteFailure?: boolean; explainBlock?: boolean; beforeSend?: () => Promise<void>; transport?: "resend" | { kind: "outlook"; replyToMessageId: string | null }; onSent?: (r: { provider: "outlook" | "resend"; messageId: string | null; internetMessageId: string | null }) => void }): Promise<string> {
+  if (/^(spot_saved(?:_email|_confirmation)?|save_spot_reminder|spot_released|quick_taps(?:_reminder)?|estimate_followup_day_(?:2|7|21))(?::|$)/.test(p.purpose)) {
+    const skip = await (await import("./firm-quote.server")).skipSpotMessage(p.jobId);
+    if (skip) return skip.reason;
+  }
   if (await (await import("./qa-inbox.server")).qaDeliveryHeld(p.jobId)) return "blocked — TEST browser run: no delivery";
   const dncCore = await import("./do-not-contact.core");
   const safety = await import("./emailsafety.core");

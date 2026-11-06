@@ -40,7 +40,11 @@ export function isEstimateOfferSend(s: { purpose: string; idempotency_key: strin
 export async function loadEstimateFollowupFacts(jobs: JobRow[]): Promise<Map<string, EstimateFollowupFacts>> {
   const out = new Map<string, EstimateFollowupFacts>();
   for (const c of chunks(jobs)) {
-    const ids = c.map((j) => j.id);
+    const { skipSpotMessage } = await import("./firm-quote.server");
+    const checks = await Promise.all(c.map(async (j) => ({ j, skip: await skipSpotMessage(j.id) })));
+    const eligible = checks.filter(({ skip }) => !skip).map(({ j }) => j);
+    if (!eligible.length) continue;
+    const ids = eligible.map((j) => j.id);
     const [sends, resps, eopts, events, inbound] = await Promise.all([
       db.from("customer_email_sends").select("job_id,purpose,idempotency_key,status,sent_at,created_at").in("job_id", ids).in("purpose", [LAUNCH_CAMPAIGN, LINK_PURPOSE]).eq("status", "sent"),
       db.from("lead_campaign_responses").select("job_id,spot_saved_at,opted_out_at").in("job_id", ids),
@@ -74,7 +78,7 @@ export async function loadEstimateFollowupFacts(jobs: JobRow[]): Promise<Map<str
       const prev = replied.get(m.job_id);
       if (!prev || Date.parse(at) > Date.parse(prev)) replied.set(m.job_id, at);
     }
-    for (const j of c) {
+    for (const j of eligible) {
       const r = resp.get(j.id);
       out.set(j.id, {
         stage: j.stage, source: j.source, channel: j.channel ?? null, deletedAt: j.deleted_at, qaArchivedAt: j.qa_archived_at,
@@ -109,6 +113,8 @@ async function reminderInput(j: JobRow): Promise<{ ok: true; rebate: number; pri
 
 /** Sends one reminder step for one job. Records the step first; never sends the same step twice. */
 export async function sendEstimateFollowupStep(j: JobRow, step: EstimateFollowupStep): Promise<string> {
+  const skip = await (await import("./firm-quote.server")).skipSpotMessage(j.id);
+  if (skip) return skip.reason;
   const { data: dup } = await db.from("workflow_events").select("id").eq("job_id", j.id).in("event_type", [ESTIMATE_FOLLOWUP_EVENT, ESTIMATE_FOLLOWUP_NOT_SENT_EVENT]).contains("details", { step }).limit(1).maybeSingle();
   if (dup) return "already handled";
   const test = j.source === "qa_test";
@@ -146,6 +152,8 @@ export async function sendEstimateFollowupStep(j: JobRow, step: EstimateFollowup
 
 /** Closes one estimate-only lead: conditional stage update (only from the estimate stage) + one stage_changed event. */
 export async function closeEstimateFollowup(j: JobRow): Promise<string> {
+  const skip = await (await import("./firm-quote.server")).skipSpotMessage(j.id);
+  if (skip) return skip.reason;
   const { data: changed, error } = await db.from("jobs").update({
     stage: "cancelled", prior_stage: ESTIMATE_FOLLOWUP_STAGE, cancelled_reason: ESTIMATE_FOLLOWUP_CLOSE_REASON, hold_reason: null, last_activity_at: new Date().toISOString(),
   }).eq("id", j.id).eq("stage", ESTIMATE_FOLLOWUP_STAGE).is("deleted_at", null).select("id").maybeSingle();
@@ -179,7 +187,7 @@ export async function sweepEstimateFollowups(now = new Date()): Promise<Estimate
       if (d.kind === "stop") out.stopped++;
       else if (d.kind === "send") {
         const r = await sendEstimateFollowupStep(j, d.step);
-        if (r.startsWith("held")) out.held++; else if (r === "already handled") { /* recorded by an earlier tick */ } else out.sent++;
+        if (r.startsWith("held")) out.held++; else if (r === "firm_quote_job") out.stopped++; else if (r === "already handled") { /* recorded by an earlier tick */ } else out.sent++;
       } else if (d.kind === "close") { if ((await closeEstimateFollowup(j)) === "closed") out.closed++; }
     } catch (e) { out.failed++; console.error("estimate follow-up failed", j.id, (e as Error).message); }
   }

@@ -27,6 +27,11 @@ export async function isFirmQuoteJobId(jobId: string): Promise<boolean> {
   return isFirmQuoteJob({ source: job.source, createdAt: job.created_at, liveAt, hasMedia: hasOwnerMedia(docs.data ?? []) });
 }
 
+/** Shared fail-closed exclusion for spot messages; null preserves the existing delivery path. */
+export async function skipSpotMessage(jobId: string): Promise<{ status: "skipped"; reason: "firm_quote_job" } | null> {
+  return await isFirmQuoteJobId(jobId) ? { status: "skipped", reason: "firm_quote_job" } : null;
+}
+
 export type FirmQuoteRequestResult = { ok: true; dueBy: string; already: boolean } |
   { ok: false; reason: "closed" | "opted_out" | "quoted" | "not_firm_quote" };
 

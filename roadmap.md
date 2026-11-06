@@ -1,3 +1,8 @@
+## Jo 6 Nov firm quote from photos — Task 6 only
+- [x] Shared fail-closed spot-message guard at every sender and follow-up/auto-close boundary; normal jobs unchanged.
+- [x] Remove only the calculator spot-release sentence; keep button and other wording. Checked at 390 and 1280.
+- [x] Tests run file by file: 399 pass, 0 fail; retired-terms scan 0 customer-visible failures; preview build OK. No live SQL, sends, switch changes or publishing. Stopped after Task 6. Report: docs/firm-quote-task6-report.md.
+
 ## Jo 6 Nov firm quote from photos — Task 5 only
 - [x] Test-first token request and saved due-date replay; mocked atomic event/save/queue contract and no-message tap. 14 new request tests failed before implementation and pass afterwards.
 - [x] Public estimate-look page; dedicated post-intake size-check dispatch without first-response delivery. Both saved-confirmation entry points skip firm jobs, including recovery from the saved response.
