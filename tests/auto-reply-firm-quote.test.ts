@@ -1,6 +1,6 @@
 // Firm-quote owners never get an automatic spot answer: the AI leaves an office draft on the job instead.
 import { describe, expect, mock, test } from "bun:test";
-import { decideOwnerAutoReply, EMAIL_AUTO_REPLIED_EVENT, REPLY_NEEDED_INTENT, renderOwnerAutoReplyEmail, type AutoReplyInput, type OwnerJobFacts } from "../src/lib/owner-email-auto-reply.core";
+import { decideOwnerAutoReply, EMAIL_AUTO_REPLIED_EVENT, REPLY_NEEDED_INTENT, type AutoReplyInput, type OwnerJobFacts } from "../src/lib/owner-email-auto-reply.core";
 
 const MY_JOB = "https://estimate.homeinsulationvictoria.com.au/my-job/tokreal";
 const facts = (o: Partial<OwnerJobFacts> = {}): OwnerJobFacts => ({
@@ -24,7 +24,6 @@ describe("core decision", () => {
       for (const body of QUESTIONS) {
         const d = decideOwnerAutoReply(input(body, facts({ stage, spotSaved: true }), { isFirmQuote: true }));
         expect(d.kind).toBe("draft");
-        if (d.kind === "send") { const m = renderOwnerAutoReplyEmail({ answer: d.answer, facts: d.facts, theirSubject: "Q" }); expect(m.text).not.toMatch(/spot|ready check/i); }
       }
     }
   });

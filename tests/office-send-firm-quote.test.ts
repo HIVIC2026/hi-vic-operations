@@ -177,7 +177,7 @@ function firmSetup(id=L){
   T.documents=[{job_id:id,kind:'intake_media',mime_type:'image/jpeg',storage_path:`${id}/intake/roof.jpg`}];
   media={received:true,uncertain:false};
 }
-const { sendSaveMySpot } = await import("../src/lib/hot-leads-send.server");
+const { sendSaveMySpot, prepareOfficeSaveSpot } = await import("../src/lib/hot-leads-send.server");
 const { candidateJobIds } = await import("../src/lib/enquiry-dispatch.server");
 const E1 = (id = L) => `firm_quote_preliminary:${id}`;
 
@@ -248,4 +248,81 @@ test('firm jobs left out of dispatch backlog', async () => {
   T.documents = [];
   expect(await candidateJobIds()).toEqual([L]);
   expect(await dispatchableJobIds()).toEqual([L]);
+});
+
+test('existing-insulation Office Send to a firm owner: email 1 once, never Save my spot', async () => {
+  firmSetup();
+  const [r0] = [await sendExistingInsulationSaveSpot(L, 'office-user-1')];
+  expect(r0?.outcome).toBe('sent');
+  expect(calls.map(c => c.idem)).toEqual([E1()]);
+  expect(String(calls[0]?.body.text)).toContain('/firm-quote');
+  expect(String(calls[0]?.body.text)).not.toContain('/campaign');
+  const again = await sendExistingInsulationSaveSpot(L, 'office-user-1');
+  expect(again.outcome).toBe('skipped');
+  expect(calls).toHaveLength(1);
+});
+test('existing-insulation Office Send after the automatic email 1 sends nothing more', async () => {
+  firmSetup();
+  expect((await maybeAutoRouteLeadEmail(L)).sent).toBe(true);
+  const r = await sendExistingInsulationSaveSpot(L, 'office-user-1');
+  expect(r.outcome).toBe('skipped');
+  expect(calls).toHaveLength(1);
+  expect(calls[0]?.idem).toBe(E1());
+});
+test('existing-insulation Office Send for a non-firm owner is unchanged', async () => {
+  firmSetup();
+  T.workflow_settings[0].firm_quote_flow_live_at = null;
+  const r = await sendExistingInsulationSaveSpot(L, 'office-user-1', true);
+  expect(r.preview?.plainText ?? '').not.toContain('/firm-quote');
+  expect(calls).toHaveLength(0);
+});
+test('existing-insulation Office Send blocks when the firm-quote check is unreadable', async () => {
+  firmSetup();
+  const mod = await import("../src/lib/firm-quote.server");
+  const spy = (await import("bun:test")).spyOn(mod, "firmQuoteJobIdsFor").mockRejectedValue(new Error("x"));
+  try {
+    const r = await sendExistingInsulationSaveSpot(L, 'office-user-1');
+    expect(r.outcome).toBe('blocked');
+    expect(calls).toHaveLength(0);
+  } finally { spy.mockRestore(); }
+});
+test('Prepare email to copy for a firm owner gives the email 1 content, not Save my spot', async () => {
+  firmSetup();
+  for (const issueLinks of [false, true]) {
+    const r = await prepareOfficeSaveSpot(L, 'office-user-1', 'no_insulation_owner_size', issueLinks);
+    expect(r.outcome).toBe('sent');
+    expect(r.preview?.subject).toBe('Jet, your preliminary estimate: $3,716 after a $1,482 rebate');
+    expect(r.preview?.plainText).toContain('/firm-quote');
+    expect(r.preview?.plainText).not.toContain('/campaign');
+  }
+  expect(calls).toHaveLength(0);
+  expect(sends()).toHaveLength(0);
+});
+test('Prepare email to copy for a non-firm owner is unchanged', async () => {
+  firmSetup();
+  T.documents = [];
+  const r = await prepareOfficeSaveSpot(L, 'office-user-1', 'no_insulation_owner_size', false);
+  expect(r.outcome).toBe('sent');
+  expect(r.preview?.plainText).toContain('/campaign');
+});
+test('quiet hours hold the automatic email 1 but never an Office Send', async () => {
+  firmSetup();
+  setSystemTime(new Date("2026-11-06T09:00:00Z")); // 8pm Melbourne
+  try {
+    const auto = await maybeAutoRouteLeadEmail(L);
+    expect(auto.sent).toBe(false);
+    expect(calls).toHaveLength(0);
+    const [r] = await sendSaveMySpot([L], 'office-user-1');
+    expect(r?.outcome).toBe('sent');
+    expect(calls.map(c => c.idem)).toEqual([E1()]);
+  } finally { setSystemTime(new Date("2026-11-06T06:00:00Z")); }
+});
+test('quiet hours do not hold an Office existing-insulation Send either', async () => {
+  firmSetup();
+  setSystemTime(new Date("2026-11-06T09:00:00Z"));
+  try {
+    const r = await sendExistingInsulationSaveSpot(L, 'office-user-1');
+    expect(r.outcome).toBe('sent');
+    expect(calls.map(c => c.idem)).toEqual([E1()]);
+  } finally { setSystemTime(new Date("2026-11-06T06:00:00Z")); }
 });

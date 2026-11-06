@@ -36,10 +36,11 @@ export async function isFirmQuoteJobId(jobId: string): Promise<boolean> {
 export async function firmQuoteJobIdsFrom(
   jobs: readonly { id: string; source: string | null; created_at: string }[],
   media: readonly (OwnerMediaDoc & { job_id: string })[] | null,
+  knownLiveAt?: string | null,
 ): Promise<Set<string>> {
   const out = new Set<string>();
   if (!jobs.length) return out;
-  const liveAt = await firmQuoteLiveAt();
+  const liveAt = knownLiveAt !== undefined ? knownLiveAt : await firmQuoteLiveAt();
   if (liveAt === null) return out;
   const candidates = jobs.filter(j => isFirmQuoteJob({ source: j.source, createdAt: j.created_at, liveAt, hasMedia: true }));
   if (!candidates.length) return out;
@@ -54,7 +55,8 @@ export async function firmQuoteJobIdsFrom(
  *  media are read in paged id chunks and handed to firmQuoteJobIdsFrom. Any failed read throws (fail closed). */
 export async function firmQuoteJobIdsFor(jobIds: readonly string[]): Promise<Set<string>> {
   const ids = [...new Set(jobIds)];
-  if (!ids.length || (await firmQuoteLiveAt()) === null) return new Set();
+  const liveAt = ids.length ? await firmQuoteLiveAt() : null;
+  if (!ids.length || liveAt === null) return new Set();
   const paged = async <T>(read: (c: string[], a: number, b: number) => PromiseLike<{ data: unknown; error: unknown }>, c: string[]): Promise<T[]> => {
     const all: T[] = [];
     for (let a = 0; ; a += 200) {
@@ -72,7 +74,7 @@ export async function firmQuoteJobIdsFor(jobIds: readonly string[]): Promise<Set
     jobs.push(...await paged<{ id: string; source: string | null; created_at: string }>((cc, a, b) => admin.from("jobs").select("id,source,created_at").in("id", cc).order("id").range(a, b), c));
     media.push(...await paged<OwnerMediaDoc & { job_id: string }>((cc, a, b) => admin.from("documents").select("job_id,kind,mime_type,storage_path").in("job_id", cc).eq("kind", "intake_media").order("id").range(a, b), c));
   }
-  return firmQuoteJobIdsFrom(jobs, media);
+  return firmQuoteJobIdsFrom(jobs, media, liveAt);
 }
 
 /** Shared fail-closed exclusion for spot messages; null preserves the existing delivery path. */

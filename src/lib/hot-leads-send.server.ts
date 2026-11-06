@@ -59,6 +59,12 @@ export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
 export const JO_TEST_LINK_JOB = "HV-1609";
 
+const FIRM_CHECK_FAILED = "Could not verify firm-quote facts. Try again; nothing sent.";
+/** One batched firm-quote check for the Office paths; null = the check failed (callers block, never fall back). */
+async function officeFirmQuoteIds(jobIds: string[]): Promise<Set<string> | null> {
+  try { return await (await import("./firm-quote.server")).firmQuoteJobIdsFor(jobIds); } catch { return null; }
+}
+
 export async function sendSaveMySpot(jobIds: string[], actorId: string | null, testOpts: TestSendOptions = {}): Promise<HotSendResult[]> {
   if (jobIds.length > HOT_SEND_BATCH) throw new Error(`Send at most ${HOT_SEND_BATCH} at a time.`);
   const realOn = await realSendingOn();
@@ -68,8 +74,9 @@ export async function sendSaveMySpot(jobIds: string[], actorId: string | null, t
   const plain = (testOpts.mode === undefined || testOpts.mode === "send" || testOpts.mode === "preview") && !testOpts.officeVariant && !testOpts.automaticInitial && !testOpts.automaticInsulation && !testOpts.morePhotosReviewId;
   let firm = new Set<string>();
   if (plain) {
-    try { firm = await (await import("./firm-quote.server")).firmQuoteJobIdsFor(jobIds); }
-    catch { return jobIds.map(jobId => ({ jobId, jobNumber: null, outcome: "blocked" as const, detail: "Could not verify firm-quote facts. Try again; nothing sent." })); }
+    const found = await officeFirmQuoteIds(jobIds);
+    if (found === null) return jobIds.map(jobId => ({ jobId, jobNumber: null, outcome: "blocked" as const, detail: FIRM_CHECK_FAILED }));
+    firm = found;
   }
   for (const jobId of jobIds) out.push(await sendOne(jobId, actorId, realOn, firm.has(jobId) ? { ...testOpts, officeFirmQuote: true } : testOpts).catch((e) => ({ jobId, jobNumber: null, outcome: (testOpts.mode && testOpts.mode !== 'send' ? 'blocked' : 'uncertain') as HotSendResult['outcome'], detail: (e as Error).message })));
   return out;
@@ -78,10 +85,22 @@ export async function sendSaveMySpot(jobIds: string[], actorId: string | null, t
 /** One office-triggered follow-up; never available to initial campaigns or automation. */
 /** Office "Prepare email to copy" (Jo, 12 Oct): the approved three-variant email, render only. All contact guards apply. */
 export async function prepareOfficeSaveSpot(jobId: string, actorId: string | null, variant: import("./save-spot-offer.core").SaveSpotVariant, issueLinks: boolean): Promise<HotSendResult> {
+  // A firm-quote owner never gets Save my spot wording: the copy is the existing email 1. Unreadable check blocks.
+  const mode = issueLinks ? "manual_copy" as const : "preview" as const;
+  const firm = await officeFirmQuoteIds([jobId]);
+  if (firm === null) return { jobId, jobNumber: null, outcome: "blocked", detail: FIRM_CHECK_FAILED };
+  if (firm.has(jobId)) return sendOne(jobId, actorId, false, { mode, officeFirmQuote: true }).catch((e) => ({ jobId, jobNumber: null, outcome: "blocked" as const, detail: (e as Error).message }));
   return sendOne(jobId, actorId, false, { mode: issueLinks ? "manual_copy" : "preview", officeVariant: variant }, variant === "reviewed_under_r2").catch((e) => ({ jobId, jobNumber: null, outcome: "blocked" as const, detail: (e as Error).message }));
 }
 
 export async function sendExistingInsulationSaveSpot(jobId: string, actorId: string | null, preview = false): Promise<HotSendResult> {
+  // Office (a signed-in actor) press of Send: the same batched firm check as sendSaveMySpot. A firm-quote owner gets
+  // email 1 (same key, so an earlier email 1 means nothing more) or nothing. The automatic caller (no actor) keeps its own check in sendOne.
+  if (actorId !== null) {
+    const firm = await officeFirmQuoteIds([jobId]);
+    if (firm === null) return { jobId, jobNumber: null, outcome: "blocked", detail: FIRM_CHECK_FAILED };
+    if (firm.has(jobId)) return sendOne(jobId, actorId, preview ? false : await realSendingOn(), { mode: preview ? "preview" : "send", officeFirmQuote: true }).catch((e) => ({ jobId, jobNumber: null, outcome: "uncertain" as const, detail: (e as Error).message }));
+  }
   return sendOne(jobId, actorId, false, { mode: preview ? "preview" : "send" }, true);
 }
 
@@ -121,7 +140,9 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   }
   const isTest = job.source === "qa_test";
   const firmQuote = !morePhotos && (testOpts.officeFirmQuote === true || ((testOpts.automaticInitial === true || testOpts.automaticInsulation === true || (followup && actorId === null && mode === "send")) && await isFirmQuoteJobId(jobId)));
-  if (firmQuote && mode === "send" && smsQuietReason(new Date().toISOString())) return r("blocked", "Automatic email waits until 7am Melbourne time.");
+  // Jo 27 Oct: what the Office sends by pressing Send goes when she chooses; only the automatic email 1 keeps the quiet-hours hold.
+  const quietHold = firmQuote && testOpts.officeFirmQuote !== true;
+  if (quietHold && mode === "send" && smsQuietReason(new Date().toISOString())) return r("blocked", "Automatic email waits until 7am Melbourne time.");
   if (mode === "send" && !isTest && !followup && !morePhotos && !realOn) return r("blocked", "Sending is switched off.");
   if (followup && !["base44", "qa_test"].includes(job.source)) return r("blocked", "Follow-up is only for website owner enquiries.");
   if (followup && mode === "send" && !(await (await import("./comms.server")).customerCommsEnabled())) return r("blocked", "Customer emails are switched off — nothing sent.");
@@ -457,7 +478,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       const finalBlocker = historyBlocker ?? contactBlocker ?? mediaBlocker;
       if (finalBlocker) { await finish('failed', 'not_sent', finalBlocker); return r('blocked', finalBlocker); }
       if (!followup && !morePhotos && sendGroup === 'likely' && !(await realSendingOn())) { await finish('failed', 'not_sent', 'Sending was switched off before delivery.'); return r('blocked', 'Sending was switched off before delivery.'); }
-      if (firmQuote && (!(await isFirmQuoteJobId(jobId)) || smsQuietReason(new Date().toISOString()))) { await finish('failed', 'not_sent', 'Firm-quote activation, owner media or send time changed.'); return r('blocked', 'Firm-quote activation, owner media or send time changed.'); }
+      if (firmQuote && (!(await isFirmQuoteJobId(jobId)) || (quietHold && smsQuietReason(new Date().toISOString())))) { await finish('failed', 'not_sent', 'Firm-quote activation, owner media or send time changed.'); return r('blocked', 'Firm-quote activation, owner media or send time changed.'); }
       mayHaveSent = true;
       const d = await resendSend(to, mail.subject, mail.html, mail.plainText, key, unsubscribeUrl);
       if (d.outcome === "rejected" || d.outcome === "not_attempted") { mayHaveSent = false; await finish("failed", "resend", d.detail); return r("failed", d.detail); }
