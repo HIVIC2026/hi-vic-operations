@@ -89,3 +89,14 @@ describe("first screen after sign-in", () => {
     expect(readFileSync("src/routes/_authenticated/admin.needs-me.tsx", "utf8")).toContain('queryKey: ["needs-me-v2", includeTest]');
   });
 });
+
+test("speed: an installer's sign-in never starts the office check (it would take request slots from the home's reads)", async () => {
+  seed(["installer"]);
+  let office = 0;
+  const r = await run(deps({ officeIdentity: () => { office++; return oneRead("admin" as const); } }));
+  expect(portalDestination(r.result)).toBe("/field");
+  expect(office).toBe(0);
+  seed(["admin"]);
+  await run(deps({ officeIdentity: () => { office++; return oneRead("admin" as const); } }));
+  expect(office).toBe(1);
+});

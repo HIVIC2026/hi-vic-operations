@@ -33,7 +33,8 @@ const plain = (v: unknown): Json => JSON.parse(JSON.stringify(v ?? null)) as Jso
 
 export async function firstScreenAfterSignIn(userId: string, deps: FirstScreenDeps): Promise<FirstScreen> {
   const homeP = early(deps.tradeHome(userId).then((v) => ({ value: plain(v) }), (e: Error) => (/isn't linked/.test(String(e?.message)) ? { value: null } : null)));
-  const officeP = early(deps.officeIdentity().catch(() => null));
+  // Speed: the office check starts only once the person is known to be heading for the office (below). Started for
+  // everyone it took request slots the trade home's own reads were waiting for (a worker keeps only a few open at once).
   const [{ data: roleRows, error: rolesError }, { data: profile, error: profileError }] = await Promise.all([
     admin.from("user_roles").select("role").eq("user_id", userId),
     admin.from("profiles").select("business_id").eq("id", userId).maybeSingle(),
@@ -46,7 +47,7 @@ export async function firstScreenAfterSignIn(userId: string, deps: FirstScreenDe
   if (to === "/field") {
     const home = await homeP;
     if (home) out.home = home;
-  } else if (to === "/admin/needs-me" && (await officeP) === "admin") {
+  } else if (to === "/admin/needs-me" && (await deps.officeIdentity().catch(() => null)) === "admin") {
     const needs = await deps.needsMe().then((v) => ({ value: plain(v) }), () => null);
     if (needs) out.needs = needs;
   }
