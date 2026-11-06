@@ -86,6 +86,15 @@ Palette/fonts from `docs/templates/installer/portal/M7-business.html` (#22376B i
 - "Can't do this one" link with a reason, same as journey 2.
 - From "Quote being prepared" to the end: same words as journey 2.
 
+### 6 Nov 12:05 — audit fixes APPROVED
+- Step 7 What happens: "2 days before, the day and your Lead are locked and we notify the ESC. Your Lead and each crew member get a text with the safety plan to sign as soon as you pick them, and again the afternoon before if they haven't signed. Your Lead also gets the Mitti install form."
+- Use the owner's name, never "her"/"she" (e.g. step 6 "asked Jo to pay the deposit").
+- Offer a discount: any discount is checked by Home Insulation Victoria before the owner sees it.
+- My work card for journey 3: "Do the Ready Check" · "New job" · button "Open the job" (mock-up re-rendered).
+- No booking deadline shown on our leads' PIESA/install boxes (Jo said no).
+- Journey 1 Paid box approved: "Paid ✓ Mon 24 Nov · $2,500.00".
+- Audit page artifact: https://claude.ai/artifact/4N9YDro7BhDLS3gTGmad4C
+
 **Next:** all three journeys are approved, so write the spec at `docs/superpowers/specs/2026-11-06-installer-portal-redesign-design.md`, self-review it, then Jo reviews.
 
 ## Journeys 2 and 3 — still to dictate
