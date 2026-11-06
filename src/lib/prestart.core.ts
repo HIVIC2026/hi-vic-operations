@@ -302,12 +302,42 @@ export function prestartFailedFor(
   return out;
 }
 
+export const PRESTART_NOT_RUN_YET = "The pre-start check has not run yet for this install date.";
+/** The words every "not cleared to start" refusal already uses (requirePrestartClear). */
+export const NOT_CLEARED_TO_START = (reasons: readonly string[]) => `Not cleared to start: ${reasons.join(" ")}`;
+
+/** Jo 7 Nov 2026: DON'T START is a hard lock. An install is recorded complete only after a GO for THAT install start: the
+ *  latest check for the start passed (retired worker lines never hold, as in prestartLocked). No check, a check for another
+ *  start, or a failed one = the DON'T START refusal with its reasons. Every job, whatever its source. */
+export function installGoBlocker(start: string | null | undefined, checks: readonly { scheduled_start: string; passed: boolean; failures: string[] | null; checked_at: string }[]): string | null {
+  const t = start ? Date.parse(start) : NaN;
+  const same = Number.isFinite(t) ? checks.filter((c) => Date.parse(c.scheduled_start) === t).sort((a, b) => (a.checked_at < b.checked_at ? 1 : -1))[0] : undefined;
+  if (!same) return NOT_CLEARED_TO_START([PRESTART_NOT_RUN_YET]);
+  if (same.passed) return null;
+  const reasons = currentWorkerRequirementLines(same.failures ?? []);
+  return reasons.length ? NOT_CLEARED_TO_START(reasons) : null;
+}
+
 /** Is installation work (PIISA send, install evidence) locked for this booking? */
 export function prestartLocked(i: { start: string; latest: { scheduled_start: string; passed: boolean; failures: string[] } | null; now: Date }): { locked: boolean; reasons: string[] } {
   const same = i.latest && Date.parse(i.latest.scheduled_start) === Date.parse(i.start) ? i.latest : null;
   if (same && !same.passed) { const reasons=currentWorkerRequirementLines(same.failures); return {locked:reasons.length>0,reasons}; }
-  if (!same && i.now.getTime() >= Date.parse(prestartRunAt(i.start))) return { locked: true, reasons: ["The pre-start check has not run yet for this install date."] };
+  if (!same && i.now.getTime() >= Date.parse(prestartRunAt(i.start))) return { locked: true, reasons: [PRESTART_NOT_RUN_YET] };
   return { locked: false, reasons: [] };
 }
 
 export const INSTALL_EVIDENCE_CATEGORIES = ["installation_progress", "completed_installation", "installer_declaration", "post_install_video", "final_zone_plan"];
+
+/** The Mitti Install day sync's "installation not recorded" event (install-complete-mitti.server). */
+export const INSTALL_COMPLETE_HELD_EVENT = "install_complete_auto_held";
+
+/** Needs me (Jo 7 Nov 2026): the job's latest Mitti hold was "no GO" and the install is still not recorded (the job is still
+ *  at installation_booked) → the DON'T START row, with the hold's reasons. Pure; events in any order. */
+export function installNoGoHeldFor(stage: string | null | undefined, held: readonly { created_at: string; details: unknown }[]): { at: string; reasons: string[] } | null {
+  if (stage !== "installation_booked") return null;
+  const latest = [...held].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+  const d = latest?.details as { no_go?: unknown; outstanding?: unknown } | null | undefined;
+  if (!latest || d?.no_go !== true) return null;
+  const reasons = (Array.isArray(d.outstanding) ? d.outstanding : []).map(String).map((r) => r.replace(/^Not cleared to start: /, ""));
+  return { at: latest.created_at, reasons };
+}

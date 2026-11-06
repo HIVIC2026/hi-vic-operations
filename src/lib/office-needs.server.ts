@@ -24,7 +24,7 @@ import { OWN_JOB_PIESA_HANDED_BACK_EVENT, OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT
 const AUTO_FIXES_QUOTE_HELD_EVENT = "fixes_quote_auto_send_held";
 import { PIESA_AUTOFORM_FAILED_EVENT, piesaFormFailedOpen } from "./piesa-autoform.core";
 import { TENANT_NOTICE_HELD_EVENT, TENANT_NOTICE_SENT_EVENT, tenantNoticeHeldOpen } from "./tenant-notice.core";
-import { prestartFailedFor } from "./prestart.core";
+import { INSTALL_COMPLETE_HELD_EVENT, installNoGoHeldFor, prestartFailedFor } from "./prestart.core";
 import { endOfMelbourneYmd } from "./melbourne-time.core";
 import { VEEC_PART_B_IMAGE_HELD_EVENT, VEEC_PART_B_MITTI_HELD_EVENT, VEEC_PART_B_SIGNED_MITTI_EVENT, veecPartBHeldOpen } from "./veec-part-b-mitti.core";
 
@@ -259,6 +259,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const sameDayPartCP = early(import("./same-day-part-c.core").then(({ SAME_DAY_PART_C_FAILED_EVENT, SAME_DAY_PART_C_RECOVERED_EVENT }) => all("same-day Part C record failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [SAME_DAY_PART_C_FAILED_EVENT, SAME_DAY_PART_C_RECOVERED_EVENT]).order("created_at").range(a, b))));
   const coesChecksP = early(import("./coes-check.core").then(({ COES_CHECKED_EVENT, COES_REJECTED_EVENT }) => all("electrical certificate checks", (a, b) => scoped(admin.from("workflow_events").select("id, job_id, event_type, created_at, details")).in("event_type", [COES_CHECKED_EVENT, COES_REJECTED_EVENT]).order("created_at").range(a, b))));
   const escWithdrawP = early(import("./esc.server").then((m) => m.openEscWithdrawalRows(opts.onlyIds)));
+  // Jo 7 Nov 2026: Mitti install holds (the DON'T START row when the hold was "no GO"); the last 60 days are plenty.
+  const noGoHoldsP = early(all("install holds without a GO", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", INSTALL_COMPLETE_HELD_EVENT).gte("created_at", new Date(t0 - 60 * DAY).toISOString()).range(a, b)));
   const stopReleaseP = early(import("./stop-release.server").then(({ stopReleaseNeeds }) => stopReleaseNeeds(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : {}) })));
 
   // Review R04: owner emails whose delivery outcome is unknown (warranty follow-up, completion pack) are never resent —
@@ -538,6 +540,16 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const [id, r] of prestartFailedFor(upcomingInstalls.map((b) => ({ job_id: String(b["job_id"]), scheduled_start: String(b["scheduled_start"]) })),
     prestartChecks.map((c) => ({ job_id: String(c["job_id"]), scheduled_start: String(c["scheduled_start"]), passed: c["passed"] === true, failures: (c["failures"] as string[] | null) ?? [], checked_at: String(c["checked_at"]) })))) {
     const x = f(id); if (x) x.prestartFailed = r;
+  }
+  // Jo 7 Nov 2026 (DON'T START is a hard lock): a Mitti Install day sync held for no GO keeps the same DON'T START row after
+  // the install start has passed, until the install is recorded (the job leaves installation_booked) or a later hold clears it.
+  {
+    const bookedIds = [...facts.keys()].filter((id) => jobById.get(id)?.stage === "installation_booked" && !f(id)?.prestartFailed);
+    const held = await noGoHoldsP;
+    for (const id of bookedIds) {
+      const hit = installNoGoHeldFor(jobById.get(id)?.stage, held.filter((e) => e["job_id"] === id).map((e) => ({ created_at: String(e["created_at"]), details: e["details"] })));
+      const x = f(id); if (hit && x) x.prestartFailed = hit;
+    }
   }
   // Decision 398: the automatic A3 PIESA form failed → one row until the job has its PIESA form (office button = backup).
   {

@@ -1,7 +1,7 @@
 // ONE guarded, idempotent path that records an installation as complete (decision 213, Jo 24 Oct 2026). The office /
 // installer "Complete installation" button and the Mitti Install day Complete sync both come here; nothing else writes
-// `installation_completed_at`. Every existing guard stays: confirmed install booking, the A5 ruler photos (decision 396), the
-// guarded stage transition. On a refusal nothing is recorded.
+// `installation_completed_at`. Every existing guard stays: confirmed install booking, a GO for that start (Jo 7 Nov 2026),
+// the A5 ruler photos (decision 396), the guarded stage transition. On a refusal nothing is recorded.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, confirmedInstallBooking, logEvent, transition } from "./workflow.server";
 import { ASSIGNMENT_EVENTS } from "./assignment.core";
@@ -22,6 +22,10 @@ export async function recordInstallationComplete(jobId: string, actorId: string 
   // P0: no confirmed installation booking = no completion (checked BEFORE any stage change; fails closed).
   const { booking: unlockBooking, blocker } = await confirmedInstallBooking(jobId);
   if (blocker || !unlockBooking) throw new WorkflowError(blocker ?? "No confirmed installation booking.");
+  // Jo 7 Nov 2026: DON'T START is a hard lock — no GO for this install start, no completion (every job, every source).
+  // `noGo` lets the Mitti sync hold the job for the office instead of a plain refusal. Fails closed on a read error.
+  const noGo = await (await import("./install-go.server")).installGoBlockerFor(jobId, unlockBooking.scheduled_start);
+  if (noGo) throw Object.assign(new WorkflowError(noGo), { noGo: true });
   // Decision 396: the old "missing Ready Check photos become install-day photos" lock is gone (its rows are ignored). The
   // legally required ruler photos come from the A5 itself: every area's existing-depth (areas that had insulation) and
   // new-depth photo, geotagged and timed. The Mitti path already holds on them (installCompletionDecision); the office /

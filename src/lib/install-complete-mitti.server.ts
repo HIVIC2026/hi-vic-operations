@@ -5,7 +5,9 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { installCompletionDecision, type InstallEvidenceSummary } from "./install-evidence.core";
 
-export const INSTALL_COMPLETE_HELD_EVENT = "install_complete_auto_held";
+// The held event name and the Needs me "no GO" rule live in pure prestart.core (office-needs reads them without this module).
+import { INSTALL_COMPLETE_HELD_EVENT } from "./prestart.core";
+export { INSTALL_COMPLETE_HELD_EVENT, installNoGoHeldFor } from "./prestart.core";
 
 export async function maybeRecordInstallationFromMitti(jobId: string, actorId: string | null, auditId: string, input: { formCompleted: boolean; declarationSaved: boolean; summary: InstallEvidenceSummary | null; allFilledInTicked?: boolean | null; partB?: { audit: unknown; fetchMedia: import("./mitti.server").MittiMediaFetch } | undefined }): Promise<{ recorded: boolean; reason: string; nextLine: string | null }> {
   const { installationAlreadyComplete, recordInstallationComplete } = await import("./install-complete.server");
@@ -20,9 +22,9 @@ export async function maybeRecordInstallationFromMitti(jobId: string, actorId: s
     try { await (await import("./veec-part-b-mitti.server")).applyMittiPartB(jobId, auditId, input.partB.audit, input.partB.fetchMedia); }
     catch (e) { try { await logEvent(jobId, actorId, "veec_part_b_mitti_failed", "VEEC Part B from Mitti could not be applied — it retries on the next sync", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
   };
-  const hold = async (reason: string, nextLine: string | null, outstanding: string[]) => {
+  const hold = async (reason: string, nextLine: string | null, outstanding: string[], extra: { no_go?: true } = {}) => {
     const { data: prev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", INSTALL_COMPLETE_HELD_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    const details = { audit_id: auditId, reason, next_line: nextLine, outstanding };
+    const details = { audit_id: auditId, reason, next_line: nextLine, outstanding, ...extra };
     if (JSON.stringify(prev?.details ?? null) !== JSON.stringify(details)) await logEvent(jobId, actorId, INSTALL_COMPLETE_HELD_EVENT, `Installation not recorded from Mitti: ${reason}`, details, { internal: true });
     return { recorded: false, reason, nextLine };
   };
@@ -34,7 +36,9 @@ export async function maybeRecordInstallationFromMitti(jobId: string, actorId: s
     return { recorded: !r.already, reason: r.already ? "Installation already recorded" : decision.reason, nextLine: null };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Installation could not be recorded.";
-    return hold(msg, `Installation complete is held: ${msg}`, [msg]);
+    // Jo 7 Nov 2026: no GO for this start — the synced evidence stays, the job stays where it is, and `no_go` puts the
+    // DON'T START row on Needs me / the job page (office-needs.server installNoGoHeldFor) until it is sorted.
+    return hold(msg, `Installation complete is held: ${msg}`, [msg], (e as { noGo?: boolean } | null)?.noGo ? { no_go: true } : {});
   }
 }
 

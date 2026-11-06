@@ -399,6 +399,13 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     if ((await m.isIntakeJob(jobId)) && (await m.reconfirmationOpen(jobId))) blockers.push("Quote facts changed after acceptance — the owner must reconfirm the corrected quote first.");
   }
   if (to === "evidence_outstanding") {
+    // Jo 7 Nov 2026: DON'T START is a hard lock for EVERY job (HIV leads and installers' own customers): no GO for the
+    // confirmed install start, no move to installed. Fails closed on a read error.
+    {
+      const { booking } = await confirmedInstallBooking(jobId);
+      const noGo = await (await import("./install-go.server")).installGoBlockerFor(jobId, booking?.scheduled_start ?? null);
+      if (noGo) blockers.push(noGo);
+    }
     // Install-day order for intake jobs (Ready Check deferred): initial-condition media BEFORE removal/covering
     // and a passed pre-start check BEFORE PIISA/works.
     const m = await import("./installer-intake.server");
