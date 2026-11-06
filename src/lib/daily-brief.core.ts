@@ -18,8 +18,10 @@ export function reminderKey(bookingId: string, slot: ReminderSlot, who: "owner" 
   return `visit-reminder-${slot}-${who}-${bookingId}-${Date.parse(startIso)}`;
 }
 
+// Speed (7 Nov): one shared formatter — building a new one per call took most of the Enquiries/Needs me CPU time.
+const PARTS_FMT = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 function parts(ms: number) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  const p = Object.fromEntries(PARTS_FMT.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
   return { ymd: `${p["year"]}-${p["month"]}-${p["day"]}`, hour: Number(p["hour"]), minute: Number(p["minute"]) };
 }
 export const melbourneYmd = (ms: number) => parts(ms).ymd;

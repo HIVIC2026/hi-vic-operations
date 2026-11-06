@@ -20,6 +20,8 @@ export const QA_OFFICE_FUNCTIONS = {
   "src/lib/test-centre-photo.functions.ts": ["testEnquiryPhotoUpload", "attachTestEnquiryPhoto"],
   // Jo 5 Nov 2026: Choose installer "Give to installer". The server allows only qa_test jobs to TEST partners.
   "src/lib/in-house-batch.functions.ts": ["allocateInHouseBatch", "getInHouseGiveForJob"],
+  // Jo 7 Nov: Choose installer reads the TEST job's history (read-only; the server re-checks the TEST job graph).
+  "src/lib/jobfile.functions.ts": ["getJobFile"],
 } as const;
 export function qaOfficeFunctionAllowed(filename: string, name: string): boolean {
   const path = filename.replaceAll("\\", "/").replace(/^.*?(?=src\/)/, "");

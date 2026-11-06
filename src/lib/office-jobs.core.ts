@@ -51,7 +51,9 @@ export type WaitingOnFacts = {
   answeredQuestions: boolean;
   latestFailed: boolean;
 };
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Melbourne" });
+// Speed (7 Nov): one shared formatter, same text as toLocaleDateString (including "Invalid Date").
+const DAY_FMT = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Melbourne" });
+const day = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "Invalid Date" : DAY_FMT.format(d); };
 export function waitingOnLine(f: WaitingOnFacts): string {
   if (f.latestFailed) return "Estimate email failed · on Needs me";
   if (f.needsFirstResponse || !f.latestSend) return "Estimate goes out automatically";

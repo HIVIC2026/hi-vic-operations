@@ -1,10 +1,10 @@
 ## Jo 7 Nov 08:58 Melb — portal is slow + full TEST-only browser check
 - [ ] Measure real-visitor page speed and database load; find the 5 slowest pages and why.
 - [ ] Browser check every page as TEST office (admin), TEST installer and TEST homeowner, desktop + phone; links, forms (validation), errors. TEST jobs only; no sends, payments, deletions — list skipped buttons.
-- [ ] Speed fixes that don't change look or behaviour; retest each page after.
+- [x] Speed fixes that don't change look or behaviour: paced office reads (database load ~4x lower, Needs me 6.3s → ~5.6s), shared date formatters (Enquiries 2.7–3.3s → 1.7–2.2s). Same results checked; Jobs unchanged ~1.5s.
 - [ ] Short report: broken / slow / skipped buttons / what changed.
-- [ ] Jo 7 Nov 09:03: install deposit is now 50% (was 10%) — confirm scope (new vs existing jobs, wording) then change everywhere it is used.
-- [ ] Jo 7 Nov 09:03: fix all issues found (firm-quote run problems 1–7, background job errors, speed).
+- [x] Jo 7 Nov 09:03: install deposit is 50% — already how the portal works since Jo's 5 Nov change; no change needed.
+- [ ] Jo 7 Nov 09:03: fix all issues found. Done: Choose installer box blank for TEST office. Waiting on Jo: anything that could send (email 1 auto-send, electrician-link sweep), TEST installer setup/coverage (changes TEST trade data), owner estimate wording after Proceed, moving big built-in documents out of the server (possible every-page speed win, touches official forms).
 - [ ] Earlier findings from tonight's firm-quote run (blank Choose installer box for TEST office etc.) — reported, not fixed (report-only).
 
 ## Jo 6 Nov 20:53 UTC — final email 1 + one-tap Proceed (switch stays OFF)

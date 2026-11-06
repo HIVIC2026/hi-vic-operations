@@ -3,12 +3,21 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, requireJobRole } from "./workflow.server";
 import { signFile } from "./file-links.server";
+import { officeBoundaryFor } from "./office-boundary-context";
 
 const uuid = z.string().uuid();
 
 export const getJobFile = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
+    // TEST office (Jo 7 Nov fix): the Choose installer box needs this job's history to know whether a batch was
+    // already sent. Only fully isolated TEST jobs pass the same graph check the office job page uses.
+    if (officeBoundaryFor(context)?.roles.includes("qa_office")) {
+      const { requireOfficeJob } = await import("./qa-office-access.server");
+      await requireOfficeJob(context.supabase, data.jobId, context);
+      const { buildJobFile } = await import("./jobfile.server");
+      return buildJobFile(data.jobId, "admin" as never);
+    }
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
     const { buildJobFile } = await import("./jobfile.server");
     return buildJobFile(data.jobId, role as never);

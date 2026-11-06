@@ -26,7 +26,9 @@ export function sizeChip(areaM2: number | null | undefined): SizeChip {
   return areaM2 < 100 ? "under_100" : areaM2 <= 150 ? "100_150" : "over_150";
 }
 /** Melbourne calendar day comparison so "Today" means today in Victoria. */
-const melDay = (ms: number) => new Date(ms).toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
+// Speed (7 Nov): one shared formatter, same text as toLocaleDateString (including "Invalid Date").
+const MEL_DAY_FMT = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" });
+const melDay = (ms: number) => { const d = new Date(ms); return Number.isNaN(d.getTime()) ? "Invalid Date" : MEL_DAY_FMT.format(d); };
 export function lastHeardChip(at: string | null | undefined, now: number): LastHeardChip {
   if (!at) return "never";
   const t = Date.parse(at);
