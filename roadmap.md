@@ -5,7 +5,10 @@
 - [ ] Short report: broken / slow / skipped buttons / what changed.
 - [x] Jo 7 Nov 09:03: install deposit is 50% — already how the portal works since Jo's 5 Nov change; no change needed.
 - [ ] Jo 7 Nov 09:03: fix all issues found. Done: Choose installer box blank for TEST office. Waiting on Jo: anything that could send (email 1 auto-send, electrician-link sweep), TEST installer setup/coverage (changes TEST trade data), owner estimate wording after Proceed, moving big built-in documents out of the server (possible every-page speed win, touches official forms).
-- [ ] Jo 7 Nov answers: (a) move built-in documents out of the server program and make the installers page very fast; (b) set up TEST Photos Insulation as in-house partner with Richmond coverage (TEST trade only); (c) fix email 1 auto-send + electrician-link sweep with sending kept OFF; (d) draft owner estimate wording after Proceed for Jo to approve (no change until approved).
+- [x] Jo 7 Nov (a): instruction PDFs moved out of the server program (23MB from 29MB, SHA-checked); installer page reads measured fast (0.06–0.8s) — remaining wait is server start-up, needs publishing to help. Official forms/warranties left built in (compliance-checked, used without waiting).
+- [ ] Jo 7 Nov (b): TEST Photos Insulation in-house + Richmond — BLOCKED: in-house checklist needs an approved electrician with a Mitti login, a PIESA price and a Mitti invite; asked Jo.
+- [x] Jo 7 Nov (c): electrician-link sweep read fixed, sending kept OFF (ELECTRICIAN_LINK_SWEEP_SENDS=false); same missing-column bug fixed on owner My job installer name and TEST quote-expired. Email 1 for TEST jobs: Test Centre jobs skip the automatic steps by design; wiring it would send, so left until Jo says send.
+- [ ] Jo 7 Nov (d): owner estimate wording after Proceed — draft shown to Jo, waiting for approval.
 - [ ] Earlier findings from tonight's firm-quote run (blank Choose installer box for TEST office etc.) — reported, not fixed (report-only).
 
 ## Jo 6 Nov 20:53 UTC — final email 1 + one-tap Proceed (switch stays OFF)
