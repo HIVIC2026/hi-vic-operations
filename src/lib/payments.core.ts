@@ -294,6 +294,19 @@ const RECONCILE_WINDOW_MS = RECONCILE_WINDOW_DAYS * 86_400_000;
 const usableIds = (r: PaymentRecord) => (r.stripeIds ?? []).filter((x) => !!x && x.length >= 6);
 const refHolds = (p: XeroPaymentFact, ids: string[]) => !!p.reference && ids.some((id) => p.reference!.includes(id));
 const withinWindow = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) <= RECONCILE_WINDOW_MS;
+/** Launch fix (QA 7 Nov): a Xero copy of card money may land any time later and net of Stripe's fee (up to 5% less). */
+export const CARD_FEE_TOLERANCE_PERCENT = 5;
+/** Xero dates are calendar days (no time), so "after the card" allows the card's own day: one day of slack. */
+const XERO_DATE_SLACK_MS = 86_400_000;
+/** Same money as a card row with no shared Stripe id: same amount inside the window (either way, Jo batch 1), or any
+ *  time after the card for between the card amount less 5% and the card amount. */
+const cardCopyCandidate = (p: XeroPaymentFact, r: PaymentRecord) => {
+  const cardCents = Math.round(r.amountCents);
+  if (p.amountCents === cardCents && withinWindow(p.paidAt, r.paidAt)) return true;
+  return p.amountCents <= cardCents && p.amountCents * 100 >= cardCents * (100 - CARD_FEE_TOLERANCE_PERCENT)
+    && Date.parse(p.paidAt) >= Date.parse(r.paidAt) - XERO_DATE_SLACK_MS;
+};
+const officeCopyCandidate = (p: XeroPaymentFact, r: PaymentRecord) => p.amountCents === Math.round(r.amountCents) && withinWindow(p.paidAt, r.paidAt);
 
 /** Receipt identity written on every ledger row (`details.receipt_key`) — unique in the database (pending migration
  *  payment-receipt-once.sql), so two concurrent deliveries of one receipt can never both be recorded (audit R06). */
@@ -337,7 +350,8 @@ export type UnclearPaymentPair<T> = { record: T; xero: XeroPaymentFact };
 /** Pure: which card/office records are already in Xero.
  *  1. Exact: the Xero payment Reference holds one of the record's Stripe ids (PaymentIntent / charge / session).
  *  2. Legacy office rows only (no receipt identity exists for them): same amount within 10 days, closest date first.
- *  3. Card rows with no identity match: same rule as 2, but the pair is also returned in `unclear` for the office to confirm,
+ *  3. Card rows with no identity match: same rule as 2, or a Xero payment any time after the card for the card amount less up
+ *     to 5% (Stripe's fee; counted at the card amount, launch fix 7 Nov); the pair is also returned in `unclear` for the office to confirm,
  *     unless the office marked that pair "Two separate payments" (`notSameAs`): then both count and nothing is unclear.
  *  Each Xero payment claims at most one record (an id match or an earlier row's pairing is never paired again).
  *  A card row's Stripe refunds reduce it while it is unmatched; once Xero holds that money Xero is the record. */
@@ -355,10 +369,10 @@ export function reconcilePayments<T extends PaymentRecord>(ledger: T[], xeroPaym
   }
   // A Xero payment whose Reference names ANY recorded Stripe receipt belongs to that receipt, never to another row.
   const allIds = others.flatMap(usableIds);
-  const closest = (r: T, skip: Set<number>) => {
+  const closest = (r: T, skip: Set<number>, candidate: (p: XeroPaymentFact, r: T) => boolean) => {
     let best = -1, bestGap = Infinity;
     live.forEach((p, k) => {
-      if (claimed.has(k) || skip.has(k) || (p.paymentId && (r.notSameAs ?? []).includes(p.paymentId)) || p.amountCents !== Math.round(r.amountCents) || refHolds(p, allIds) || !withinWindow(p.paidAt, r.paidAt)) return;
+      if (claimed.has(k) || skip.has(k) || (p.paymentId && (r.notSameAs ?? []).includes(p.paymentId)) || refHolds(p, allIds) || !candidate(p, r)) return;
       const gap = Math.abs(Date.parse(p.paidAt) - Date.parse(r.paidAt));
       if (gap < bestGap) { best = k; bestGap = gap; }
     });
@@ -366,21 +380,26 @@ export function reconcilePayments<T extends PaymentRecord>(ledger: T[], xeroPaym
   };
   for (const r of others) {
     if (matched.has(r) || r.source === "card" || usableIds(r).length) continue;
-    const best = closest(r, claimed);
+    const best = closest(r, claimed, officeCopyCandidate);
     if (best >= 0) { claimed.add(best); matched.set(r, live[best]!); }
   }
-  // A card row with no Stripe id in any Xero Reference pairs with the closest same-amount Xero payment inside the window
-  // and counts once; the pair is still returned in `unclear` so the office is asked to confirm it.
+  // A card row with no Stripe id in any Xero Reference pairs with the closest Xero copy of it (`cardCopyCandidate`: same
+  // amount inside the window, or any time later net of up to 5% fee) and counts once, at the card amount; the pair is
+  // still returned in `unclear` so the office is asked to confirm it.
   const unclear: UnclearPaymentPair<T>[] = [];
+  let feeGapCents = 0;
   for (const r of others) {
     if (matched.has(r) || r.source !== "card") continue;
-    const best = closest(r, claimed);
-    if (best >= 0) { claimed.add(best); matched.set(r, live[best]!); unclear.push({ record: r, xero: live[best]! }); }
+    const best = closest(r, claimed, cardCopyCandidate);
+    if (best >= 0) {
+      claimed.add(best); matched.set(r, live[best]!); unclear.push({ record: r, xero: live[best]! });
+      feeGapCents += Math.max(0, Math.round(r.amountCents) - live[best]!.amountCents);
+    }
   }
   const netCents = new Map<T, number>();
   for (const r of others) if (!matched.has(r)) netCents.set(r, Math.max(0, Math.round(r.amountCents) - refundedCents(r, ledger)));
   const unmatched = others.filter((r) => !matched.has(r) && (netCents.get(r) ?? 0) > 0);
-  const paidCents = xeroCents + unmatched.reduce((s, r) => s + (netCents.get(r) ?? 0), 0);
+  const paidCents = xeroCents + feeGapCents + unmatched.reduce((s, r) => s + (netCents.get(r) ?? 0), 0);
   return { paidCents, xeroCents, unmatched, matched, unclear, netCents };
 }
 /** The amount truly received on the invoice: Xero's live payments + card/office records not yet matched in Xero. */

@@ -20,11 +20,11 @@ describe("card + same-amount Xero payment without a Stripe id", () => {
     expect(r.paidCents).toBe(69_800);
     expect(r.unclear.length).toBe(1);
   });
-  test("Xero payment 11 days after the card → not paired", () => {
+  test("Xero payment 11 days after the card → paired, counted once and raised (launch fix 7 Nov: no 10-day limit)", () => {
     const xero = xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 11) }]);
     const r = reconcilePayments([card("pi_3Abc123456")], xero);
-    expect(r.paidCents).toBe(69_800);
-    expect(r.unclear).toEqual([]);
+    expect(r.paidCents).toBe(34_900);
+    expect(r.unclear.length).toBe(1);
   });
   test("a Xero payment already claimed by a Stripe id is not paired again", () => {
     const xero = xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24), Reference: "pi_3Abc123456" }]);

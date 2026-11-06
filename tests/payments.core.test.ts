@@ -211,8 +211,9 @@ describe("audit F01: the same money is counted once; deleted Xero payments are r
     const r = reconcilePayments([card], bank);
     expect(r.unclear.map((u) => u.xero.paymentId)).toEqual(["x1"]);
     expect(cumulativePaidCents(effectiveLedger([card, ledgerRecordFromEvent("owner_payment_recorded", T0, null, { amount_cents: 34_900, source: "xero", paid_at: plus(T0, 48), xero_payment_id: "x1" })]))).toBe(34_900);
-    // outside 10 days or a different amount: still two payments, nothing unclear to report
-    expect(reconcilePayments([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 11) }])).unclear).toEqual([]);
+    // Launch fix (7 Nov): no 10-day limit for a later Xero copy of card money — counted once and still unclear;
+    // a clearly different amount is still two payments.
+    expect(reconcilePayments([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 349, Date: plus(T0, 24 * 11) }])).unclear.map((u) => u.xero.paymentId)).toEqual(["x1"]);
     expect(reconciledPaidCents([card], xeroPaymentFacts([{ PaymentID: "x1", Amount: 300, Date: plus(T0, 24) }]))).toBe(64_900);
   });
   test("audit R02: the charge id in the Reference identifies the card receipt too", () => {
