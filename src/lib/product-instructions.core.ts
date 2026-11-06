@@ -7,13 +7,13 @@
  * reason; nothing here blocks, fakes or invents a document. Part 4 decides how to hold.
  */
 import { warrantyFamilyForOption } from "./product-warranty.core";
-import { PRODUCT_INSTRUCTION_PDFS } from "./product-instructions.data";
+import { PRODUCT_INSTRUCTION_FILES } from "./product-instructions.data";
 import { INSTRUCTIONS_DIR, PRODUCT_INSTRUCTIONS, type ProductInstructions } from "./product-instructions.list";
 
 export { INSTRUCTIONS_DIR, PRODUCT_INSTRUCTIONS, type ProductInstructions };
 
 /** Only the documents whose PDF is bundled. */
-export const INSTRUCTIONS_ON_FILE: readonly ProductInstructions[] = PRODUCT_INSTRUCTIONS.filter((i) => i.pdfPath in PRODUCT_INSTRUCTION_PDFS);
+export const INSTRUCTIONS_ON_FILE: readonly ProductInstructions[] = PRODUCT_INSTRUCTIONS.filter((i) => i.pdfPath in PRODUCT_INSTRUCTION_FILES);
 
 /** The instructions for one Mitti option; null when the option is not an approved family or its PDF is not on file. */
 export function instructionsForOption(option: string | null | undefined): ProductInstructions | null {
