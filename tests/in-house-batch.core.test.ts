@@ -122,3 +122,14 @@ test("an installer's own customer is never photo-blocked (photo quotes are for H
   expect(givenQuoteMethod({ ...job, hasOwnerMedia: true }, noGap)).toBe("photos");
   expect(givenQuoteMethod({ ...job, hasOwnerMedia: true }, partner)).toBe("ready_check");
 });
+
+// Jo 7 Nov: a firm-quote (photo) job has no quick taps or owner batch; Give goes to an in-house photos installer covering the home.
+test("firm-quote job: Give offers the covering in-house photos installer, never a Ready Check installer", () => {
+  const firm: BatchJob = { ...job, quickTapsYes: false, waitingBusinessId: null, firmQuote: true, hasOwnerMedia: true, ownerName: "Sam Lee" };
+  const photos: InHousePartner = { ...partner, id: "ph", name: "TEST Photos Insulation", quote_method: "photos" };
+  expect(jobGiveOffer(firm, [partner, photos])).toEqual({ businessId: "ph", partnerName: "TEST Photos Insulation", label: "Sam Lee asked for a firm quote from photos. Give to TEST Photos Insulation", blocked: null });
+  expect(jobGiveOffer(firm, [partner])).toBeNull();
+  expect(jobGiveOffer(firm, [{ ...photos, in_house: false }])).toBeNull();
+  expect(jobGiveOffer(firm, [{ ...photos, service_postcodes: ["3000"] }])).toBeNull();
+  expect(jobGiveOffer({ ...firm, firmQuote: false }, [photos])).toBeNull();
+});
