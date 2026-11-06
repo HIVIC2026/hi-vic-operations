@@ -50,6 +50,31 @@ export async function firmQuoteJobIdsFrom(
   return out;
 }
 
+/** Batched check for callers that only have job ids: the switch is read once (off = no other read), then jobs and owner
+ *  media are read in paged id chunks and handed to firmQuoteJobIdsFrom. Any failed read throws (fail closed). */
+export async function firmQuoteJobIdsFor(jobIds: readonly string[]): Promise<Set<string>> {
+  const ids = [...new Set(jobIds)];
+  if (!ids.length || (await firmQuoteLiveAt()) === null) return new Set();
+  const paged = async <T>(read: (c: string[], a: number, b: number) => PromiseLike<{ data: unknown; error: unknown }>, c: string[]): Promise<T[]> => {
+    const all: T[] = [];
+    for (let a = 0; ; a += 200) {
+      const r = await read(c, a, a + 199);
+      if (r.error) throw new Error("Could not verify firm-quote job facts.");
+      const page = (r.data ?? []) as T[];
+      all.push(...page);
+      if (page.length < 200) return all;
+    }
+  };
+  const jobs: { id: string; source: string | null; created_at: string }[] = [];
+  const media: (OwnerMediaDoc & { job_id: string })[] = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const c = ids.slice(i, i + 100);
+    jobs.push(...await paged<{ id: string; source: string | null; created_at: string }>((cc, a, b) => admin.from("jobs").select("id,source,created_at").in("id", cc).order("id").range(a, b), c));
+    media.push(...await paged<OwnerMediaDoc & { job_id: string }>((cc, a, b) => admin.from("documents").select("job_id,kind,mime_type,storage_path").in("job_id", cc).eq("kind", "intake_media").order("id").range(a, b), c));
+  }
+  return firmQuoteJobIdsFrom(jobs, media);
+}
+
 /** Shared fail-closed exclusion for spot messages; null preserves the existing delivery path. */
 export async function skipSpotMessage(jobId: string): Promise<{ status: "skipped"; reason: "firm_quote_job" } | null> {
   return await isFirmQuoteJobId(jobId) ? { status: "skipped", reason: "firm_quote_job" } : null;
