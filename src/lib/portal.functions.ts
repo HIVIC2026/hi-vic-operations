@@ -1394,6 +1394,7 @@ export const priceRectItem = createServerFn({ method: "POST" })
       "rectification_item_priced",
       `Office priced: ${it.description}`,
       { unit_price_inc_gst: data.unitPriceIncGst, reason: data.reason },
+      { internal: true }, // launch blocker Task 8: owner prices never in trade-readable history
     );
     return { ok: true };
   });
@@ -1994,6 +1995,7 @@ export const respondToQuoteImpl = createServerOnlyFn(async function respondToQuo
       "rectification_scope_approved",
       `Owner approved electrical fixes scope (${q.customer_total_inc_gst} inc GST)`,
       { quote_id: q.id },
+      { internal: true }, // launch blocker Task 8: owner prices never in trade-readable history
     );
     // Decision 366 (audit F03): the installation quote is already accepted (Ready Check path), so this stays in the fixes
     // flow — the fixes are paid in full on their own invoice (batch 3b), then the owner picks the electrician's time and
@@ -2080,6 +2082,7 @@ export const respondToQuoteImpl = createServerOnlyFn(async function respondToQuo
     ASSIGNMENT_EVENTS.QUOTE_ACCEPTED,
     `${q.option_label} accepted with signed Customer Agreement / Quote Acceptance`,
     { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst },
+    { internal: true }, // launch blocker Task 8: owner prices never in trade-readable history
   );
   // F13: the installer is told by the approved I23 email once the safety check is paid (afterPaymentsChanged in payments.server.ts, Jo 28 Oct 2026);
   // the old partner_notifications outbox row here was never sendable and is gone.
@@ -4597,6 +4600,7 @@ export const answerInstallerQuoted = createServerFn({ method: "POST" })
         ? `Installer quoted $${plan.patch.installer_quoted_price_inc_gst} inc GST`
         : "Installer has not quoted — quote needed from installer",
       { answer: data.answer, price: plan.patch.installer_quoted_price_inc_gst },
+      { internal: true }, // launch blocker Task 8: owner prices never in trade-readable history
     );
     return { ok: true };
   });

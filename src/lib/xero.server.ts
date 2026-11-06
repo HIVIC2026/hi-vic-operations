@@ -155,7 +155,7 @@ export async function createInvoiceForQuote(quoteId: string, actorId: string | n
   const upfront = fixes ? Number(q.customer_total_inc_gst) : (await (await import("./safety-check-amount.server")).quoteSafetyCheck(q.id)).incGst;
   const { row, created } = await ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()), upfront);
   if (created && fixes) await logEvent(q.job_id, actorId, "invoice_created_local", `Electrical fixes invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST – owner pays it in full on My job.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst, kind: q.kind }, { internal: true });
-  else if (created) await logEvent(q.job_id, actorId, "invoice_created_local", `Invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST. Safety check payment (${row.deposit_amount}) due – owner pays on My job.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst });
+  else if (created) await logEvent(q.job_id, actorId, "invoice_created_local", `Invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST. Safety check payment (${row.deposit_amount}) due – owner pays on My job.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst }, { internal: true });
   if (!row.xero_invoice_id) await pushInvoiceToXero(row.id, actorId);
   return row.id;
 }
@@ -431,7 +431,7 @@ export async function applyPaidAmount(invoiceId: string, paid: number, actorId: 
   const { patch, events } = paymentPatch(inv as unknown as InvoiceRow, effective, depositReachedAt ?? null, new Date().toISOString());
   await admin.from("invoices").update(patch as never).eq("id", invoiceId);
   // A fixes invoice has no safety check part (batch 3b): only the installation invoice records the safety check payment.
-  if (events.includes("deposit_paid") && inv.kind === "installation") await logEvent(inv.job_id, actorId, "deposit_paid", `Safety check payment confirmed in Xero (${inv.deposit_amount})`, { invoice_id: invoiceId, amount_paid: paid });
+  if (events.includes("deposit_paid") && inv.kind === "installation") await logEvent(inv.job_id, actorId, "deposit_paid", `Safety check payment confirmed in Xero (${inv.deposit_amount})`, { invoice_id: invoiceId, amount_paid: paid }, { internal: true });
   if (events.includes("balance_paid")) await logEvent(inv.job_id, actorId, "balance_paid", "Invoice fully paid in Xero", { invoice_id: invoiceId });
   if (events.includes("paid_reduced")) await logEvent(inv.job_id, actorId, "payment_total_reduced", `Amount received went down from ${Number(inv.total_paid).toFixed(2)} to ${effective.toFixed(2)} (a Xero payment was deleted or voided, or the same money had been counted twice)`, { invoice_id: invoiceId, was: Number(inv.total_paid), now: effective }, { internal: true });
 }

@@ -114,7 +114,7 @@ export async function acceptRepeatPiesa(jobId: string): Promise<RepeatState> {
     if (state.stage === "owner_pay" || state.stage === "offer") return state; // idempotent
     throw new WorkflowError("There's nothing to accept right now.");
   }
-  await logEvent(jobId, null, REPEAT_PIESA_ACCEPTED_EVENT, `Owner accepted the new safety check (PIESA)${state.payer === "owner" ? ` — $${state.priceIncGst} inc GST added to their bill` : " at no cost to them"}`, { deadline: state.deadline, payer: state.payer, owner_charge_inc_gst: state.payer === "owner" ? state.priceIncGst : 0 }, { internal: false });
+  await logEvent(jobId, null, REPEAT_PIESA_ACCEPTED_EVENT, `Owner accepted the new safety check (PIESA)${state.payer === "owner" ? ` — $${state.priceIncGst} inc GST added to their bill` : " at no cost to them"}`, { deadline: state.deadline, payer: state.payer, owner_charge_inc_gst: state.payer === "owner" ? state.priceIncGst : 0 }, { internal: true }); // launch blocker Task 8: owner price never in trade-readable history
   const next = (await repeatPiesaContext(jobId)).state;
   // Owner pays (batch 3b): the repeat gets its OWN Xero invoice now, once per repeat. A Xero failure is recorded for the
   // office (Needs me) and retried by Sync / Create invoice; it never undoes the owner's acceptance.
