@@ -1,4 +1,4 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Navigate, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { readMyProfile, type ProfileClient } from "@/lib/my-profile";
@@ -6,7 +6,7 @@ import { SignInCard } from "@/components/portal/SignInCard";
 import { NoAccess, RoleChooser } from "@/components/portal/NoAccess";
 import { portalDestination } from "@/lib/set-password-link.core";
 import { safeNextPath } from "@/lib/login.core";
-import { loadAccess } from "@/lib/route-guards";
+import { currentUser, loadAccess } from "@/lib/route-guards";
 import { writeTradeCache } from "@/lib/trade-cache";
 
 export const Route = createFileRoute("/portal")({
@@ -24,11 +24,19 @@ export const Route = createFileRoute("/portal")({
 /** Signed in → the right place every time (deep link first, then by role). Signed out → the sign-in card. */
 export function Portal() {
   const qc = useQueryClient();
+  const router = useRouter();
   const { data, isLoading } = useQuery({
     queryKey: ["portal-me"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
+      // Speed: who is signed in comes from the session the sign-in just saved (currentUser, the same rule every page
+      // guard uses; the auth server is still asked in the background). The old getUser() was one more trip before anything.
+      const { data: u } = await currentUser();
       if (!u.user) return null;
+      // Speed: the trade home's code downloads while the first-screen call runs, not after it. Code only (no loaders);
+      // a failure just means the screen downloads its code as before.
+      for (const id of ["/_authenticated", "/_authenticated/field", "/_authenticated/field/"] as const) {
+        try { const r = (router.routesById as unknown as Record<string, unknown>)[id]; if (r) void Promise.resolve(router.loadRouteChunk(r as never)).catch(() => undefined); } catch { /* keep going */ }
+      }
       // Portal speed step 2 (Task 6): ONE server call returns the same two facts (roles, business linked) AND the first
       // screen's data, handed to that screen's own cache entry so it draws without asking again; the trade/office area's
       // role check is read alongside (its memo), not after the navigation. If that call fails, the browser reads below run
