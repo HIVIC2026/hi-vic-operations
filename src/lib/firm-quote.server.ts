@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isFirmQuoteJob, firmQuoteDueBy } from "./firm-quote.core";
-import { hasOwnerMedia } from "./photo-quote.core";
+import { hasOwnerMedia, type OwnerMediaDoc } from "./photo-quote.core";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
 
 export async function firmQuoteLiveAt(): Promise<string | null> {
@@ -28,6 +28,26 @@ export async function isFirmQuoteJobId(jobId: string): Promise<boolean> {
   const docs = await admin.from("documents").select("kind,mime_type,storage_path").eq("job_id", jobId).eq("kind", "intake_media");
   if (docs.error) throw new Error("Could not verify owner media for firm quote.");
   return isFirmQuoteJob({ ...facts, hasMedia: hasOwnerMedia(docs.data ?? []) });
+}
+
+/** Batched isFirmQuoteJobId over job rows and owner media the caller already read: ONE activation read and no per-job
+ *  queries (switch off = nothing else checked). Same rules; `media` null means the caller's media read failed, which
+ *  throws (fail closed) only when a job could be a firm-quote job. */
+export async function firmQuoteJobIdsFrom(
+  jobs: readonly { id: string; source: string | null; created_at: string }[],
+  media: readonly (OwnerMediaDoc & { job_id: string })[] | null,
+): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (!jobs.length) return out;
+  const liveAt = await firmQuoteLiveAt();
+  if (liveAt === null) return out;
+  const candidates = jobs.filter(j => isFirmQuoteJob({ source: j.source, createdAt: j.created_at, liveAt, hasMedia: true }));
+  if (!candidates.length) return out;
+  if (media === null) throw new Error("Could not verify owner media for firm quote.");
+  const byJob = new Map<string, OwnerMediaDoc[]>();
+  for (const m of media) byJob.set(m.job_id, [...(byJob.get(m.job_id) ?? []), m]);
+  for (const j of candidates) if (hasOwnerMedia(byJob.get(j.id) ?? [])) out.add(j.id);
+  return out;
 }
 
 /** Shared fail-closed exclusion for spot messages; null preserves the existing delivery path. */

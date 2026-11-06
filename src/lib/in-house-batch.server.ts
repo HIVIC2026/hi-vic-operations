@@ -25,7 +25,7 @@ export async function pullBackInHouseJob(input: { jobId: string; reason: string;
   }
 }
 type Property = { id: string; postcode: string | null; address_line: string; suburb: string | null };
-type Job = { owners?: { full_name: string | null; phone: string | null } | null; id: string; job_number: string; property_id: string; stage: string; source: string; channel: string; originating_installer_business_id: string | null; deleted_at: string | null };
+type Job = { owners?: { full_name: string | null; phone: string | null } | null; id: string; job_number: string; property_id: string; stage: string; source: string; channel: string; originating_installer_business_id: string | null; deleted_at: string | null; created_at: string };
 type Assignment = { job_id: string; business_id: string | null; role: string };
 async function rows<T>(query: PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
   const result = await query;
@@ -48,12 +48,17 @@ export type TestOfficeScope = { jobIds: string[]; businessIds: string[] };
 /** `now` is injectable (tests); the phone consent check is against it. `jobIds` scopes the read (job page offer).
  *  `testOffice`: read ONLY those qa_test jobs and TEST businesses; without it (the real office) qa_test jobs are never read. */
 export async function loadInHouseBatches(opts: { now?: Date | undefined; jobIds?: string[]; testOffice?: TestOfficeScope | undefined } = {}) {
+  const { firmIds: _firmIds, ...screen } = await loadInHouseScreen(opts);
+  return screen;
+}
+/** Screen plus the batched firm-quote job ids for every loaded open job (server-only; never sent to the browser). */
+async function loadInHouseScreen(opts: { now?: Date | undefined; jobIds?: string[]; testOffice?: TestOfficeScope | undefined }) {
   const nowIso = (opts.now ?? new Date()).toISOString();
   const test = opts.testOffice;
-  if (test && (!test.jobIds.length || !test.businessIds.length)) return { jobs: [] as BatchJob[], partners: [] as InHousePartner[], suggestions: [] as { businessId: string; jobIds: string[] }[], blocked: {} as Record<string, { jobId: string; reason: string }[]>, waitingForCallConsent: [] as string[], mediaReadFailed: false };
+  if (test && (!test.jobIds.length || !test.businessIds.length)) return { firmIds: new Set<string>(), jobs: [] as BatchJob[], partners: [] as InHousePartner[], suggestions: [] as { businessId: string; jobIds: string[] }[], blocked: {} as Record<string, { jobId: string; reason: string }[]>, waitingForCallConsent: [] as string[], mediaReadFailed: false };
   const scoped = (q: any) => { const s = opts.jobIds ? q.in("id", opts.jobIds) : q; return test ? s.eq("source", "qa_test").in("id", test.jobIds) : s.neq("source", "qa_test"); };
   const [jobs, businesses] = await Promise.all([
-    pagedRows<Job>((a,b) => scoped(db.from("jobs").select("id,job_number,property_id,owners(full_name,phone),stage,source,channel,originating_installer_business_id,deleted_at").is("deleted_at", null).not("stage", "in", "(complete,cancelled)")).order("id").range(a,b)),
+    pagedRows<Job>((a,b) => scoped(db.from("jobs").select("id,job_number,property_id,owners(full_name,phone),stage,source,channel,originating_installer_business_id,deleted_at,created_at").is("deleted_at", null).not("stage", "in", "(complete,cancelled)")).order("id").range(a,b)),
     test
       ? pagedRows<Omit<InHousePartner, "openJobs"> & { trading_name: string | null; email: string | null; onboarding_notes: string | null }>((a,b) => db.from("businesses").select("id,name,trading_name,email,onboarding_notes,in_house,is_active,service_postcodes,covers_all_victoria,coverage_lat,coverage_lng,coverage_radius_km").eq("in_house", true).eq("is_active", true).in("id", test.businessIds).order("id").range(a,b))
         .then(rows => rows.filter(isTestGiveBusiness).map(({ email: _e, onboarding_notes: _n, ...b }) => b))
@@ -83,13 +88,13 @@ export async function loadInHouseBatches(opts: { now?: Date | undefined; jobIds?
     media = ids.length ? await byIds<OwnerMediaDoc & { job_id: string }>(ids, (c,a,b) => db.from("documents").select("job_id,kind,mime_type,storage_path").in("job_id", c).eq("kind", "intake_media").order("id").range(a,b)) : [];
   } catch (e) { mediaReadFailed = true; console.error("Owner photo read for Choose installer failed", (e as Error).message); }
   const partners: InHousePartner[] = businesses.map(b => ({ ...b, name: displayName(b.trading_name || b.name), quote_method: quoteMethodOf({ quote_method: methods.get(b.id) ?? null }), openJobs: assignments.filter(a => a.business_id === b.id && a.role === "installer").length }));
-  const { isFirmQuoteJobId } = await import("./firm-quote.server");
-  const firmIds = new Set((await Promise.all(jobs.map(async j => await isFirmQuoteJobId(j.id) ? j.id : null))).filter((id): id is string => id !== null));
+  // One activation read, reusing the job rows and owner media read above (no per-job lookups).
+  const firmIds = await (await import("./firm-quote.server")).firmQuoteJobIdsFrom(jobs, mediaReadFailed ? null : media);
   const batchJobs: BatchJob[] = jobs.map(j => {
     const p = properties.find(p => p.id === j.property_id), coords = facts.find(f => f.property_id === j.property_id)?.value;
     const answer = events.find(e => e.job_id === j.id && e.event_type === QUICK_TAPS_ANSWERED_EVENT)?.details;
     const batch = events.find(e => e.job_id === j.id && e.event_type === "area_batch_sent" && e.details?.["batch_id"] === answer?.["batch_id"])?.details;
-    const { owners, ...jobFields } = j;
+    const { owners, created_at: _createdAt, ...jobFields } = j;
     return { ...jobFields, ...(firmIds.has(j.id) ? { firmQuote: true, firmQuoteDueBy: firmQuoteRequestDueBy(events.filter(e => e.job_id === j.id)) } : {}), ownerName: owners?.full_name ?? null, ownerPhone: owners?.phone ?? null, spot_saved_at: saved.find(s => s.job_id === j.id)?.spot_saved_at ?? null,
       quickTapsYes: answer?.["outcome"] === "pass" && answer?.["consent_share"] === true,
       quickTapsBatchId: typeof answer?.["batch_id"] === "string" ? answer["batch_id"] : null,
@@ -103,7 +108,7 @@ export async function loadInHouseBatches(opts: { now?: Date | undefined; jobIds?
   });
   const waiting = new Set(batchJobs.filter(j => waitingForCallConsent(j, consents.filter(c => c.job_id === j.id), nowIso, !!test)).map(j => j.id));
   const eligibleJobs = batchJobs.filter(j => batchJobEligible(j, !!test) && !waiting.has(j.id));
-  return { jobs: eligibleJobs, partners, suggestions: suggestBatches(eligibleJobs, partners, !!test), blocked: blockedForPartner(eligibleJobs, partners, !!test), waitingForCallConsent: [...waiting], mediaReadFailed };
+  return { firmIds, jobs: eligibleJobs, partners, suggestions: suggestBatches(eligibleJobs, partners, !!test), blocked: blockedForPartner(eligibleJobs, partners, !!test), waitingForCallConsent: [...waiting], mediaReadFailed };
 }
 
 /** Job page offer (office only): null unless this job can be given to its nominated in-house partner right now. */
@@ -146,11 +151,13 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
     const blocked = testGiveBlocker(ids, (jobRows.data ?? []) as { id: string; source: string | null; deleted_at: string | null }[], biz.data as { email: string | null; onboarding_notes: string | null } | null);
     if (blocked) throw new Error(blocked);
   }
-  const screen = await loadInHouseBatches({ now: opts.now, testOffice: test });
+  const screen = await loadInHouseScreen({ now: opts.now, testOffice: test });
   const partner = screen.partners.find(p => p.id === input.businessId);
   const blockedFirm = new Set<string>();
+  // Firm-quote facts come from the screen just loaded (same rules, one batched check over every open job); a job not
+  // loaded there (closed, deleted or outside scope) is never allocated below anyway.
   for (const jobId of new Set(input.jobIds)) {
-    const firm = await (await import("./firm-quote.server")).isFirmQuoteJobId(jobId);
+    const firm = screen.firmIds.has(jobId);
     const reason = firmQuoteInstallerBlocker(firm, partner ?? {});
     if (reason) { refused.push({ jobId, reason }); blockedFirm.add(jobId); }
   }

@@ -20,7 +20,7 @@ function fixture(failedTable?: string, failPage = -1) {
   const inserts: { table: string; row: any }[] = [];
   const failInsert = { on: false };
   const giveMode: { fail: boolean; outcome: any } = { fail: false, outcome: { status: "not_approved" } };
-  const firmIds = new Set<string>();
+  const firmIds = new Set<string>(); const firmChecks: string[] = [];
   const data: Record<string, unknown[]> = {
     jobs: [{ id: "j", job_number: "HV-1", property_id: "p", stage: "preliminary_estimate_ready", source: "base44", deleted_at: null }],
     businesses: [{ id: "b", name: "Rapid", trading_name: "Rapid Insulation", in_house: true, is_active: true, service_postcodes: ["3199"], covers_all_victoria: false }],
@@ -47,7 +47,7 @@ function fixture(failedTable?: string, failPage = -1) {
     return q;
   }, async rpc(name: string, input: unknown) { rpcCalls.push({ name, input }); return { data: refuseJobs.has((input as any)._job) ? { sent: false, reason: "Already booked" } : { sent: true }, error: null }; } };
   const dependencies: Record<string, unknown> = {
-    "./firm-quote.server": { isFirmQuoteJobId: async (id: string) => firmIds.has(id) },
+    "./firm-quote.server": { isFirmQuoteJobId: async () => { throw new Error("per-job firm-quote lookup used"); }, firmQuoteJobIdsFrom: async (jobs: { id: string }[], media: unknown[] | null) => { firmChecks.push(media === null ? "failed" : "ok"); return new Set(jobs.filter(j => firmIds.has(j.id)).map(j => j.id)); } },
     "./firm-quote.core": require("../src/lib/firm-quote.core"),
     "./background.server": { runAfterResponse: (task: () => Promise<unknown>) => { void task(); return "wait_until"; } },
     "@/integrations/supabase/client.server": { supabaseAdmin: admin }, "./in-house-batch.core": rules,
@@ -70,7 +70,7 @@ function fixture(failedTable?: string, failPage = -1) {
     }
     return ["j", "j1", "j2", "j3", "j4"];
   };
-  return { api: output, data, calls, rpcCalls, emailCalls, giveCalls, giveMode, refuseJobs, five, inserts, failInsert, firmIds };
+  return { api: output, data, calls, rpcCalls, emailCalls, giveCalls, giveMode, refuseJobs, five, inserts, failInsert, firmIds, firmChecks };
 }
 test("firm request is eligible without quick taps, carries saved due date and suggests only photos", async () => {
   const f = fixture(); f.firmIds.add("j");
@@ -322,4 +322,15 @@ test("photos installer: the installer's Give email is the From photos version", 
   const rc = fixture();
   await rc.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" });
   expect(rc.giveCalls[0].method).toBeUndefined();
+});
+
+test("Choose installer and Give check firm quotes once per load, never once per job (finding 216fe657)", async () => {
+  const f = fixture();
+  f.data.jobs = Array.from({ length: 250 }, (_, i) => ({ id: `j${i}`, job_number: `HV-${i}`, property_id: "p", stage: "preliminary_estimate_ready", source: "base44", deleted_at: null }));
+  await f.api.loadInHouseBatches();
+  expect(f.firmChecks).toEqual(["ok"]);
+  f.firmChecks.length = 0; f.firmIds.add("j0");
+  const r = await f.api.sendInHouseBatch({ businessId: "b", jobIds: ["j0", "j1"], actorId: "office" });
+  expect(f.firmChecks).toEqual(["ok"]);
+  expect(r.refused).toContainEqual({ jobId: "j0", reason: "Firm quote jobs go to installers who quote from photos." });
 });

@@ -29,3 +29,25 @@ test("unrelated or unpersisted files do not qualify", async () => { liveAt = "20
 test("owner video filename fallback qualifies", async () => { liveAt = "2026-11-06T06:00:00Z"; docs[0].mime_type = null; docs[0].storage_path = "job/intake/roof.mp4"; expect(await isFirmQuoteJobId("job")).toBe(true); });
 test("job read failure blocks rather than selecting a legacy email", async () => { liveAt = "2026-11-06T06:00:00Z"; failedTable = "jobs"; failure = { code: "42501", message: "denied" }; await expect(isFirmQuoteJobId("job")).rejects.toThrow(); });
 test("media read failure blocks rather than selecting a legacy email", async () => { liveAt = "2026-11-06T06:00:00Z"; failedTable = "documents"; failure = { code: "42501", message: "denied" }; await expect(isFirmQuoteJobId("job")).rejects.toThrow(); });
+// Choose installer / Give (finding 216fe657): batched check — one activation read, never a per-job jobs/documents read.
+const { firmQuoteJobIdsFrom } = await import("../src/lib/firm-quote.server");
+const rows = Array.from({ length: 300 }, (_, i) => ({ id: `j${i}`, source: "base44", created_at: "2026-11-06T06:00:00Z" }));
+const photo = (job_id: string) => ({ job_id, kind: "intake_media", mime_type: "image/jpeg", storage_path: `${job_id}/intake/photo.jpg` });
+test("batched check with the switch off makes one settings read for 300 jobs and finds none", async () => {
+  expect(await firmQuoteJobIdsFrom(rows, [])).toEqual(new Set());
+  expect(reads).toEqual(["workflow_settings"]);
+});
+test("batched check with the switch on uses the caller's rows and media only, same rules as the per-job check", async () => {
+  liveAt = "2026-11-06T06:00:00Z";
+  const mixed = [...rows.slice(0, 3), { id: "early", source: "base44", created_at: "2026-11-05T00:00:00Z" }, { id: "inst", source: "installer_portal", created_at: "2026-11-07T00:00:00Z" }, { id: "qa", source: "qa_test", created_at: "2026-11-07T00:00:00Z" }];
+  const found = await firmQuoteJobIdsFrom(mixed, [photo("j0"), photo("j2"), photo("early"), photo("inst"), photo("qa"), { ...photo("j1"), kind: "evidence" }]);
+  expect([...found].sort()).toEqual(["j0", "j2", "qa"]);
+  expect(reads).toEqual(["workflow_settings"]);
+});
+test("batched check: a failed media read blocks only when a job could be firm-quote", async () => {
+  await expect(firmQuoteJobIdsFrom(rows, null)).resolves.toEqual(new Set()); // switch off: never blocks
+  liveAt = "2026-11-06T06:00:00Z";
+  await expect(firmQuoteJobIdsFrom([{ id: "inst", source: "installer_portal", created_at: "2026-11-07T00:00:00Z" }], null)).resolves.toEqual(new Set());
+  await expect(firmQuoteJobIdsFrom(rows, null)).rejects.toThrow("Could not verify owner media for firm quote.");
+});
+test("batched check: a failed activation read still blocks", async () => { failure = { code: "42501", message: "denied" }; await expect(firmQuoteJobIdsFrom(rows, [])).rejects.toThrow(); });
