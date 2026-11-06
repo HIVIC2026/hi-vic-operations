@@ -297,7 +297,8 @@ export async function installDepositBlockerFor(jobId: string): Promise<string | 
  *  auto-advance. */
 export async function afterPaymentsChanged(jobId: string, invoiceId: string, actorId: string | null) {
   const once = async (eventType: string, summary: string, onInvoice: string, details: Record<string, unknown>) => {
-    const { data: prior } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", eventType).contains("details", { invoice_id: onInvoice }).limit(1).maybeSingle();
+    const { data: prior, error } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", eventType).contains("details", { invoice_id: onInvoice }).limit(1).maybeSingle();
+    if (error) throw new Error(`${eventType} check failed: ${error.message}`);
     if (!prior) await logEvent(jobId, actorId, eventType, summary, { invoice_id: onInvoice, ...details }, { internal: true });
     return !prior;
   };

@@ -72,10 +72,19 @@ export async function handleStripeWebhook(rawBody: string, signatureHeader: stri
   if (!ok) return { status: 400, outcome: "bad_signature" };
   const ev = parseStripeEvent(rawBody);
   if (!ev) return { status: 400, outcome: "unreadable" };
-  if (ev.refund) return { status: 200, outcome: await recordStripeRefund(ev.refund) };
-  if (!ev.fact) return { status: 200, outcome: `ignored:${ev.type}` };
-  return { status: 200, outcome: await recordStripePayment(ev.fact) };
+  if (!ev.refund && !ev.fact) return { status: 200, outcome: `ignored:${ev.type}` };
+  // Launch fix (QA 7 Nov): a read error or a half-applied payment answers 500 so Stripe retries; never 200 and lost.
+  try {
+    const outcome = ev.refund ? await recordStripeRefund(ev.refund) : await recordStripePayment(ev.fact!);
+    return RETRYABLE_OUTCOMES.has(outcome) ? { status: 500, outcome: `retry:${outcome}` } : { status: 200, outcome };
+  } catch (e) {
+    console.error("stripe webhook will be retried", (e as Error).message);
+    return { status: 500, outcome: `retry:${(e as Error).message}` };
+  }
 }
+
+/** A refund whose card payment is not recorded yet: Stripe retries it (for about 3 days) until the payment lands. */
+const RETRYABLE_OUTCOMES = new Set(["unknown_payment"]);
 
 /** Audit R02: the charge id of a PaymentIntent (Xero's Stripe feed may reference the charge). Read-only, best-effort:
  *  no key, a mode mismatch or any failure → null (the PaymentIntent id still identifies the receipt). */
@@ -92,7 +101,8 @@ async function stripeChargeFor(paymentIntentId: string, livemode: boolean): Prom
 }
 
 export async function recordStripePayment(f: StripePaymentFact): Promise<string> {
-  const { data: inv } = await admin.from("invoices").select("id, job_id, kind, total_paid, jobs(source, business_unit)").eq("id", f.invoiceId).eq("job_id", f.jobId).maybeSingle();
+  const { data: inv, error: invError } = await admin.from("invoices").select("id, job_id, kind, total_paid, jobs(source, business_unit)").eq("id", f.invoiceId).eq("job_id", f.jobId).maybeSingle();
+  if (invError) throw new Error(`invoice read failed: ${invError.message}`);
   if (!inv) return "unknown_invoice";
   const job = inv.jobs as unknown as { source: string | null; business_unit: string | null } | null;
   // A live-mode payment on a TEST job (or vice versa) is never recorded – wrong Stripe account for the job.
@@ -104,12 +114,14 @@ export async function recordStripePayment(f: StripePaymentFact): Promise<string>
   // The RAW ledger: a card row already matched to its Xero payment drops out of the reconciled view, but is still recorded.
   // Fast path only — the unique receipt_key below is what makes two concurrent deliveries record ONE row (audit R06).
   const ledger = await rawPaymentLedger(inv.job_id, inv.id);
-  if (ledger.some((r) => r.note?.includes(`stripe:${key}`))) return "duplicate";
+  // Already recorded: still finish the follow-up steps (safe to repeat — it reads the reconciled total), so a delivery
+  // that failed after saving the receipt is completed by Stripe's retry instead of being skipped.
+  if (ledger.some((r) => r.note?.includes(`stripe:${key}`))) { await applyAfterStripeChange(inv); return "duplicate"; }
   const charge = f.chargeId ?? (f.paymentIntentId ? await stripeChargeFor(f.paymentIntentId, f.livemode) : null);
   const outcome = await insertLedgerEvent(inv.job_id, null, PAYMENT_EVENT, `Card payment of $${(f.amountCents / 100).toFixed(2)} received (Stripe, ${f.step.replace("_", " ")})`,
     { invoice_id: inv.id, amount_cents: f.amountCents, source: "card", paid_at: f.paidAt, step: f.step, note: `stripe:${key}`, stripe_event_id: f.eventId, stripe_payment_intent: f.paymentIntentId, stripe_session: f.sessionId, stripe_charge: charge, receipt_key: stripeReceiptKey(key) });
-  // Lost the race to a concurrent delivery of the same receipt: it applies the money and the downstream steps, once.
-  if (outcome === "duplicate") return "duplicate";
+  // Lost the race to a concurrent delivery of the same receipt: the row is recorded once; the follow-up is safe to repeat.
+  if (outcome === "duplicate") { await applyAfterStripeChange(inv); return "duplicate"; }
   // Gates read invoices.total_paid; Stripe money is real money, so it counts now — until Xero shows the same money
   // (matched by the Stripe id in the Xero payment Reference; audit F01/R02), never twice.
   await flagUnclearPaymentMatches(inv.job_id, inv.id).catch((e) => console.error("payment match check skipped", (e as Error).message));
@@ -133,11 +145,13 @@ async function applyAfterStripeChange(inv: { id: string; job_id: string; kind: s
  *  PaymentIntent, for the part not yet recorded. Repeat or concurrent deliveries of the same refund state write nothing
  *  (unique receipt_key). The card row is found by its PaymentIntent; an unknown one is ignored. */
 export async function recordStripeRefund(r: StripeRefundFact): Promise<string> {
-  const { data: rows } = await admin.from("workflow_events").select("job_id, details").eq("event_type", PAYMENT_EVENT).contains("details", { stripe_payment_intent: r.paymentIntentId }).limit(1);
+  const { data: rows, error: rowsError } = await admin.from("workflow_events").select("job_id, details").eq("event_type", PAYMENT_EVENT).contains("details", { stripe_payment_intent: r.paymentIntentId }).limit(1);
+  if (rowsError) throw new Error(`card payment lookup failed: ${rowsError.message}`);
   const row = ((rows ?? []) as { job_id: string | null; details: Record<string, unknown> | null }[])[0];
   const invoiceId = typeof row?.details?.["invoice_id"] === "string" ? (row.details["invoice_id"] as string) : null;
-  if (!row?.job_id || !invoiceId) return "unknown_payment";
-  const { data: inv } = await admin.from("invoices").select("id, job_id, kind, total_paid, jobs(source)").eq("id", invoiceId).eq("job_id", row.job_id).maybeSingle();
+  if (!row?.job_id || !invoiceId) { await noteUnknownRefund(r); return "unknown_payment"; }
+  const { data: inv, error: invError } = await admin.from("invoices").select("id, job_id, kind, total_paid, jobs(source)").eq("id", invoiceId).eq("job_id", row.job_id).maybeSingle();
+  if (invError) throw new Error(`invoice read failed: ${invError.message}`);
   if (!inv) return "unknown_invoice";
   const job = inv.jobs as unknown as { source: string | null } | null;
   if ((job?.source === "qa_test") !== !r.livemode) return "mode_mismatch";
@@ -154,4 +168,15 @@ export async function recordStripeRefund(r: StripeRefundFact): Promise<string> {
   // G6 S9: the shared flag (veec-refund-flag.server) — a failed VEEC read raises the check-failed office line, never silence.
   await import("./veec-refund-flag.server").then((m) => m.flagRefundAfterVeecCreation(inv.job_id, { refundedCents: delta, source: "card", paymentIntentId: r.paymentIntentId, stripeEventId: r.eventId }));
   return applyAfterStripeChange(inv);
+}
+
+/** A refund for a card payment not recorded (yet): one internal, job-less note per Stripe event (admin_config_events,
+ *  because workflow_events needs a job), however often Stripe retries it. Best-effort: a failed note never hides the retry. */
+async function noteUnknownRefund(r: StripeRefundFact): Promise<void> {
+  try {
+    const { data: prior, error } = await admin.from("admin_config_events").select("id").eq("event_type", "stripe_refund_unmatched").contains("details", { stripe_event_id: r.eventId }).limit(1);
+    if (error || (prior ?? []).length > 0) return;
+    await admin.from("admin_config_events").insert({ actor_id: null, event_type: "stripe_refund_unmatched", summary: `Stripe refund for ${r.paymentIntentId} has no recorded card payment yet – Stripe will retry`,
+      details: { stripe_event_id: r.eventId, stripe_payment_intent: r.paymentIntentId, stripe_charge: r.chargeId, refunded_cents: r.refundedCents } });
+  } catch (e) { console.error("unmatched Stripe refund note skipped", (e as Error).message); }
 }
