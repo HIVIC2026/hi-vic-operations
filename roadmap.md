@@ -1,3 +1,9 @@
+## Jo 6 Nov Mitti duplicate history — approval before cleanup
+- [x] Existing fix confirmed: canonical nested JSON equality on both writers; historical HEAD^ guards reproduce identical-repeat writes, current actual-writer tests 8/8 and comparator tests 7/7 pass. No production-code change needed; no provider/live mutations this turn. Fresh sync on the published version remains unverified; post-fix-source duplicates persist from the running published code.
+- [x] Read-only count 6 Nov 05:53 UTC: 24 identical consecutive repeats, 7 jobs. HV-3497 6 (3 product + 3 electrician); HV-3117/HV-3193/HV-3197/HV-3674/HV-3797/HV-3798 3 product each; HV-3129 0. First per run and all changes excluded. No deletion this turn. Earlier migration 0195 already applied at 05:13 and its commit reports 4,390 deletions; disclosed rather than claiming historical rows untouched.
+- [x] Quote cause evidenced from saved line differences: 5 Nov 07:30 Melbourne changed PIESA/AP labels/order; 6 Nov 08:31 changed labels again at identical amounts. Earlier HV-3193 drafts changed electrician explanation; HV-3117 also had a real price change. Quote signature includes description/explanation, not the Mitti event JSON equality; no daily 08:30 trigger established. No quote/price/job changes.
+- [ ] Cleanup awaits Jo's explicit deletion approval; recount immediately before any approved deletion. Published unchanged-sync verification waits for Jo's release of the existing source fix; no publication performed.
+
 ## Launch incident isolated QA — Jo 12:58 UTC
 - [ ] Extend portal-qa with explicit isolated browser mode: synthetic roles, mocked services, disposable fixtures, no production connection.
 - [ ] Reproduce ordinary active-journey UI blockers before repairs; repeat affected checks after, preserving Claude-owned files.
