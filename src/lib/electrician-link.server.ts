@@ -639,9 +639,14 @@ export const ELECTRICIAN_LINK_TEXT_HELD_EVENT = "electrician_link_text_held";
 /** The sweep only ever texts assignments made from this instant on (or any with a Team allocation event), so switching the
  *  wording on never texts old jobs. Deploy-date placeholder: Part 11 sets it to the go-live instant. */
 export const ELECTRICIAN_LINK_SWEEP_FROM_ISO = "2026-11-04T21:40:00Z"; // go-live publish, 5 Nov 2026 08:40 Melbourne
+/** Jo 7 Nov 2026: the sweep's read is fixed (assignments have `assigned_at`, not `created_at`), but it must not start
+ *  texting or making links until Jo says "send". false = it reads and counts the waiting assignments, writes nothing. */
+export const ELECTRICIAN_LINK_SWEEP_SENDS = false as boolean;
 export type ElectricianLinkSweepDeps = {
   /** The link + text step (linkAfterAllocation): returns how it went. */
   link: (jobId: string, workerId: string) => Promise<Awaited<ReturnType<typeof linkAfterAllocation>>>;
+  /** Whether the sweep may run the link + text step at all (ELECTRICIAN_LINK_SWEEP_SENDS). */
+  sends: boolean;
 };
 const CLOSED_STAGES = new Set(["complete", "cancelled"]);
 const MAX_LINKS_PER_TICK = 100;
@@ -661,11 +666,11 @@ const chunk = <T,>(xs: T[], n = 200): T[][] => { const o: T[][] = []; for (let i
  *  person is the latest Team allocation's worker, else the assignment's profile. Not sent → ONE `electrician_link_text_held`
  *  per key + reason (a trace, never a claim: the step runs again next tick and stops only when a text is recorded sent).
  *  Reads page 200; a failed read logs and does nothing. Never throws. */
-export async function sweepElectricianLinks(now = new Date(), over: Partial<ElectricianLinkSweepDeps> = {}): Promise<{ checked: number; sent: number; held: number }> {
-  const d: ElectricianLinkSweepDeps = { link: (jobId, workerId) => linkAfterAllocation(jobId, workerId, null), ...over };
-  const out = { checked: 0, sent: 0, held: 0 };
+export async function sweepElectricianLinks(now = new Date(), over: Partial<ElectricianLinkSweepDeps> = {}): Promise<{ checked: number; sent: number; held: number; paused?: number }> {
+  const d: ElectricianLinkSweepDeps = { link: (jobId, workerId) => linkAfterAllocation(jobId, workerId, null), sends: ELECTRICIAN_LINK_SWEEP_SENDS, ...over };
+  const out: { checked: number; sent: number; held: number; paused?: number } = { checked: 0, sent: 0, held: 0 };
   try {
-    const asgs = await pagedRows("electrician assignments", (a, b) => admin.from("job_assignments").select("id, job_id, business_id, user_id, created_at").eq("role", "electrician").eq("active", true).order("id").range(a, b));
+    const asgs = await pagedRows("electrician assignments", (a, b) => admin.from("job_assignments").select("id, job_id, business_id, user_id, assigned_at").eq("role", "electrician").eq("active", true).order("id").range(a, b));
     const jobIds = [...new Set(asgs.map((a) => String(a["job_id"])))];
     if (!jobIds.length) return out;
     const jobs = new Map<string, { stage: string; deleted_at: string | null }>();
@@ -688,7 +693,7 @@ export async function sweepElectricianLinks(now = new Date(), over: Partial<Elec
       const mine = events.filter((e) => String(e["job_id"]) === jobId);
       const allocated = mine.find((e) => e["event_type"] === "in_house_electrician_allocated");
       // Scope: a Team allocation (new flow), or an assignment made from the cut-over instant; older ones are never texted.
-      if (!allocated && !(Date.parse(String(a["created_at"] ?? "")) >= cutoff)) continue;
+      if (!allocated && !(Date.parse(String(a["assigned_at"] ?? "")) >= cutoff)) continue;
       const workerId = (allocated && det(allocated).worker_id) || (a["user_id"] ? byProfile.get(String(a["user_id"])) : null) || null;
       if (!workerId) continue;
       const key = electricianLinkTextKey(jobId, workerId);
@@ -699,6 +704,8 @@ export async function sweepElectricianLinks(now = new Date(), over: Partial<Elec
         const stepNow = electricianStep((await factsFor(jobId, await whoBooksFor(installerBiz), job.stage === "cancelled", now.getTime())).facts).step;
         if (stepNow === "all_done" || stepNow === "closed") continue;
       } catch (e) { console.error("electrician link sweep: step not read, job skipped", jobId, (e as Error).message); continue; }
+      // Sending off (Jo 7 Nov): count it as waiting; no link, no text, no record.
+      if (!d.sends) { out.paused = (out.paused ?? 0) + 1; continue; }
       budget--; out.checked++;
       try {
         const r = await d.link(jobId, workerId);

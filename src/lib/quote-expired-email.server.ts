@@ -22,7 +22,7 @@ export async function sendQuoteExpiredEmail(jobId: string, quoteId: string, link
     const { isTestPartner } = await import("./test-send.core");
     const mail = build(null, true);
     // The installer may already be ended by the close, so read the most recent installer assignment (active or not).
-    const { data: asg } = await admin.from("job_assignments").select("businesses(onboarding_notes)").eq("job_id", jobId).eq("role", "installer").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const { data: asg } = await admin.from("job_assignments").select("businesses(onboarding_notes)").eq("job_id", jobId).eq("role", "installer").order("assigned_at", { ascending: false }).limit(1).maybeSingle();
     const biz = ((asg as { businesses?: { onboarding_notes: string | null } | null } | null)?.businesses ?? null);
     const e = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `${QUOTE_EXPIRED_PURPOSE}:${quoteId}`, actorId: null }, owner?.email ?? "", mail.subject, mail.html, mail.text);
     return `email ${e.status}: ${e.detail}`;

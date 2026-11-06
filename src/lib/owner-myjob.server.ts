@@ -86,7 +86,7 @@ export async function resolveOwnerJob(token: unknown) {
   // Fix round 1 (Task 14): the installer's name for the "will call you to book" line while the install day is being arranged.
   let installerName: string | null = null;
   if (bookingOpen) {
-    const { data: ia } = await admin.from("job_assignments").select("businesses(name, trading_name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const { data: ia } = await admin.from("job_assignments").select("businesses(name, trading_name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).order("assigned_at", { ascending: false }).limit(1).maybeSingle();
     const ib = ia?.businesses as { name: string; trading_name: string | null } | null;
     installerName = (ib?.trading_name || ib?.name || null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null;
   }
@@ -105,7 +105,7 @@ export async function resolveOwnerJob(token: unknown) {
   // Installer already quoted and the owner agreed (Jo, 7 Oct 9:25pm): same acceptance path, different title.
   let agreed: { agreed: boolean; installerName: string | null } = { agreed: false, installerName: null };
   if ((j as { channel?: string }).channel === "installer_sourced" && ((j as { external_refs?: Record<string, unknown> | null }).external_refs ?? {})["owner_agreed_price"] === true) {
-    const { data: a } = await admin.from("job_assignments").select("business_id, businesses(name, trading_name)").eq("job_id", jobId).eq("role", "installer").order("created_at").limit(1).maybeSingle();
+    const { data: a } = await admin.from("job_assignments").select("business_id, businesses(name, trading_name)").eq("job_id", jobId).eq("role", "installer").order("assigned_at").limit(1).maybeSingle();
     const b = a?.businesses as { name: string; trading_name: string | null } | null;
     agreed = { agreed: true, installerName: b?.trading_name || b?.name || null };
   }
@@ -118,7 +118,7 @@ export async function resolveOwnerJob(token: unknown) {
     let name: string | null = installerName ?? agreed.installerName ?? null;
     if (!name) {
       try {
-        const { data: ia } = await admin.from("job_assignments").select("businesses(name, trading_name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const { data: ia } = await admin.from("job_assignments").select("businesses(name, trading_name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).order("assigned_at", { ascending: false }).limit(1).maybeSingle();
         const ib = ia?.businesses as { name: string | null; trading_name: string | null } | null;
         name = (ib?.trading_name || ib?.name || null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null;
       } catch { name = null; }
