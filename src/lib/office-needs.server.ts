@@ -28,6 +28,8 @@ import { prestartFailedFor } from "./prestart.core";
 import { endOfMelbourneYmd } from "./melbourne-time.core";
 import { VEEC_PART_B_IMAGE_HELD_EVENT, VEEC_PART_B_MITTI_HELD_EVENT, VEEC_PART_B_SIGNED_MITTI_EVENT, veecPartBHeldOpen } from "./veec-part-b-mitti.core";
 
+import { officeReadGate } from "./read-limiter.core";
+
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
 const DAY = 86_400_000;
@@ -46,7 +48,8 @@ async function all(what: string, page: (from: number, to: number) => PromiseLike
 async function byIds(what: string, ids: string[], q: (chunk: string[], from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<Row[]> {
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += 150) chunks.push(ids.slice(i, i + 150));
-  return (await Promise.all(chunks.map((chunk) => all(what, (f, t) => q(chunk, f, t))))).flat();
+  // Each single request waits its turn at the shared gate (speed, 7 Nov): same reads, never hundreds at once.
+  return (await Promise.all(chunks.map((chunk) => all(what, (f, t) => officeReadGate(() => q(chunk, f, t)))))).flat();
 }
 
 /** Only live held jobs enter these read-only stall rules. Page/batch every dependent read. */
