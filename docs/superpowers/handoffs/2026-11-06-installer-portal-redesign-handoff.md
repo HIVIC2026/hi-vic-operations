@@ -79,7 +79,14 @@ Palette/fonts from `docs/templates/installer/portal/M7-business.html` (#22376B i
 - **Steps 4–8:** same words as journey 1 (incl. the redone 7/8).
 - **Install done:** "Install done · Fri 21 Nov. We check the install paperwork, then pay you your agreed rates 7 days after we approve it." **Paid:** "Paid ✓ Mon 1 Dec · $1,920.00".
 
-**Next:** journey 3.
+### 6 Nov — Journey 3 (our lead with Ready Check) APPROVED
+
+- No Ready Check date to book and no due date (5 Nov rule stands).
+- **Step 1 – Do the Ready Check.** "Call Helen, pop out and do the Ready Check in Mitti (form's under HV-3821). We'd love it within 5 business days." What happens from here: "Once the Mitti form's done, we put the quote together from what you found and send it to Helen. You're paid your agreed rates 7 days after we approve the install paperwork." No price to enter.
+- "Can't do this one" link with a reason, same as journey 2.
+- From "Quote being prepared" to the end: same words as journey 2.
+
+**Next:** all three journeys are approved, so write the spec at `docs/superpowers/specs/2026-11-06-installer-portal-redesign-design.md`, self-review it, then Jo reviews.
 
 ## Journeys 2 and 3 — still to dictate
 
