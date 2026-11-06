@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Calendar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F7FB}
+a{color:#3C51C4}a:hover{color:#22376B}
+</style>
+</helmet>
+<div style="min-height: 860px; display: flex; flex-wrap: wrap; font-family: 'Open Sans', Arial, sans-serif; color: #22376B; background: #F5F7FB">
+
+<nav aria-label="Main" style="flex: 1 1 220px; max-width: 240px; min-width: 200px; background: #FFFFFF; border-right: 1px solid #E3E8F2; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px">
+<img src="/_blob/3bbf4febd79e89c461ef7e11e5cfb335" alt="Home Insulation Victoria" style="width: 120px; height: auto; margin: 0 8px 24px">
+<a href="AddJob.dc.html" style="display: block; text-align: center; background: #3C51C4; color: #FFFFFF; font-weight: 700; font-size: 15px; padding: 12px; border-radius: 10px; text-decoration: none; margin-bottom: 14px">+ Add a job</a>
+<a href="Main.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Action items<span style="background: #3C51C4; color: #FFFFFF; border-radius: 999px; font-size: 12px; font-weight: 700; padding: 2px 9px">4</span></a>
+<a href="Calendar.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; background: #EAEEFB; color: #3C51C4; font-weight: 700">Calendar</a>
+<a href="Jobs.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Jobs</a>
+<a href="Money.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Money</a>
+<a href="Business.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">My business</a>
+<div style="flex-grow: 1"></div>
+<div style="padding: 12px 14px; font-size: 13px; color: #5B6785; line-height: 1.5"><b style="color: #22376B">Reinsulate</b><br>Deep Singh</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 40px 48px; box-sizing: border-box">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap">
+<h1 style="margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.5px">Calendar</h1>
+<div style="display: flex; align-items: center; gap: 8px">
+<button type="button" aria-label="Last week" style="width: 44px; height: 44px; border: 1px solid #E3E8F2; background: #FFFFFF; border-radius: 10px; font-size: 18px; color: #22376B; cursor: pointer">‹</button>
+<div style="font-size: 17px; font-weight: 700; padding: 0 8px">9 – 13 Nov</div>
+<button type="button" aria-label="Next week" style="width: 44px; height: 44px; border: 1px solid #E3E8F2; background: #FFFFFF; border-radius: 10px; font-size: 18px; color: #22376B; cursor: pointer">›</button>
+</div>
+</div>
+
+<div role="group" aria-label="Show" style="display: flex; gap: 8px; flex-wrap: wrap; margin: 24px 0 16px">
+<sc-for list="{{people}}" as="p" hint-placeholder-count="5">
+<button type="button" onClick="{{p.pick}}" style="{{p.style}}">{{p.label}}</button>
+</sc-for>
+</div>
+
+<div style="display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start">
+<div style="flex: 3 1 560px; min-width: 0; overflow-x: auto; background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 14px">
+<div style="min-width: 640px; display: grid; grid-template-columns: 56px repeat(5, minmax(0, 1fr))">
+<div style="border-bottom: 1px solid #E3E8F2"></div>
+<sc-for list="{{days}}" as="d" hint-placeholder-count="5">
+<div style="padding: 14px 8px; text-align: center; border-left: 1px solid #E3E8F2; border-bottom: 1px solid #E3E8F2"><div style="font-size: 13px; color: #5B6785; font-weight: 600">{{d.dow}}</div><div style="font-size: 20px; font-weight: 800">{{d.num}}</div></div>
+</sc-for>
+<div style="position: relative; height: 504px">
+<sc-for list="{{hours}}" as="h" hint-placeholder-count="9">
+<div style="{{h.style}}">{{h.label}}</div>
+</sc-for>
+</div>
+<sc-for list="{{days}}" as="d" hint-placeholder-count="5">
+<div style="position: relative; height: 504px; border-left: 1px solid #E3E8F2; background-image: linear-gradient(#EEF1F7 1px, transparent 1px); background-size: 100% 56px">
+<sc-for list="{{d.events}}" as="e" hint-placeholder-count="1">
+<button type="button" onClick="{{e.pick}}" style="{{e.style}}">
+<span style="display: block; font-size: 12px; font-weight: 700; color: {{e.ink}}">{{e.kind}} · {{e.time}}</span>
+<span style="display: block; font-size: 14px; font-weight: 700; color: #22376B; margin-top: 2px">{{e.place}}</span>
+<span style="display: block; font-size: 13px; color: #5B6785; margin-top: 2px">{{e.who}}</span>
+<sc-if value="{{e.flag}}" hint-placeholder-val="{{ false }}"><span style="display: block; font-size: 12px; font-weight: 700; margin-top: 6px; color: {{e.flagInk}}">{{e.flag}}</span></sc-if>
+</button>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+
+<aside style="flex: 1 1 280px; min-width: 260px; background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 14px; padding: 22px">
+<sc-if value="{{noSel}}" hint-placeholder-val="{{ true }}">
+<h2 style="margin: 0; font-size: 17px; font-weight: 700">Still to book</h2>
+<div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid #E3E8F2">
+<div style="font-size: 15px; font-weight: 700">8 Example Court, Tarneit</div>
+<div style="font-size: 14px; color: #5B6785; margin-top: 2px">PIESA · Sam said yes</div>
+<a href="Job.dc.html" style="display: block; margin-top: 12px; text-align: center; background: #07BF61; color: #FFFFFF; font-weight: 700; font-size: 15px; padding: 12px; border-radius: 10px; text-decoration: none">Book PIESA</a>
+</div>
+<p style="margin: 20px 0 0; font-size: 14px; color: #5B6785; line-height: 1.5">Tap a booking to move it.</p>
+</sc-if>
+<sc-if value="{{sel}}" hint-placeholder-val="{{ false }}">
+<div style="font-size: 13px; font-weight: 700; color: {{sel.ink}}">{{sel.kind}}</div>
+<h2 style="margin: 4px 0 0; font-size: 19px; font-weight: 800">{{sel.place}}</h2>
+<div style="font-size: 14px; color: #5B6785; margin-top: 4px">{{sel.dayLong}} · {{sel.time}} · {{sel.who}}</div>
+<sc-if value="{{sel.flag}}" hint-placeholder-val="{{ false }}"><div style="margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 14px; font-weight: 600; background: {{sel.flagBg}}; color: {{sel.flagInk}}">{{sel.flag}}</div></sc-if>
+<div style="display: flex; gap: 10px; margin-top: 18px">
+<label style="flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Day
+<select style="font-family: inherit; font-size: 15px; padding: 11px 10px; border: 1px solid #CED6E6; border-radius: 10px; color: #22376B; background: #FFFFFF">
+<option>Mon 9 Nov</option><option>Tue 10 Nov</option><option>Wed 11 Nov</option><option>Thu 12 Nov</option><option>Fri 13 Nov</option>
+</select></label>
+<label style="flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Arrival
+<select style="font-family: inherit; font-size: 15px; padding: 11px 10px; border: 1px solid #CED6E6; border-radius: 10px; color: #22376B; background: #FFFFFF">
+<option>8:00am</option><option>9:00am</option><option>10:00am</option><option>11:00am</option><option>12:00pm</option>
+</select></label>
+</div>
+<p style="margin: 12px 0 0; font-size: 13px; color: #5B6785; line-height: 1.5">{{sel.rule}}</p>
+<button type="button" style="width: 100%; margin-top: 16px; background: #07BF61; color: #FFFFFF; font-family: inherit; font-weight: 700; font-size: 15px; padding: 13px; border: 0; border-radius: 10px; cursor: pointer">Move it</button>
+<div style="display: flex; justify-content: space-between; margin-top: 12px">
+<a href="Job.dc.html" style="font-size: 14px; font-weight: 600">Open the job</a>
+<button type="button" onClick="{{close}}" style="background: none; border: 0; font-family: inherit; font-size: 14px; font-weight: 600; color: #5B6785; cursor: pointer; padding: 0">Close</button>
+</div>
+</sc-if>
+</aside>
+</div>
+
+<div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 14px; font-size: 13px; color: #5B6785">
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #07BF61"></span>Install</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #3C51C4"></span>PIESA</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #D97706"></span>Ready Check</span>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":860}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { who: 'Everyone', sel: null }; }
+  renderVals() {
+    const KIND = {
+      Install: { bg: '#E7F8EF', ink: '#067A40', bar: '#07BF61' },
+      PIESA: { bg: '#ECEFFC', ink: '#3C51C4', bar: '#3C51C4' },
+      'Ready Check': { bg: '#FEF3E2', ink: '#9A4B00', bar: '#D97706' }
+    };
+    const all = [
+      { id: 1, day: 0, start: 8, len: 4, kind: 'Install', time: '8:00am', place: 'Melton', who: 'Deep, Raj', people: ['Deep', 'Raj'], flag: 'Raj to sign safety plan', bad: false },
+      { id: 2, day: 1, start: 9, len: 2, kind: 'PIESA', time: '9:00am', place: 'Point Cook', who: 'James', people: ['James'], flag: '', bad: false },
+      { id: 3, day: 2, start: 8, len: 5, kind: 'Install', time: '8:00am', place: 'Werribee', who: 'Deep, Wayne', people: ['Deep', 'Wayne'], flag: "Don't start: no electrician", bad: true },
+      { id: 4, day: 3, start: 10, len: 1.5, kind: 'Ready Check', time: '10:00am', place: 'Tarneit', who: 'Deep', people: ['Deep'], flag: '', bad: false },
+      { id: 5, day: 4, start: 9, len: 4, kind: 'Install', time: '9:00am', place: 'Sunbury', who: 'Crew not picked', people: [], flag: 'Pick Lead and crew', bad: false }
+    ];
+    const longDays = ['Mon 9 Nov', 'Tue 10 Nov', 'Wed 11 Nov', 'Thu 12 Nov', 'Fri 13 Nov'];
+    const who = this.state.who;
+    const shown = all.filter(e => who === 'Everyone' || e.people.indexOf(who) >= 0);
+    const dec = e => {
+      const k = KIND[e.kind];
+      const chosen = this.state.sel === e.id;
+      return Object.assign({}, e, {
+        ink: k.ink,
+        flagInk: e.bad ? '#B42318' : '#8A4B00',
+        flagBg: e.bad ? '#FDECEA' : '#FEF3E2',
+        dayLong: longDays[e.day],
+        rule: e.kind === 'Install' ? 'Must happen by Sat 12 Dec. We tell ESC and the owner about any change.' : 'The owner gets a new booking text and email.',
+        pick: () => this.setState({ sel: e.id }),
+        style: 'position: absolute; left: 6px; right: 6px; top: ' + ((e.start - 7) * 56 + 3) + 'px; height: ' + (e.len * 56 - 6) + 'px; box-sizing: border-box; text-align: left; font-family: inherit; padding: 8px 10px; border-radius: 8px; cursor: pointer; overflow: hidden; background: ' + k.bg + '; border: ' + (chosen ? '2px solid #22376B' : '1px solid ' + k.bar)
+      });
+    };
+    const dows = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    const days = dows.map((d, i) => ({ dow: d, num: 9 + i, events: shown.filter(e => e.day === i).map(dec) }));
+    const hours = ['7am', '8am', '9am', '10am', '11am', '12pm', '1pm', '2pm', '3pm'].map((h, i) => ({ label: h, style: 'position: absolute; right: 8px; top: ' + (i * 56 + 4) + 'px; font-size: 12px; color: #5B6785' }));
+    const people = ['Everyone', 'Deep', 'Raj', 'Wayne', 'James'].map(p => ({
+      label: p,
+      pick: () => this.setState({ who: p, sel: null }),
+      style: 'font-family: inherit; font-size: 14px; font-weight: 700; padding: 10px 16px; min-height: 44px; border-radius: 999px; cursor: pointer; ' + (who === p ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6')
+    }));
+    const selE = all.find(e => e.id === this.state.sel);
+    const sel = selE ? dec(selE) : null;
+    return { days, hours, people, sel, noSel: !sel, close: () => this.setState({ sel: null }) };
+  }
+}
+</script>
+</body>
+</html>

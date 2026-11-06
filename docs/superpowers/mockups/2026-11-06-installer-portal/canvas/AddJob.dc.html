@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Add a job</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F7FB}
+a{color:#3C51C4}a:hover{color:#22376B}
+</style>
+</helmet>
+<div style="min-height: 860px; display: flex; flex-wrap: wrap; font-family: 'Open Sans', Arial, sans-serif; color: #22376B; background: #F5F7FB">
+<nav aria-label="Main" style="flex: 1 1 220px; max-width: 240px; min-width: 200px; background: #FFFFFF; border-right: 1px solid #E3E8F2; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px">
+<img src="/_blob/3bbf4febd79e89c461ef7e11e5cfb335" alt="Home Insulation Victoria" style="width: 120px; height: auto; margin: 0 8px 24px">
+<a href="AddJob.dc.html" style="display: block; text-align: center; background: #3C51C4; color: #FFFFFF; font-weight: 700; font-size: 15px; padding: 12px; border-radius: 10px; text-decoration: none; margin-bottom: 14px">+ Add a job</a>
+<a href="Main.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Action items<span style="background: #3C51C4; color: #FFFFFF; border-radius: 999px; font-size: 12px; font-weight: 700; padding: 2px 9px">4</span></a>
+<a href="Calendar.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Calendar</a>
+<a href="Jobs.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Jobs</a>
+<a href="Money.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Money</a>
+<a href="Business.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">My business</a>
+<div style="flex-grow: 1"></div>
+<div style="padding: 12px 14px; font-size: 13px; color: #5B6785; line-height: 1.5"><b style="color: #22376B">Reinsulate</b><br>Deep Singh</div>
+</nav>
+<main style="flex: 999 1 560px; min-width: 0; padding: 40px 48px; box-sizing: border-box">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap"><h1 style="margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.5px">Add a job</h1></div>
+<p style="margin: 6px 0 0; font-size: 16px; color: #5B6785">Your own customer. We send the quote with your price.</p>
+<div style="max-width: 720px; display: flex; flex-direction: column; gap: 24px; margin-top: 28px">
+<div style="background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 14px; padding: 24px"><h2 style="margin: 0 0 16px; font-size: 18px; font-weight: 800">Owner</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Name<input value="Mia Chen" style="font-family: inherit; font-size: 15px; padding: 12px; border: 1px solid #CED6E6; border-radius: 10px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Mobile<input value="0412 555 019" style="font-family: inherit; font-size: 15px; padding: 12px; border: 1px solid #CED6E6; border-radius: 10px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Email<input value="mia@example.com" style="font-family: inherit; font-size: 15px; padding: 12px; border: 1px solid #CED6E6; border-radius: 10px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Address<input value="18 Demo Road, Point Cook" style="font-family: inherit; font-size: 15px; padding: 12px; border: 1px solid #CED6E6; border-radius: 10px"></label>
+</div>
+<label style="display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; font-size: 14px"><input type="checkbox" checked="{{ true }}" style="width: 20px; height: 20px; accent-color: #07BF61; margin: 0">Mia agreed to Home Insulation Victoria contacting her</label></div>
+<div style="background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 14px; padding: 24px"><h2 style="margin: 0 0 6px; font-size: 18px; font-weight: 800">Measure</h2>
+<p style="margin: 0 0 16px; font-size: 14px; color: #5B6785">How did you measure?</p>
+<div role="radiogroup" aria-label="How did you measure" style="display: flex; gap: 8px; flex-wrap: wrap">
+<sc-for list="{{methods}}" as="m" hint-placeholder-count="3"><button type="button" role="radio" aria-checked="{{m.on}}" onClick="{{m.pick}}" style="{{m.style}}">{{m.label}}</button></sc-for>
+</div>
+<sc-if value="{{needsUpload}}" hint-placeholder-val="{{ false }}">
+<div style="margin-top: 14px; padding: 16px; border: 2px dashed #CED6E6; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap"><span style="font-size: 14px"><b>Upload the {{uploadName}}</b><br><span style="color: #5B6785">Needed before you can send</span></span><a href="#" style="background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6; font-weight: 700; font-size: 15px; padding: 12px 18px; border-radius: 10px; text-decoration: none; white-space: nowrap; display: inline-block">Choose file</a></div>
+</sc-if>
+<div style="margin-top: 18px; display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{areas}}" as="a" hint-placeholder-count="2">
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: end">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Area<input value="{{a.name}}" style="font-family: inherit; font-size: 15px; padding: 12px; border: 1px solid #CED6E6; border-radius: 10px; min-width: 0"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Length (m)<input value="{{a.l}}" style="font-family: inherit; font-size: 15px; padding: 12px; border: 1px solid #CED6E6; border-radius: 10px; min-width: 0"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Width (m)<input value="{{a.w}}" style="font-family: inherit; font-size: 15px; padding: 12px; border: 1px solid #CED6E6; border-radius: 10px; min-width: 0"></label>
+<div style="padding: 12px 0; font-size: 15px; font-weight: 700; text-align: right">{{a.m2}} m²</div>
+</div>
+</sc-for>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px"><button type="button" onClick="{{addArea}}" style="background: none; border: 0; padding: 8px 0; font-family: inherit; font-size: 14px; font-weight: 700; color: #3C51C4; cursor: pointer">+ Add another area</button><span style="font-size: 16px; font-weight: 800">Total {{total}} m²</span></div>
+</div></div>
+<div style="background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 14px; padding: 24px"><h2 style="margin: 0 0 16px; font-size: 18px; font-weight: 800">Product and price</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">In the ceiling now<select style="font-family: inherit; font-size: 15px; padding: 12px 10px; border: 1px solid #CED6E6; border-radius: 10px; background: #FFFFFF"><option>Nothing</option><option>Old batts, staying</option><option>Old batts, removing</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Product<select style="font-family: inherit; font-size: 15px; padding: 12px 10px; border: 1px solid #CED6E6; border-radius: 10px; background: #FFFFFF"><option>Earthwool R5.0 batts</option><option>Earthwool R6.0 batts</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Access<select style="font-family: inherit; font-size: 15px; padding: 12px 10px; border: 1px solid #CED6E6; border-radius: 10px; background: #FFFFFF"><option>Easy</option><option>Tight</option><option>Difficult</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Your price (inc GST)<input value="$2,500.00" style="font-family: inherit; font-size: 15px; padding: 12px; border: 1px solid #CED6E6; border-radius: 10px"></label>
+</div>
+<p style="margin: 14px 0 0; font-size: 14px; color: #5B6785">Photos are optional. <a href="#" style="font-weight: 700">Add photos</a></p></div>
+<div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-end"><a href="#" style="background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6; font-weight: 700; font-size: 15px; padding: 12px 18px; border-radius: 10px; text-decoration: none; white-space: nowrap; display: inline-block">Save for now</a><a href="Job.dc.html" style="background: {{sendBg}}; color: #FFFFFF; font-weight: 700; font-size: 16px; padding: 14px 24px; border-radius: 10px; text-decoration: none">Send for quote</a></div>
+<p style="margin: -10px 0 0; text-align: right; font-size: 13px; color: #5B6785">{{sendNote}}</p>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { m: 'Measured on site', areas: [{ name: 'Main house', l: 12, w: 9.5 }, { name: 'Extension', l: 6, w: 4.7 }] }; }
+  renderVals() {
+
+    const m = this.state.m;
+    const methods = ['Measured on site', 'Floor plan', 'Aerial photo'].map(label => ({
+      label, on: m === label ? 'true' : 'false', pick: () => this.setState({ m: label }),
+      style: 'font-family: inherit; font-size: 14px; font-weight: 700; min-height: 44px; padding: 10px 16px; border-radius: 10px; cursor: pointer; ' + (m === label ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6')
+    }));
+    const areas = this.state.areas.map(a => Object.assign({}, a, { m2: (a.l * a.w).toFixed(1) }));
+    const total = areas.reduce((t, a) => t + a.l * a.w, 0).toFixed(1);
+    const needsUpload = m !== 'Measured on site';
+    return {
+      methods, areas, total, needsUpload,
+      uploadName: m === 'Floor plan' ? 'floor plan' : 'aerial photo',
+      sendBg: needsUpload ? '#9AA5BE' : '#07BF61',
+      sendNote: needsUpload ? 'Upload the ' + (m === 'Floor plan' ? 'floor plan' : 'aerial photo') + ' to send.' : 'We check it, then send Mia the quote.',
+      addArea: () => this.setState({ areas: this.state.areas.concat([{ name: 'Area ' + (this.state.areas.length + 1), l: 4, w: 3 }]) })
+    };
+  }
+}
+</script>
+</body>
+</html>
