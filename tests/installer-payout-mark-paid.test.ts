@@ -73,6 +73,8 @@ function seed(channel: "installer_sourced" | "hivic_sourced", o: { ap: boolean; 
   tables["invoices"] = o.invoice ? [{ job_id: "j1", ...o.invoice }] : [];
   tables["pricing_settings"] = [{ piesa_rec_cost_ex_gst: 300, gst_rate: 0.1, is_active: true }];
   tables["electrician_rates"] = [];
+  // Launch blocker Task 7: the installer's bank details are office-approved (only the timing rule is under test here).
+  tables["business_bank_details"] = [{ business_id: "b1", account_name: "Installer Co", bsb: "063-000", account_number: "12345678", review_status: "reviewed" }];
 }
 // The handler validates a uuid job id; the fixture job is keyed by that id.
 const JOB = "11111111-1111-4111-8111-111111111111";
@@ -140,5 +142,20 @@ describe("R09: one pure rule", () => {
     expect(installerPayHeldReasons({ installerSupplied: true, apApprovedAt: AP, ownerPaidInFullAt: OWNER_PAID })).toEqual([]);
     expect(installerPayHeldReasons({ installerSupplied: true, apApprovedAt: AP, ownerPaidInFullAt: null })).toEqual([INSTALLER_PAY_WAITING_OWNER]);
     expect(installerPayHeldReasons({ installerSupplied: true, apApprovedAt: null, ownerPaidInFullAt: null })).toEqual([INSTALLER_PAY_WAITING_AP, INSTALLER_PAY_WAITING_OWNER]);
+  });
+});
+
+describe("Launch blocker Task 7: Mark paid needs office-approved bank details", () => {
+  test("payable job, bank change not approved yet → refused with the Payouts tab's reason; approved → recorded", async () => {
+    seedJob("hivic_sourced", { ap: true, invoice: PART_PAID });
+    tables["business_bank_details"] = [{ business_id: "b1", account_name: "Installer Co", bsb: "063-000", account_number: "12345678", review_status: "pending" }];
+    expect(await tryMark("installation")).toContain("Bank change waiting");
+    expect(marked).toEqual([]);
+    expect((await displayHeld()).held).toEqual(["Bank change waiting"]);
+    tables["business_bank_details"] = [];
+    expect(await tryMark("installation")).toContain("Bank details not given (collected after approval)");
+    tables["business_bank_details"] = [{ business_id: "b1", account_name: "Installer Co", bsb: "063-000", account_number: "12345678", review_status: "reviewed", pending_account_number: "99998888", pending_bsb: "123-456", pending_account_name: "Someone Else" }];
+    expect(await tryMark("installation")).toBeNull(); // a waiting change never stops pay to the approved account
+    expect(marked.map((e) => e["event_type"])).toEqual(["payout_marked_paid"]);
   });
 });

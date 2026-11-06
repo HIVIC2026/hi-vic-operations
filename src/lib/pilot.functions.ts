@@ -199,12 +199,19 @@ export const setBankDetails = createServerFn({ method: "POST" }).middleware([req
     if (!adminUser) await requireMember(context.userId, data.businessId, true);
     const { data: business } = await admin.from("businesses").select("onboarding_status").eq("id", data.businessId).single();
     if (business?.onboarding_status !== "approved") throw new WorkflowError("Bank details are collected only after Home Insulation Victoria approves the business.");
-    const now = new Date().toISOString();
-    const { data: existing } = await admin.from("business_bank_details").select("business_id").eq("business_id", data.businessId).maybeSingle();
-    const { error } = await admin.from("business_bank_details").upsert({ business_id: data.businessId, account_name: data.account_name, bsb: data.bsb, account_number: data.account_number, updated_by: context.userId, updated_at: now, supplied_by: context.userId, supplied_at: now, reviewed_by: null, reviewed_at: null, review_status: "pending" });
-    if (error) throw new WorkflowError(error.message);
-    await admin.from("business_bank_detail_events").insert({ business_id: data.businessId, actor_id: context.userId, event_type: existing ? "changed" : "supplied", details: { bsb_last3: data.bsb.replace(/\D/g, "").slice(-3), account_last3: data.account_number.slice(-3) } as Json });
-    return { ok: true };
+    // Launch blocker Task 7 (QA 7 Nov 2026): a change to an approved account waits for the office's Approve; the approved
+    // account stays the one we pay (bank-approval.core).
+    const { saveBankDetails } = await import("./bank-approval.server");
+    return saveBankDetails(data.businessId, context.userId, { account_name: data.account_name, bsb: data.bsb, account_number: data.account_number });
+  });
+
+/** Launch blocker Task 7: the office approves a business's bank details (first details, or a waiting change). Admin only. */
+export const approveBankDetails = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ businessId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { approveBank } = await import("./bank-approval.server");
+    return approveBank(data.businessId, context.userId);
   });
 
 /** Masked for partners; full only to Home Insulation Victoria admin. */

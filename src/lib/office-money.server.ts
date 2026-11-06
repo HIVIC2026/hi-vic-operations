@@ -237,6 +237,18 @@ export async function moneyPayouts(testJobIds?: string[]) {
     if (t) { l.dueAt = t.dueAt; if (t.approvable) l.approvable = true; }
     if (!l.paidAt) { const f = vf; l.held = [...(f ? tradePayoutBlockers(l.kind, f) : [PAYOUT_FORM_NOT_COMPLETE[l.kind]]), ...(t?.waiting ?? []), ...(l.held ?? [])]; }
   }
+  // Launch blocker Task 7 (QA 7 Nov 2026): an unpaid payout to a business without office-approved bank details is Held
+  // (the same rule Mark paid enforces); a change waiting for Approve never moves pay off the approved account.
+  const unpaidLines = lines.filter((l) => !l.paidAt);
+  if (unpaidLines.length) {
+    const { payoutBankHolds } = await import("./bank-approval.server");
+    const { BANK_NOT_GIVEN } = await import("./bank-approval.core");
+    const holds = await payoutBankHolds(unpaidLines.flatMap((l) => (l.businessId ? [l.businessId] : [])));
+    for (const l of unpaidLines) {
+      const h = l.businessId ? holds.get(l.businessId) : BANK_NOT_GIVEN;
+      if (h) l.held = [...(l.held ?? []), h];
+    }
+  }
   // Jo 28 Oct (decision 158): when the office chose the installer to pay for a repeat safety check, it comes off their install payout.
   const instJobs = [...new Set(lines.filter((l) => l.kind === "installation").map((l) => l.jobId))];
   if (instJobs.length) {

@@ -274,11 +274,26 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     ...changeReqs.map((c) => ({ key: `chg:${c["id"]}`, title: `${(c["businesses"] as { name?: string } | null)?.name ?? "Partner"} asks to change ${c["kind"] === "rates" ? "their rates" : c["kind"] === "details" ? "their details" : c["kind"]}`, why: String(c["message"]).slice(0, 140), dueAt: null, href: "/admin/partners" })),
     ...apps.filter((a) => !String(a["source"] ?? "").endsWith("_test")).map((a) => ({ key: `app:${a["id"]}`, title: `New application: ${String(a["name"] ?? "").trim() || "name not given"}`, why: "Application ready to review", dueAt: null, href: "/admin/partners" })),
     ...(expiryReads ? await tradeExpiryItems(expiryReads, creds, melbourneToday(new Date(now)), lim["credential_warning_days"] ?? 30) : []),
+    // Launch blocker Task 7 (QA 7 Nov 2026): bank details waiting for the office's Approve (no pay goes there until then).
+    ...(listMode ? await bankChangeItems() : []),
     ...(opts.onlyIds ? [] : await (await import("./mitti-invite.server")).mittiWaitingPauseNeeds().catch((e) => { console.error("Mitti pause-wait rows skipped", (e as Error).message); return []; })),
   ];
   const snz: Snooze[] = snoozes.map((x) => ({ jobId: String(x["job_id"]), ruleKey: String(x["rule_key"]), until: String(x["snoozed_until"]), count: Number(x["snooze_count"]) }));
   const needs = buildNeedsMe({ now, jobs: out.map((o) => o.needs), partners, snoozes: snz, lim });
   return { now, lim, jobs: out, needs };
+}
+
+/** Launch blocker Task 7: one Needs me partner row per business whose bank details wait for the office's Approve. A read
+ *  failure surfaces as its own row (never silently "nothing waiting"). */
+async function bankChangeItems(): Promise<PartnerItem[]> {
+  const { BANK_CHANGE_TO_CHECK } = await import("./bank-approval.core");
+  try {
+    const waiting = await (await import("./bank-approval.server")).bankChangesWaiting();
+    return waiting.map((b) => ({ key: `bank:${b.businessId}`, title: BANK_CHANGE_TO_CHECK, why: b.name, dueAt: null, href: `/admin/partners/business/${b.businessId}` }));
+  } catch (e) {
+    console.error("Needs me: bank changes not read", (e as Error).message);
+    return [{ key: "bank:read-failed", title: BANK_CHANGE_TO_CHECK, why: (e as Error).message.slice(0, 140), dueAt: null, href: "/admin/partners?tab=approved" }];
+  }
 }
 
 /** The reads behind tradeExpiryItems, started with the office's first wave (perf 25 Oct 2026). */

@@ -45,6 +45,8 @@ function seed(channel: string, invoice: Row | null) {
   tables["pricing_settings"] = [{ piesa_rec_cost_ex_gst: 300, gst_rate: 0.1, is_active: true }];
   tables["electrician_rates"] = [];
   tables["veec_lodgements"] = []; tables["quote_items"] = []; tables["retail_estimator_settings"] = []; tables["partner_offers"] = []; tables["properties"] = [];
+  // Launch blocker Task 7: office-approved bank details for every trade in these fixtures.
+  tables["business_bank_details"] = ["b1", "e1"].map((business_id) => ({ business_id, account_name: "Co", bsb: "063-000", account_number: "12345678", review_status: "reviewed" }));
   payees = new Map();
 }
 
@@ -67,7 +69,8 @@ describe("J3 (3): a held own-customer PIESA cost is unknown on the Money card, n
     const r = await moneyPayouts();
     const row = r.held.find((h) => h.kind === "assessment")!;
     expect(row.businessId).toBeNull();
-    expect(row.reasons.slice(-2)).toEqual([PIESA_RATE_NOT_SET_ROW, PAYEE_BUSINESS_MISSING_ROW]);
+    // Launch blocker Task 7: no payee business = no approved bank details either.
+    expect(row.reasons.slice(-3)).toEqual([PIESA_RATE_NOT_SET_ROW, PAYEE_BUSINESS_MISSING_ROW, "Bank details not given (collected after approval)"]);
     expect(r.due.some((g) => g.businessId === "")).toBe(false);
     // a business on file with no rate: the J1 (4) $0 held row, keyed to that business
     payees = new Map([["j1", { businessId: "b1", name: "Installer Co", piesaIncGst: null }]]);

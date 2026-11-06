@@ -10,6 +10,7 @@ import { mittiAccessOf } from "./mitti-membership.core";
 import { maskBank, personRow, postcodeSummary, rateCardLine } from "./office-partners.core";
 import { credentialState, isElectricianBiz } from "./pilot.core";
 import { partnerIssues, signedRecRates } from "./partner.core";
+import { bankChangeWaiting, type BankRow } from "./bank-approval.core";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const isTestBiz = (b: { name?: string | null; onboarding_notes?: string | null }) => /^TEST/i.test(b.name ?? "") || (b.onboarding_notes ?? "").includes("[TEST PARTNER]");
@@ -77,7 +78,7 @@ export async function partnersBoard() {
   const businesses = must<{ id: string; name: string; trading_name: string | null; business_type: string; capabilities: string[] | null; onboarding_status: string; onboarding_notes: string | null; is_active: boolean; accepting_new_jobs: boolean | null; approved_at: string | null; service_regions: string[] | null; service_postcodes: string[] | null; coverage_verified_at: string | null; base_suburb: string | null; declared_service_origin: string | null; declared_travel_radius_km: number | null; rec_number: string | null }[]>(bizR, "businesses");
   const approved = businesses.filter((b) => b.onboarding_status === "approved" && !isTestBiz(b));
   const ids = approved.map((b) => b.id);
-  const [people, creds, mainNames, cards, eRates, rateReqs, changeReqs] = await Promise.all([
+  const [people, creds, mainNames, cards, eRates, rateReqs, changeReqs, bankRows] = await Promise.all([
     peopleFor(ids),
     ids.length ? db.from("business_credentials").select("business_id, kind, expires_at, verification").in("business_id", ids) : { data: [] },
     // Jo 5 Nov 2026: the "Main electrician" column is the real Main (Team or linked), by the one list's rule.
@@ -87,7 +88,11 @@ export async function partnersBoard() {
     ids.length ? db.from("electrician_rates").select("business_id, service_type, rate_inc_gst, status, effective_from").in("business_id", ids).in("status", ["active", "approved"]) : { data: [] },
     ids.length ? db.from("installer_rate_requests").select("id, business_id, r6_rate, r7_rate, topup_r5_rate, vacuum_only_rate, gst_registered, requested_at").in("business_id", ids).eq("status", "pending") : { data: [] },
     ids.length ? db.from("partner_change_requests").select("id, business_id, kind, message, created_at").in("business_id", ids).eq("status", "open") : { data: [] },
+    // Launch blocker Task 7: bank details waiting for the office's Approve (select("*"): pending_* columns may not exist yet).
+    ids.length ? db.from("business_bank_details").select("*").in("business_id", ids) : { data: [] },
   ]);
+  if ((bankRows as { error?: { message: string } | null }).error) throw new Error(`Could not read bank details: ${(bankRows as { error: { message: string } }).error.message}`);
+  const bankWaiting = new Set(((bankRows.data ?? []) as BankRow[]).filter((r) => bankChangeWaiting(r)).map((r) => String(r.business_id)));
   const nameOf = (id: string | null | undefined) => { const b = businesses.find((x) => x.id === id); return b ? bizName(b) : null; };
   const today = melbourneToday();
   const plOf = (id: string) => ((creds.data ?? []) as { business_id: string; kind: string; expires_at: string | null; verification: string }[]).filter((c) => c.business_id === id && c.kind === "public_liability_insurance" && c.verification !== "rejected").sort((a, b) => (b.expires_at ?? "").localeCompare(a.expires_at ?? ""))[0] ?? null;
@@ -98,7 +103,7 @@ export async function partnersBoard() {
       id: b.id, name: bizName(b), kind: isElectricianBiz(b as never) ? "Electrician" : "Installer", area: (b.service_regions ?? []).join(", ") || b.base_suburb || b.declared_service_origin || "—",
       ciiCleared: isElectricianBiz(b as never) && !mine.length ? null : `${mine.filter((p) => p.ciiTone === "green" || p.ciiTone === "amber").length} of ${mine.length}`,
       plExpires: pl?.expires_at ?? null, plState: pl ? credentialState(pl) : "missing", usualElectrician: mainNames.get(b.id) ?? null,
-      takingJobs: b.accepting_new_jobs !== false, active: b.is_active,
+      takingJobs: b.accepting_new_jobs !== false, active: b.is_active, bankChangeWaiting: bankWaiting.has(b.id),
     };
   }).sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
   const rateRows = [
@@ -150,7 +155,7 @@ export async function businessFile(businessId: string) {
     db.from("partner_agreements").select("id, version, signer_name, signed_at, snapshot_sha256, body").eq("business_id", businessId).order("signed_at", { ascending: false }),
     db.from("business_credentials").select("id, kind, label, number, issuer, expires_at, verification, document_path, created_at").eq("business_id", businessId).order("created_at", { ascending: false }),
     db.from("rate_cards").select("id, kind, name, version, effective_from, is_active, rate_card_items(code, description, unit, unit_price_ex_gst, sort)").eq("business_id", businessId).order("version", { ascending: false }),
-    db.from("business_bank_details").select("account_name, bsb, account_number, updated_at, review_status").eq("business_id", businessId).maybeSingle(),
+    db.from("business_bank_details").select("*").eq("business_id", businessId).maybeSingle(), // pending_* may not exist yet (Task 7)
     db.from("business_bank_detail_events").select("event_type, actor_id, created_at").eq("business_id", businessId).order("created_at", { ascending: false }).limit(1),
     db.from("electrician_rates").select("service_type, rate_inc_gst, status, effective_from").eq("business_id", businessId).in("status", ["active", "approved"]),
     db.from("installer_rate_requests").select("id, r6_rate, r7_rate, topup_r5_rate, vacuum_only_rate, requested_at").eq("business_id", businessId).eq("status", "pending"),
@@ -184,7 +189,12 @@ export async function businessFile(businessId: string) {
       ...((changeReqs.data ?? []) as { id: string; kind: string; message: string; created_at: string }[]).map((c) => ({ id: c.id, source: "change" as const, at: c.created_at, says: `${c.kind === "rates" ? "Rates" : c.kind === "area" ? "Area" : c.kind === "details" ? "Details" : "Other"}: ${c.message}` })),
     ],
     people,
-    bank: { masked: maskBank(bank.data ?? null), changedAt: lastBank?.created_at ?? bank.data?.updated_at ?? null, changedHow: lastBank?.event_type ?? null, review: bank.data?.review_status ?? null },
+    bank: {
+      masked: maskBank(bank.data ?? null), changedAt: lastBank?.created_at ?? bank.data?.updated_at ?? null, changedHow: lastBank?.event_type ?? null, review: bank.data?.review_status ?? null,
+      // Launch blocker Task 7: a change (or first details) waiting for the office's Approve; the masked waiting account.
+      changeWaiting: bankChangeWaiting((bank.data ?? null) as BankRow | null),
+      pendingMasked: (() => { const r = (bank.data ?? null) as BankRow | null; return r?.pending_account_number ? maskBank({ account_name: r.pending_account_name ?? "", bsb: r.pending_bsb ?? "", account_number: r.pending_account_number }) : null; })(),
+    },
     jobs: {
       thisMonth: jobs.filter((j) => j.assigned_at >= monthStart).length,
       installsThisMonth: jobs.filter((j) => (j.jobs.installation_completed_at ?? "") >= monthStart).length,
@@ -197,12 +207,16 @@ export async function businessFile(businessId: string) {
 
 /** Full bank details for the office, and an audit row every time they are shown (business file "Show full details (logged)"). */
 export async function revealBank(businessId: string, actorId: string) {
-  const { data: b, error } = await db.from("business_bank_details").select("account_name, bsb, account_number").eq("business_id", businessId).maybeSingle();
+  // select("*"): the Task 7 pending_* columns may not exist yet (pending migration).
+  const { data: b, error } = await db.from("business_bank_details").select("*").eq("business_id", businessId).maybeSingle();
   if (error) throw new Error(`Could not read bank details: ${error.message}`);
   if (!b) return null;
   const { error: le } = await db.from("admin_config_events").insert({ actor_id: actorId, event_type: "partner_bank_details_revealed", summary: "Office viewed a partner's full bank details", details: { business_id: businessId } });
   if (le) throw new Error("The view could not be logged, so the details are not shown.");
-  return { accountName: b.account_name as string, bsb: b.bsb as string, account: b.account_number as string };
+  const r = b as Record<string, string | null>;
+  // Launch blocker Task 7: a change waiting for the office's Approve is shown beside the approved account we pay.
+  const pending = r["pending_account_number"] ? { accountName: String(r["pending_account_name"] ?? ""), bsb: String(r["pending_bsb"] ?? ""), account: String(r["pending_account_number"]) } : null;
+  return { accountName: b.account_name as string, bsb: b.bsb as string, account: b.account_number as string, pending };
 }
 
 /** A partner's open change request (rates/area/details/other) marked done or declined by the office, with a note. */

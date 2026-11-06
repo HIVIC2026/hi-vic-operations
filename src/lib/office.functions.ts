@@ -146,6 +146,12 @@ export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([req
       const { installerPayHeldReasonsFor } = await import("./installer-pay-timing.server");
       held.push(...await installerPayHeldReasonsFor(data.jobId));
     }
+    // Launch blocker Task 7 (QA 7 Nov 2026): never paid to bank details the office hasn't approved (same rule as the Payouts tab).
+    const { payoutPayeeBusiness, payoutBankHolds } = await import("./bank-approval.server");
+    const { BANK_NOT_GIVEN } = await import("./bank-approval.core");
+    const payee = await payoutPayeeBusiness(data.jobId, data.kind ?? "installation", bookingId);
+    const bankHold = payee ? (await payoutBankHolds([payee])).get(payee) : BANK_NOT_GIVEN;
+    if (bankHold) held.push(bankHold);
     if (held.length) throw new Error(`Payout held — not payable yet: ${held.join("; ")}`);
     const { logEvent } = await import("./workflow.server");
     await logEvent(data.jobId, context.userId, "payout_marked_paid", `Payout marked paid (${data.reference})`, { reference: data.reference, ...(data.kind ? { kind: data.kind } : {}), ...(bookingId ? { booking_id: data.bookingId } : {}) }, { internal: true });

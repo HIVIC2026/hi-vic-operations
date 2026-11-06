@@ -21,7 +21,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useAction } from "@/hooks/use-me";
 import { agreementRowState, bankChangedLine, rateIncGst } from "@/lib/office-partners.core";
 import { getBusinessFile, getPartnerAgreementPdf, resolvePartnerChangeRequest, revealPartnerBank } from "@/lib/office-partners.functions";
-import { getPartnerProfile, partnerFileUrl, saveBusiness } from "@/lib/pilot.functions";
+import { BANK_CHANGE_WAITING } from "@/lib/bank-approval.core";
+import { approveBankDetails, getPartnerProfile, partnerFileUrl, saveBusiness } from "@/lib/pilot.functions";
 import { inHouseEnableBlockers, type InHouseFacts } from "@/lib/in-house.core";
 import { PHOTO_QUOTE_WORDS, QUOTE_METHODS, quoteMethodOf, type QuoteMethod } from "@/lib/photo-quote.core";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -221,8 +222,10 @@ function RatesPanel({ f, onDone }: { f: FileData; onDone: () => Promise<void> })
 
 function BankPanel({ businessId, f }: { businessId: string; f: FileData }) {
   const reveal = useServerFn(revealPartnerBank);
-  const [full, setFull] = useState<{ accountName: string; bsb: string; account: string } | null>(null);
+  const [full, setFull] = useState<{ accountName: string; bsb: string; account: string; pending?: { accountName: string; bsb: string; account: string } | null } | null>(null);
+  const approve = useAction(approveBankDetails);
   const m = f.bank.masked;
+  const p = full?.pending ?? f.bank.pendingMasked;
   return (
     <Panel title="Bank details" action={m && !full ? <Btn tone="secondary" data-why="full details only behind a logged reveal" onClick={async () => { try { const r = await reveal({ data: { businessId } }); setFull(r); } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't show the details"); } }}>Show full details (logged)</Btn> : undefined}>
       <dl data-why="payout rule 30/109; Xero supplier">
@@ -230,6 +233,12 @@ function BankPanel({ businessId, f }: { businessId: string; f: FileData }) {
           <Row k="Account name">{full?.accountName ?? m.accountName}</Row>
           <Row k="BSB · account">{full ? `${full.bsb} · ${full.account}` : `${m.bsb} · ${m.account}`}</Row>
           <Row k="Changed">{bankChangedLine(f.bank.changedAt ? fmtDay(f.bank.changedAt) : null, f.bank.changedHow)}</Row>
+          {f.bank.changeWaiting && <Row k={BANK_CHANGE_WAITING}>
+            <span data-why="launch blocker Task 7: bank changes need the office's OK before pay goes there" className="flex flex-wrap items-center gap-2">
+              {p && <span>{p.accountName} · {p.bsb} · {p.account}</span>}
+              <Btn tone="secondary" className="min-h-8 px-2.5 py-1 text-xs" onClick={async () => { if (await approve({ businessId }, "Approved")) setFull(null); }}>Approve</Btn>
+            </span>
+          </Row>}
         </> : <Row k="Bank">Not given yet (collected after approval on My business)</Row>}
         <Row k="Xero supplier">{f.business.xero.status === "synced" ? "Linked" : f.business.xero.status ? f.business.xero.status.replace(/_/g, " ") : "Not set up"}{f.business.xero.error ? <span className="block text-xs text-rose">{f.business.xero.error}</span> : null}</Row>
       </dl>
