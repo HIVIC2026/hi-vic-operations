@@ -105,6 +105,12 @@ export const SITUATION: Record<string, { tag: string; next?: string }> = {
 };
 
 export const ELIGIBILITY_WORDS = { likely_eligible: "Likely Eligible", needs_onsite_confirmation: "Needs Onsite Confirmation", does_not_appear_eligible: "Does Not Appear Eligible", review: "Needs review" } as const;
+/** Jo 7 Nov: a firm-quote (photo) job's installer checks the owner's photos from their desk, so its onsite result reads this. */
+export const PHOTOS_TO_BE_CHECKED = "Photos to be checked by installer";
+export function eligibilityWords(outcome: string, firmQuote: boolean): string {
+  if (outcome === "needs_onsite_confirmation" && firmQuote) return PHOTOS_TO_BE_CHECKED;
+  return ELIGIBILITY_WORDS[outcome as keyof typeof ELIGIBILITY_WORDS] ?? outcome;
+}
 export const MISMATCH_WORDS = { tag: "Stage mismatch", next: "Check job records" } as const;
 
 /** Display words for the operations classifier's internal process keys (keys themselves stay unchanged). */

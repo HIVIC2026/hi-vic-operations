@@ -8,7 +8,7 @@ import { buildStageCards, type StageCardFacts } from "./office-stage-cards.core"
 import { mergeContactHistory, lastHeardFromUs, type CommRow, type EmailSendRow, type OwnerActionRow, type PortalMessageRow, type SmsRow } from "./contact-history.core";
 import { splitAddress } from "./name-address-tidy.core";
 import { displayName } from "./display-name.core";
-import { ELIGIBILITY_WORDS } from "./job-wording";
+import { eligibilityWords } from "./job-wording";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { installDaysLeft } from "./install-days.core";
 import { readJobAccess } from "./quick-taps-access.server";
@@ -116,7 +116,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const cardFacts: StageCardFacts = {
     current: stage, closed, ownJob,
     enquiry: { receivedAt: job.created_at, source: ownJob ? `added by ${installer ?? "the installer"}` : job.source === "base44" ? "website Save my spot" : job.source === "qa_test" ? "TEST" : "phone / office", estimateTotal: n(campaign.data?.saved_total), estimateRebate: n(campaign.data?.saved_veu_discount), linkSentAt: s(links.data?.created_at), linkViewedAt: s(links.data?.last_viewed_at), ownerSaid,
-      eligibility: job.eligibility_review_required ? "Needs review" : job.eligibility_outcome ? ELIGIBILITY_WORDS[job.eligibility_outcome as keyof typeof ELIGIBILITY_WORDS] ?? job.eligibility_outcome : null, photos: media.count ?? 0 },
+      eligibility: job.eligibility_review_required ? "Needs review" : job.eligibility_outcome ? eligibilityWords(job.eligibility_outcome, job.eligibility_outcome === "needs_onsite_confirmation" && await (await import("./firm-quote.server")).isFirmQuoteJobId(job.id)) : null, photos: media.count ?? 0 },
     readyCheck: { installer, chosenAt: rcOffer ? s(rcOffer.offered_at) : null, acceptedAt: rcOffer?.status === "accepted" ? s(rcOffer.responded_at) : null, visitAt: book("ready_check"),
       mitti: meas.data ? `${meas.data.status === "complete" ? "Complete" : "Started"} ${day(String(meas.data.completed_at ?? meas.data.updated_at))}${meas.data.external_source === "mitti" ? " · synced" : ""}` : null,
       measured: meas.data?.measured_area_m2 ? `${Math.round(Number(meas.data.measured_area_m2))} m²` : null, diagramAt: s(diagram.data?.created_at) },
