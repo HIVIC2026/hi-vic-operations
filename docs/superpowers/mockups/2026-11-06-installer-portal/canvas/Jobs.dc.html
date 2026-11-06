@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jobs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F7FB}
+a{color:#3C51C4}a:hover{color:#22376B}
+</style>
+</helmet>
+<div style="min-height: 860px; display: flex; flex-wrap: wrap; font-family: 'Open Sans', Arial, sans-serif; color: #22376B; background: #F5F7FB">
+<nav aria-label="Main" style="flex: 1 1 220px; max-width: 240px; min-width: 200px; background: #FFFFFF; border-right: 1px solid #E3E8F2; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px">
+<img src="/_blob/3bbf4febd79e89c461ef7e11e5cfb335" alt="Home Insulation Victoria" style="width: 120px; height: auto; margin: 0 8px 24px">
+<a href="AddJob.dc.html" style="display: block; text-align: center; background: #3C51C4; color: #FFFFFF; font-weight: 700; font-size: 15px; padding: 12px; border-radius: 10px; text-decoration: none; margin-bottom: 14px">+ Add a job</a>
+<a href="Main.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Action items<span style="background: #3C51C4; color: #FFFFFF; border-radius: 999px; font-size: 12px; font-weight: 700; padding: 2px 9px">4</span></a>
+<a href="Calendar.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Calendar</a>
+<a href="Jobs.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; background: #EAEEFB; color: #3C51C4; font-weight: 700">Jobs</a>
+<a href="Money.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Money</a>
+<a href="Business.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">My business</a>
+<div style="flex-grow: 1"></div>
+<div style="padding: 12px 14px; font-size: 13px; color: #5B6785; line-height: 1.5"><b style="color: #22376B">Reinsulate</b><br>Deep Singh</div>
+</nav>
+<main style="flex: 999 1 560px; min-width: 0; padding: 40px 48px; box-sizing: border-box">
+<div style="max-width: 1120px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+<div><h1 style="margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.5px">Jobs</h1>
+<p style="margin: 4px 0 0; font-size: 16px; color: #5B6785">Every job you have with us.</p></div>
+<label style="flex: 0 1 340px; min-width: 0; width: 100%"><span style="position: absolute; left: -9999px">Search jobs</span><input value="{{q}}" onInput="{{search}}" placeholder="Search name, address or HV number" style="width: 100%; box-sizing: border-box; font-family: inherit; font-size: 16px; padding: 13px 14px; border: 1px solid #CED6E6; border-radius: 12px; background: #FFFFFF"></label>
+</div>
+<div role="tablist" aria-label="Show" style="display: flex; gap: 8px; margin: 22px 0 16px; overflow-x: auto; padding-bottom: 4px">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="5"><button type="button" role="tab" aria-selected="{{t.sel}}" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button></sc-for>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 16px; overflow: hidden">
+<sc-for list="{{rows}}" as="j" hint-placeholder-count="6">
+<a href="Job.dc.html" style="display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 16px 22px; border-top: 1px solid #E3E8F2; text-decoration: none; color: #22376B; flex-wrap: wrap">
+<span style="flex: 1 1 260px; min-width: 0">
+<span style="display: block; font-size: 17px; font-weight: 800">{{j.addr}}</span>
+<span style="display: block; font-size: 13px; color: #5B6785; margin-top: 2px">{{j.owner}} · {{j.hv}} · {{j.src}}</span>
+</span>
+<span style="flex: 1 1 220px; min-width: 0; font-size: 15px">{{j.stage}}<span style="display: block; font-size: 13px; color: #5B6785">{{j.when}}</span></span>
+<span style="{{j.tagStyle}}">{{j.tag}}</span>
+</a>
+</sc-for>
+<sc-if value="{{empty}}" hint-placeholder-val="{{ false }}"><p style="margin: 0; padding: 28px 22px; font-size: 15px; color: #5B6785">No jobs match. Try a different name, address or HV number.</p></sc-if>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'open', q: '' }; }
+  renderVals() {
+
+    const st = this.state;
+    const J = [
+      { hv: 'HV-3840', addr: '6 Sample Avenue, Werribee', owner: 'Sam Patel', src: 'Our lead', stage: 'Install booked', when: 'Wed 11 Nov', tag: 'Fix first', k: 'fix', group: 'open' },
+      { hv: 'HV-3902', addr: '14 Hill Street, Sunbury', owner: 'Lee Tran', src: 'Our lead', stage: 'Pick Lead and crew', when: 'By Wed 11 Nov', tag: 'Your turn', k: 'you', group: 'open' },
+      { hv: 'HV-3117', addr: '8 Example Court, Tarneit', owner: 'Sam Patel', src: 'Your customer', stage: 'Book the PIESA', when: 'Said yes Mon 9 Nov', tag: 'Your turn', k: 'you', group: 'open' },
+      { hv: 'HV-3821', addr: '12 Example Street, Melton', owner: 'Jo Lowe', src: 'Your customer', stage: 'Measure and quote', when: 'Added Fri 6 Nov', tag: 'Your turn', k: 'you', group: 'open' },
+      { hv: 'HV-3300', addr: '24 Demo Road, Point Cook', owner: 'Helen Journey', src: 'Our lead', stage: 'PIESA booked', when: 'Tue 10 Nov, 9:00am', tag: 'Waiting', k: 'wait', group: 'open' },
+      { hv: 'HV-3119', addr: '9 Sample Crescent, Tarneit', owner: 'Mia Chen', src: 'Our lead', stage: 'Quote being prepared', when: 'Sent to us Thu 5 Nov', tag: 'Waiting', k: 'wait', group: 'open' },
+      { hv: 'HV-3555', addr: '3 Park Lane, Sunshine', owner: 'Ana Ruiz', src: 'Your customer', stage: 'Quote with the owner', when: 'Valid until Fri 4 Dec', tag: 'Waiting', k: 'wait', group: 'open' },
+      { hv: 'HV-3410', addr: '77 River Road, Bacchus Marsh', owner: 'Tom Webb', src: 'Our lead', stage: 'Deposit requested', when: 'Asked Tue 3 Nov', tag: 'Waiting', k: 'wait', group: 'open' },
+      { hv: 'HV-3201', addr: '5 Gum Street, Melton', owner: 'Kim Ng', src: 'Your customer', stage: 'Paid', when: 'Mon 2 Nov · $2,500.00', tag: 'Done', k: 'done', group: 'done' },
+      { hv: 'HV-3099', addr: '41 Lake Drive, Melton', owner: 'Ravi Shah', src: 'Our lead', stage: 'Paid', when: 'Mon 2 Nov · $2,310.00', tag: 'Done', k: 'done', group: 'done' },
+      { hv: 'HV-3060', addr: '2 Hill View, Werribee', owner: 'Lucy Moss', src: 'Our lead', stage: 'Owner said no', when: 'Thu 29 Oct', tag: 'Closed', k: 'closed', group: 'closed' }
+    ];
+    const TAG = { fix: 'background: #FDECEA; color: #B42318', you: 'background: #E7F8EF; color: #067A40', wait: 'background: #EEF1F7; color: #5B6785', done: 'background: #EAEEFB; color: #3C51C4', closed: 'background: #EEF1F7; color: #5B6785' };
+    const F = {
+      open: j => j.group === 'open', yours: j => j.group === 'open' && j.src === 'Your customer', ours: j => j.group === 'open' && j.src === 'Our lead',
+      done: j => j.group === 'done', closed: j => j.group === 'closed'
+    };
+    const q = st.q.trim().toLowerCase();
+    const match = j => !q || (j.addr + ' ' + j.owner + ' ' + j.hv).toLowerCase().indexOf(q) >= 0;
+    const tabs = [['open', 'Open'], ['yours', 'Your customers'], ['ours', 'Our leads'], ['done', 'Done'], ['closed', 'Closed']].map(([id, name]) => {
+      const n = J.filter(F[id]).filter(match).length, on = st.tab === id;
+      return { label: name + ' ' + n, sel: on ? 'true' : 'false', pick: () => this.setState({ tab: id }),
+        style: 'flex: none; font-family: inherit; font-size: 14px; font-weight: 700; min-height: 44px; padding: 0 16px; border-radius: 999px; cursor: pointer; white-space: nowrap; ' + (on ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6') };
+    });
+    const rows = J.filter(F[st.tab]).filter(match).map(j => Object.assign({}, j, { tagStyle: 'font-size: 13px; font-weight: 800; border-radius: 999px; padding: 5px 11px; white-space: nowrap; ' + TAG[j.k] }));
+    return { tabs, rows, empty: rows.length === 0, q: st.q, search: e => this.setState({ q: e.target.value }) };
+  }
+}
+</script>
+</body>
+</html>

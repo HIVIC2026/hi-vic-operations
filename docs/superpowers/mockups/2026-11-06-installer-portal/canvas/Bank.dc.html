@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bank</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F7FB}
+a{color:#3C51C4}a:hover{color:#22376B}
+</style>
+</helmet>
+<div style="min-height: 860px; display: flex; flex-wrap: wrap; font-family: 'Open Sans', Arial, sans-serif; color: #22376B; background: #F5F7FB">
+<nav aria-label="Main" style="flex: 1 1 220px; max-width: 240px; min-width: 200px; background: #FFFFFF; border-right: 1px solid #E3E8F2; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px">
+<img src="/_blob/3bbf4febd79e89c461ef7e11e5cfb335" alt="Home Insulation Victoria" style="width: 120px; height: auto; margin: 0 8px 24px">
+<a href="AddJob.dc.html" style="display: block; text-align: center; background: #3C51C4; color: #FFFFFF; font-weight: 700; font-size: 15px; padding: 12px; border-radius: 10px; text-decoration: none; margin-bottom: 14px">+ Add a job</a>
+<a href="Main.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Action items<span style="background: #3C51C4; color: #FFFFFF; border-radius: 999px; font-size: 12px; font-weight: 700; padding: 2px 9px">4</span></a>
+<a href="Calendar.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Calendar</a>
+<a href="Jobs.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Jobs</a>
+<a href="Money.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; color: #22376B; font-weight: 600">Money</a>
+<a href="Business.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 10px; font-size: 15px; text-decoration: none; background: #EAEEFB; color: #3C51C4; font-weight: 700">My business</a>
+<div style="flex-grow: 1"></div>
+<div style="padding: 12px 14px; font-size: 13px; color: #5B6785; line-height: 1.5"><b style="color: #22376B">Reinsulate</b><br>Deep Singh</div>
+</nav>
+<main style="flex: 999 1 560px; min-width: 0; padding: 40px 48px; box-sizing: border-box">
+<div style="max-width: 760px"><a href="Business.dc.html" style="font-size: 14px; font-weight: 700; text-decoration: none">‹ My business</a><h1 style="margin: 10px 0 0; font-size: 32px; font-weight: 800; letter-spacing: -0.5px">Bank</h1><p style="margin: 4px 0 0; font-size: 16px; color: #5B6785">Where we pay you.</p>
+<sc-if value="{{view}}" hint-placeholder-val="{{ true }}">
+<section style="margin-top: 24px; background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 16px; padding: 22px 24px"><h2 style="margin: 0 0 16px; font-size: 18px; font-weight: 800">Your account</h2><div style="display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid #EEF1F7; font-size: 15px"><span style="color: #5B6785">Account name</span><span style="font-weight: 700; text-align: right; color: #22376B">Infronix Pty Ltd</span></div><div style="display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid #EEF1F7; font-size: 15px"><span style="color: #5B6785">BSB</span><span style="font-weight: 700; text-align: right; color: #22376B">063-•••</span></div><div style="display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid #EEF1F7; font-size: 15px"><span style="color: #5B6785">Account</span><span style="font-weight: 700; text-align: right; color: #22376B">ending 4417</span></div></section>
+<button type="button" onClick="{{edit}}" style="margin-top: 20px; min-height: 50px; padding: 0 22px; background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6; border-radius: 12px; font-family: inherit; font-weight: 700; font-size: 16px; cursor: pointer">Change bank details</button>
+</sc-if>
+<sc-if value="{{editing}}" hint-placeholder-val="{{ false }}">
+<section style="margin-top: 24px; background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 16px; padding: 22px 24px"><h2 style="margin: 0 0 4px; font-size: 18px; font-weight: 800">New account</h2><p style="margin: 0 0 16px; font-size: 14px; color: #5B6785">Our office checks the change before we pay into it.</p><div style="display: flex; flex-direction: column; gap: 14px"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; min-width: 0">Account name<input type="text" value="Infronix Pty Ltd" style="font-family: inherit; font-size: 16px; padding: 13px 14px; border: 1px solid #CED6E6; border-radius: 12px; color: #22376B; background: #FFFFFF; width: 100%; box-sizing: border-box; min-width: 0"></label><label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; min-width: 0">BSB<input type="text" value="" style="font-family: inherit; font-size: 16px; padding: 13px 14px; border: 1px solid #CED6E6; border-radius: 12px; color: #22376B; background: #FFFFFF; width: 100%; box-sizing: border-box; min-width: 0"></label><label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; min-width: 0">Account number<input type="text" value="" style="font-family: inherit; font-size: 16px; padding: 13px 14px; border: 1px solid #CED6E6; border-radius: 12px; color: #22376B; background: #FFFFFF; width: 100%; box-sizing: border-box; min-width: 0"></label></div></section>
+<div style="margin-top: 20px; display: flex; gap: 12px"><button type="button" onClick="{{submit}}" style="min-height: 52px; padding: 0 24px; background: #07BF61; color: #FFFFFF; border: 0; border-radius: 12px; font-family: inherit; font-weight: 800; font-size: 16px; cursor: pointer">Send for checking</button><button type="button" onClick="{{cancel}}" style="min-height: 52px; padding: 0 20px; background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6; border-radius: 12px; font-family: inherit; font-weight: 700; font-size: 16px; cursor: pointer">Cancel</button></div>
+</sc-if>
+<sc-if value="{{sent}}" hint-placeholder-val="{{ false }}">
+<section style="margin-top: 24px; background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 16px; padding: 22px 24px"><h2 style="margin: 0 0 16px; font-size: 18px; font-weight: 800">Your account</h2><div style="display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid #EEF1F7; font-size: 15px"><span style="color: #5B6785">Account name</span><span style="font-weight: 700; text-align: right; color: #22376B">Infronix Pty Ltd</span></div><div style="display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid #EEF1F7; font-size: 15px"><span style="color: #5B6785">BSB</span><span style="font-weight: 700; text-align: right; color: #22376B">063-•••</span></div><div style="display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid #EEF1F7; font-size: 15px"><span style="color: #5B6785">Account</span><span style="font-weight: 700; text-align: right; color: #22376B">ending 4417</span></div></section>
+<div style="margin-top: 20px; background: #EAEEFB; border-radius: 12px; padding: 16px 18px; font-size: 15px; line-height: 1.5"><b>Our office is checking your new account.</b><br>We keep paying into account ending 4417 until it's done.</div>
+</sc-if></div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { m: 'view' }; }
+  renderVals() {
+    const m = this.state.m;
+    return { view: m === 'view', editing: m === 'edit', sent: m === 'sent', edit: () => this.setState({ m: 'edit' }), submit: () => this.setState({ m: 'sent' }), cancel: () => this.setState({ m: 'view' }) };
+  }
+}
+</script>
+</body>
+</html>

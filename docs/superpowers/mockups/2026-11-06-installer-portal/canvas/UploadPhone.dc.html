@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Uploads</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F7FB}
+a{color:#3C51C4}a:hover{color:#22376B}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 844px; position: relative; font-family: 'Open Sans', Arial, sans-serif; color: #22376B; background: #F5F7FB">
+<header style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: #FFFFFF; border-bottom: 1px solid #E3E8F2"><img src="/_blob/3bbf4febd79e89c461ef7e11e5cfb335" alt="Home Insulation Victoria" style="width: 92px; height: auto"></header>
+<main style="padding: 20px 16px 96px">
+<div role="group" aria-label="Prototype" style="display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px; border: 1px dashed #CED6E6; border-radius: 12px; margin-bottom: 18px; font-size: 12px; color: #5B6785; align-items: center"><b>Prototype:</b><sc-for list="{{steps}}" as="t"><button type="button" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button></sc-for></div><h1 style="margin: 0; font-size: 24px; font-weight: 800">Add photos</h1>
+<div style="font-size: 15px; color: #5B6785; margin-top: 2px">12 Example Street, Melton · HV-3821</div>
+<div style="display: flex; gap: 10px; margin-top: 16px"><button type="button" style="display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; min-height: 54px; border: 0; border-radius: 12px; font-family: inherit; font-weight: 800; font-size: 17px; text-decoration: none; cursor: pointer; background: #07BF61; color: #FFFFFF; flex: 1; font-size: 16px">Take a photo</button><button type="button" style="display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; min-height: 54px; border: 0; border-radius: 12px; font-family: inherit; font-weight: 800; font-size: 17px; text-decoration: none; cursor: pointer; background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6; font-weight: 700; font-size: 16px; min-height: 50px; flex: 1">Choose files</button></div>
+<div style="background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 16px; padding: 18px; margin-top: 16px; padding: 4px 18px">
+<sc-for list="{{files}}" as="f"><div style="padding: 14px 0; border-top: 1px solid #EEF1F7"><div style="display: flex; justify-content: space-between; gap: 10px; font-size: 15px"><b>{{f.name}}</b><span style="font-weight: 700; color: {{f.ink}}">{{f.status}}</span></div>
+<div style="height: 6px; border-radius: 3px; background: #EEF1F7; margin-top: 8px; overflow: hidden"><div style="{{f.bar}}"></div></div>
+<sc-if value="{{f.failed}}" hint-placeholder-val="{{ false }}"><button type="button" style="margin-top: 10px; min-height: 44px; padding: 0 16px; background: #FFFFFF; color: #3C51C4; border: 1px solid #CED6E6; border-radius: 10px; font-family: inherit; font-weight: 700; font-size: 14px">Retry</button></sc-if></div></sc-for>
+</div>
+<p style="margin: 14px 0 0; font-size: 14px; color: #5B6785; line-height: 1.5">{{note}}</p>
+</main>
+<nav aria-label="Main" style="position: absolute; left: 0; right: 0; bottom: 0; display: flex; background: #FFFFFF; border-top: 1px solid #E3E8F2; padding: 6px 4px 18px"><a href="Main.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #3C51C4; text-decoration: none">Action items</a><a href="Calendar.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #5B6785; text-decoration: none">Calendar</a><a href="Jobs.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #5B6785; text-decoration: none">Jobs</a><a href="Money.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #5B6785; text-decoration: none">Money</a><a href="Business.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #5B6785; text-decoration: none">My business</a></nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { i: 0 }; }
+  renderVals() {
+    const st = this.state;
+    const steps = ['Uploading', 'No signal', 'All done'].map((label, n) => ({ label, pick: () => this.setState({ i: n }), style: 'font-family: inherit; font-size: 12px; font-weight: 700; min-height: 32px; padding: 0 10px; border-radius: 999px; cursor: pointer; ' + (st.i === n ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6') }));
+    const bar = (p, c) => 'height: 6px; width: ' + p + '%; background: ' + c;
+    const F = [
+      [{ name: 'Ceiling 1.jpg', status: 'Uploaded ✓', ink: '#067A40', bar: bar(100, '#07BF61') }, { name: 'Ceiling 2.jpg', status: '64%', ink: '#22376B', bar: bar(64, '#3C51C4') }, { name: 'Floor plan.pdf', status: 'Waiting', ink: '#5B6785', bar: bar(0, '#3C51C4') }],
+      [{ name: 'Ceiling 1.jpg', status: 'Uploaded ✓', ink: '#067A40', bar: bar(100, '#07BF61') }, { name: 'Ceiling 2.jpg', status: "Didn't upload", ink: '#8A4B00', bar: bar(64, '#D97706'), failed: true }, { name: 'Floor plan.pdf', status: 'Waiting for signal', ink: '#5B6785', bar: bar(0, '#3C51C4') }],
+      [{ name: 'Ceiling 1.jpg', status: 'Uploaded ✓', ink: '#067A40', bar: bar(100, '#07BF61') }, { name: 'Ceiling 2.jpg', status: 'Uploaded ✓', ink: '#067A40', bar: bar(100, '#07BF61') }, { name: 'Floor plan.pdf', status: 'Uploaded ✓', ink: '#067A40', bar: bar(100, '#07BF61') }]
+    ][st.i].map(f => Object.assign({ failed: false }, f));
+    const N = ['You can leave this page. Uploads keep going and finish when they can.', "No signal right now. Your photos are saved on this phone and will upload when you're back online. Nothing is lost.", 'All 3 files are on the job.'];
+    return { steps, files: F, note: N[st.i] };
+  }
+}
+</script>
+</body>
+</html>
