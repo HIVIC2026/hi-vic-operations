@@ -46,7 +46,7 @@ describe("stale page file after a deploy", () => {
     await router.load();
     await router.navigate({ to: "/form" });
     expect(reloads).toEqual(["/form"]);
-    expect(prevented).toEqual([1]);
+    expect(prevented).toEqual([]);
   });
 
   test("before the router exists (first page load), it reloads as before", () => {
@@ -54,5 +54,16 @@ describe("stale page file after a deploy", () => {
     const r = createStaleChunkRecovery(() => { reloads.push(1); return true; });
     r.onPreloadError({ preventDefault() {} });
     expect(reloads).toEqual([1]);
+  });
+  test("a failed import still rejects during recovery instead of resolving an undefined module", async () => {
+    const recovery = createStaleChunkRecovery(() => true);
+    const missing = new Error("Failed to fetch dynamically imported module");
+    let prevented = false;
+    // Vite's actual contract: cancelling this event makes its catch resolve undefined.
+    const load = Promise.reject(missing).catch(error => {
+      recovery.onPreloadError({ preventDefault() { prevented = true; } });
+      if (!prevented) throw error;
+    });
+    await expect(load).rejects.toBe(missing);
   });
 });

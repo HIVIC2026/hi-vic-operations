@@ -1,4 +1,5 @@
 ## Jo 6 Nov 10:26 UTC — make the live TEST journey possible
+- [x] Blank-screen repair: reproduced Vite recovery swallowing import rejection into undefined; keep rejection intact while reloading. 22 recovery tests pass; sign-in/calculator/TEST office Test Centre render without runtime errors in preview; build OK. No workflow changes or publication.
 - [x] Normal TEST office sign-in uses the existing private QA_OFFICE_PASSWORD; no Jo tap, credential reset or role change needed.
 - [x] Repair the exact TEST photo function allowlist omission; 37 checks pass, scan clear, build OK. Published and verified on the same TEST HV-3831 through Test Centre; private intake_media saved and read back live.
 - [ ] Seven-step published journey blocked at email 1: HV-3831 has no immutable owner_contact_consents row despite Test Centre consent tick; intake records consent only for base44. No consent fabricated or sender bypass. Installer role link available after checked assignment, not yet exercised. Day-4 is also held by Melbourne quiet hours; no broad sweep invoked.

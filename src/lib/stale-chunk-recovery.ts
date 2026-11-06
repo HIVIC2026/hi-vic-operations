@@ -44,7 +44,10 @@ export function createStaleChunkRecovery(reload: () => boolean) {
         held = true; // the preload just fails quietly; the navigation that follows reloads
         return;
       }
-      if (reload()) ev.preventDefault();
+      // Do not cancel Vite's event: cancellation resolves its import catch with undefined,
+      // which the lazy route loader then dereferences while navigation is still pending.
+      // Keep the original rejection intact while the replacement document loads.
+      reload();
     },
   };
 }
