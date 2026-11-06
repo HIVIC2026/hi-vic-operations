@@ -18,24 +18,28 @@ test("confirmation has three tick rows, the logo and no house icon", () => {
   expect(confirmation).not.toContain("OwnerHouse");
   expect(page).toContain('className="h-16 w-auto"');
 });
-test("before the tap: one big green button with Jo's exact wording, no other line", () => {
-  expect(FIRM_PAGE_COPY.confirmButton).toBe("Confirm my firm quote request");
-  const before = page.slice(page.indexOf(": <section"), page.indexOf("</section>"));
-  expect(before).toContain("OwnerHouse");
-  expect(before).toContain(">Your firm quote</h1>");
-  expect(before.match(/<button/g)).toHaveLength(1);
-  expect(before).toContain("w-full");
-  expect(before).toContain("bg-estimate-green");
-  expect(before).toContain("onClick={() => void proceed()}");
+test("no button, no tap and no extra text on the page", () => {
+  expect(page).not.toMatch(/<button|<Button/);
+  expect(page).not.toContain("onClick");
+  expect(page).not.toContain("Confirm my firm quote request");
   expect(page).not.toContain("Proceed to firm quote");
-});
-test("only the button saves: no tap-anywhere / first-touch save, never on load", () => {
   expect(page).not.toContain("shouldFireOneTapSave");
   expect(page).not.toContain("ONE_TAP_SAVE_EVENTS");
   expect(page).not.toContain("addEventListener");
-  expect(page).not.toMatch(/\.then\(\(r\) => \{[^}]*proceed\(/);
-  expect(page.match(/proceed\(\)/g)).toHaveLength(1);
 });
-test("saving shows the thanks page straight from the save result", () => expect(page).toContain('setFirst(result.firstName ?? first); setDueBy(result.dueBy); setState("saved");'));
+test("saves automatically from the page's own script, browser only (never on a plain link fetch)", () => {
+  expect(page).toContain("ssr: false");
+  const effect = page.slice(page.indexOf("useEffect(() => {"), page.indexOf("}, [token, read, request]);"));
+  expect(effect).toContain("read({ data: { token } })");
+  expect(effect).toContain("await request({ data: { token } })");
+  // Saved once per token, even if the effect runs twice.
+  expect(effect).toContain("if (firedFor.current === token) return;");
+  expect(page.match(/request\(\{ data: \{ token \} \}\)/g)).toHaveLength(1);
+});
+test("saving goes straight to the thanks page", () => expect(page).toContain('setFirst(result.firstName ?? r.firstName); setDueBy(result.dueBy); setState("saved");'));
+test("closed or unavailable link never saves", () => {
+  const effect = page.slice(page.indexOf("useEffect(() => {"), page.indexOf("}, [token, read, request]);"));
+  expect(effect.indexOf('if (!r.available) { setState("unavailable"); return; }')).toBeLessThan(effect.indexOf("await request("));
+});
 test("closed / not eligible keeps the existing friendly line", () => expect(page).toContain("This one's already been taken care of."));
 test("already asked shows the same confirmation from the page read", () => expect(page).toContain('if (r.available && r.dueBy) { setDueBy(r.dueBy); setState("saved"); return; }'));
