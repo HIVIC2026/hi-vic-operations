@@ -35,6 +35,7 @@ export async function sweepSpotSavedConfirmations() {
       }
     }
     for (const row of live) {
+      if (await (await import('./firm-quote.server')).skipSpotMessage(row.job_id)) continue;
       const history = events.filter(e => e.job_id === row.job_id);
       if (history.some(e => e.event_type === 'spot_saved_confirmation_completed')) continue;
       candidates.push({ jobId: row.job_id, queued: history.some(e => e.event_type === 'spot_saved_confirmation_queued'),

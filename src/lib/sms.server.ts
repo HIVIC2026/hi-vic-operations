@@ -28,7 +28,7 @@ export type RealSmsInput = {
   /** One-off (`event`) types: when the triggering event happened and whether it is still current (decision 165). `window` types omit it. */
   event?: SmsEventInput;
 };
-export type RealSmsResult = { status: "sent" | "blocked" | "failed" | "sent_unknown" | "already"; detail: string; sid: string | null };
+export type RealSmsResult = { status: "sent" | "blocked" | "failed" | "sent_unknown" | "already" | "skipped"; detail: string; sid: string | null };
 
 /** Australian sending number from TWILIO_FROM_NUMBER (read per call). Alphanumeric sender names are not accepted. */
 export function sendingNumber(): string | null {
@@ -105,6 +105,10 @@ export async function smsHoldReason(input: RealSmsInput): Promise<string | null>
 
 /** Send one real SMS. Every check runs first; blocked attempts are logged and never reach Twilio. */
 export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string; adminSpotReminderBlast?: true; scheduledSpotReminder?: true }): Promise<RealSmsResult> {
+  if (input.jobId && ["spot_saved", "save_spot_reminder", "spot_released", "quick_taps", "quick_taps_reminder"].includes(input.type)) {
+    const skip = await (await import("./firm-quote.server")).skipSpotMessage(input.jobId);
+    if (skip) return { status: skip.status, detail: skip.reason, sid: null };
+  }
   // One-off blasts: the Save My Spot reminder (office page or the hourly automatic run) and the 3 questions reminder
   // (decision 172, office page only). Each has its own key format and phone-claim space; nothing else may pass `blast`.
   const oneOffKey = input.type === "save_spot_reminder" ? `save-spot-reminder-blast:v1:${input.jobId}`

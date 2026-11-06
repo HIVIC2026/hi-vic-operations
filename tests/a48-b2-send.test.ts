@@ -125,7 +125,10 @@ mock.module("../src/lib/office-actions.server", () => ({
 const S = await import("../src/lib/area-batch.server");
 const firmIds = new Set<string>();
 const directGives: unknown[] = [];
-mock.module("../src/lib/firm-quote.server", () => ({ isFirmQuoteJobId: async (id: string) => firmIds.has(id) }));
+mock.module("../src/lib/firm-quote.server", () => ({
+  isFirmQuoteJobId: async (id: string) => firmIds.has(id),
+  skipSpotMessage: async (id: string) => firmIds.has(id) ? { status: "skipped", reason: "firm_quote_job" } : null,
+}));
 mock.module("../src/lib/in-house-batch.server", () => ({
   loadInHouseBatches: async () => ({ jobs: [{ id: "firm", postcode: "3000" }], partners: [{ id: "photos", name: "Photos", quote_method: "photos", covers_all_victoria: true }, { id: "rc", name: "Ready Check", quote_method: "ready_check", covers_all_victoria: true }] }),
   sendInHouseBatch: async (p: { jobIds: string[]; businessId: string }) => {

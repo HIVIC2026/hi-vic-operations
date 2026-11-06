@@ -1,3 +1,7 @@
+## Jo 6 Nov restore missing Task 6
+- [x] Restored original Task 6 source/tests; area-batch retains all Task 7 additions, Tasks 1–5 and merges #189–191 intact. Only original calculator sentence removed.
+- [x] Each test file separately: all 12 firm-quote files 130/130; 29 total files 563/563. Retired-terms scan clear, preview build OK; no SQL, sends, switches or publishing. Stopped. Report: docs/firm-quote-task6-report.md.
+
 ## Jo 6 Nov firm quote from photos — Task 7 only
 - [x] Due-date tag on saved spots; photos-only giving on screen and server; no owner message; normal jobs unchanged in isolated tests.
 - [x] Tests individually: 229 passed, 0 failed; retired-terms scan 0 customer-visible failures; preview build OK. No SQL run, sends, switch changes or publishing. Stopped after Task 7. Report: docs/firm-quote-task7-report.md.

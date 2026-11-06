@@ -3,6 +3,8 @@ import { afterAll, beforeEach, expect, mock, test, setSystemTime } from 'bun:tes
 type Row = Record<string, any>;
 const rows: Record<string, Row[]> = {};
 let emailCalls = 0, smsCalls = 0, readFailure: string | null = null;
+const firmJobs = new Set<string>();
+mock.module('../src/lib/firm-quote.server', () => ({ skipSpotMessage: async (jobId: string) => firmJobs.has(jobId) ? { status: 'skipped', reason: 'firm_quote_job' } : null }));
 const db = { from(table: string) {
   let op = 'read', payload: Row = {}, lo = 0, hi = Infinity;
   const predicates: ((r: Row) => boolean)[] = [];
@@ -49,6 +51,14 @@ mock.module('../src/lib/sms.server', () => ({ sendRealSms: async (input: Row) =>
 } }));
 
 const { sweepSpotSavedConfirmations, spotSavedConfirmationHandled } = await import('../src/lib/spot-saved-recovery.server');
+test('firm quote saved responses never queue or attempt spot confirmation recovery', async () => {
+  home('firm'); firmJobs.add('firm');
+  try {
+    expect(await sweepSpotSavedConfirmations()).toMatchObject({ checked: 0, attempted: 0, completed: 0 });
+    expect(emailCalls).toBe(0); expect(smsCalls).toBe(0);
+    expect(rows.workflow_events ?? []).toEqual([]);
+  } finally { firmJobs.clear(); }
+});
 function home(id: string, options: Row = {}) {
   const source = options.source ?? 'base44';
   (rows.jobs ??= []).push({ id, source, stage: 'ready_check_ready_to_schedule', deleted_at: null, qa_archived_at: null, owners: { full_name: 'Test Home', email: `${id}@example.org.au`, phone: '0412345678' }, properties: { suburb: 'Test suburb' } });

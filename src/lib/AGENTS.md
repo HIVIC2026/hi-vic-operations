@@ -1,4 +1,5 @@
 # Server/domain rules (src/lib)
+- Save-my-spot owner sends and estimate follow-up closure share skipSpotMessage; missing activation stays off and read errors fail closed. Why: firm requests must never receive spot messages or be automatically closed as unanswered estimates.
 - Firm-quote Give uses the existing in-house allocation and unchanged photos installer email, with shared photos-only checks and sender-boundary owner-notice exclusion; pending database gates must be verified before activation. Why: a request is not quick-taps consent or permission for an owner notice.
 - Own-customer email versions use individual audited office-switch approvals in Templates and canonical guarded senders; unknown approval fails closed for TEST too. Why: viewing new wording is not permission to send; existing quote text/reminders and payment gates stay unchanged.
 - Installer price changes stay append-only in the existing price event and private draft; Office Send alone retires earlier issued quotes, retaining accepted/payment stage guards and the sent-at expiry clock. Why: changing a price must not send, overwrite agreed records or expose another business's request.

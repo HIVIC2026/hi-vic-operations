@@ -344,6 +344,8 @@ function emailStatus(r: string): SendResult {
  *  never stops the other; `status`/`detail` are the text's, `email` is the email's. Same purpose + key family as the old
  *  release (`spot-release:v1:{job}:{batch}:{step}`). `noEmail` → text only. */
 async function messageOwner(h: TextTo, batchId: string, myJobLink: string, businessId: string | null, actorId: string | null, step: "sent" | "reminder" = "sent", noEmail = false): Promise<SendResult & { email: SendResult }> {
+  const skip = await (await import("./firm-quote.server")).skipSpotMessage(h.jobId);
+  if (skip) return { status: skip.status, detail: skip.reason, email: { status: skip.status, detail: skip.reason } };
   const link = quickTapsLink(myJobLink);
   const reminder = step === "reminder";
   const { firstName } = await import("./worker-links.core");
@@ -385,6 +387,8 @@ async function messageOwner(h: TextTo, batchId: string, myJobLink: string, busin
 /** The one-off quick taps re-ask text (quick-taps.server reaskQuickTaps, Jo 3 Nov 2026): the caller's own approved
  *  wording under the `quick_taps` type, key and switch, once per job + batch. TEST → test-send. Text only. */
 async function textOwner(h: TextTo, batchId: string, myJobLink: string, businessId: string | null, actorId: string | null, ownerText: (ownerName: string | null, link: string) => string): Promise<SendResult> {
+  const skip = await (await import("./firm-quote.server")).skipSpotMessage(h.jobId);
+  if (skip) return { status: skip.status, detail: skip.reason };
   const body = ownerText(h.ownerName, quickTapsLink(myJobLink));
   if (h.isTest) {
     const { data: biz } = businessId ? await admin.from("businesses").select("onboarding_notes").eq("id", businessId).maybeSingle() : { data: null };
@@ -402,6 +406,8 @@ async function textOwner(h: TextTo, batchId: string, myJobLink: string, business
  *  reminder (Jo 30 Oct 2026), under its old type, key and switch — exactly as at fc2a8a3 (controller ruling 2 Nov 2026).
  *  Not gated by IT_IS_YOUR_TURN_V2_APPROVED. TEST → test-send. */
 async function legacyQuickTapsReminder(h: TextTo, batchId: string, myJobLink: string, businessId: string | null): Promise<SendResult> {
+  const skip = await (await import("./firm-quote.server")).skipSpotMessage(h.jobId);
+  if (skip) return { status: skip.status, detail: skip.reason };
   const body = quickTapsReminderText(h.ownerName, quickTapsLink(myJobLink));
   if (h.isTest) {
     const { data: biz } = businessId ? await admin.from("businesses").select("onboarding_notes").eq("id", businessId).maybeSingle() : { data: null };
