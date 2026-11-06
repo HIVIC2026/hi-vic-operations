@@ -8,7 +8,8 @@ export type WaitingCard = { jobId: string; address: string; status: string; wait
 export type WeekItem = { day: string; date: number; kind: "Install" | "PIESA" | "Ready Check"; time: string; place: string; who: string; flag: string | null; flagTone: "red" | "amber" | null };
 
 const TZ = "Australia/Melbourne";
-const parts = (at: Date) => Object.fromEntries(new Intl.DateTimeFormat("en-AU", { timeZone: TZ, weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: false }).formatToParts(at).map((p) => [p.type, p.value]));
+type Parts = { weekday: string; day: string; month: string; hour: string; minute: string };
+const parts = (at: Date): Parts => Object.fromEntries(new Intl.DateTimeFormat("en-AU", { timeZone: TZ, weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: false }).formatToParts(at).map((p) => [p.type, p.value])) as unknown as Parts;
 const dayLabel = (at: Date) => { const p = parts(at); return `${p.weekday} ${p.day} ${p.month}`; };
 /** A date the box gives as ISO becomes "Fri 6 Nov"; a ready-made label is kept. */
 const niceDate = (v: string): string => (/^\d{4}-\d{2}-\d{2}/.test(v) && Number.isFinite(new Date(v).getTime()) ? dayLabel(new Date(v.length === 10 ? `${v}T12:00:00+11:00` : v)) : v);
@@ -39,7 +40,7 @@ export function actionItems(rows: ActionRow[]): { count: number; sub: string; fi
 /** Monday–Sunday of the Melbourne week containing `now`, as YYYY-MM-DD keys. */
 function weekKeys(now: Date): Set<string> {
   const key = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
-  const dow = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(parts(now).weekday!);
+  const dow = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(parts(now).weekday);
   const out = new Set<string>();
   for (let i = 0; i < 7; i++) out.add(key(new Date(now.getTime() + (i - dow) * 86_400_000)));
   return out;
@@ -56,7 +57,7 @@ export function thisWeek(bookings: { kind: string; scheduled_start: string; subu
     .sort((x, y) => x.at.getTime() - y.at.getTime())
     .map(({ b, at }) => {
       const p = parts(at); const h = Number(p.hour) % 24;
-      return { day: p.weekday!, date: Number(p.day), kind: KIND[b.kind]!, time: `${h % 12 || 12}:${p.minute}${h < 12 ? "am" : "pm"}`, place: b.suburb ?? "", who: b.who ?? "", flag: b.flag, flagTone: b.flagTone };
+      return { day: p.weekday, date: Number(p.day), kind: KIND[b.kind]!, time: `${h % 12 || 12}:${p.minute}${h < 12 ? "am" : "pm"}`, place: b.suburb ?? "", who: b.who ?? "", flag: b.flag, flagTone: b.flagTone };
     });
 }
 
