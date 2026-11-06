@@ -35,7 +35,11 @@ async function setup(newFlow = false, teamFlow = false) {
   await db.exec(readFileSync("docs/pending-migrations/2026-10-30_in_house_batch_coverage.sql", "utf8"));
   if (newFlow) {
     await db.exec("ALTER TABLE jobs ADD COLUMN channel text DEFAULT 'hivic_sourced'; ALTER TABLE workflow_events ADD COLUMN created_at timestamptz DEFAULT now();");
+    // Columns the live (5 Nov TEST-office) function body references.
+    await db.exec("ALTER TABLE jobs ADD COLUMN qa_archived_at timestamptz; ALTER TABLE businesses ADD COLUMN onboarding_notes text, ADD COLUMN email text;");
     await db.exec(readFileSync("docs/pending-migrations/2026-11-01_in_house_quick_taps.sql", "utf8"));
+    // Applied 6 Nov (Jo approved): a recorded firm_quote_requested event stands in for the quick-taps yes.
+    await db.exec(readFileSync("docs/applied-migrations/2026-11-06_firm_quote_handover.sql", "utf8"));
   }
   if (teamFlow) {
     await db.exec("ALTER TABLE partner_workers ADD COLUMN id uuid DEFAULT gen_random_uuid(), ADD COLUMN full_legal_name text, ADD COLUMN licence_number text;");
@@ -73,6 +77,22 @@ test("new handoff RPC refuses a lead without YES and accepts YES or installer so
     expect(await send(db,21)).toEqual({ sent: true });
   } finally { await db.close(); }
 });
+test("firm-quote handover: a recorded firm_quote_requested event stands in for quick taps; other jobs still need YES", async () => {
+  const db = await setup(true); try {
+    // Firm-quote job: no quick taps, but the owner asked for a firm quote → Give succeeds.
+    await db.query("INSERT INTO workflow_events(job_id,event_type,summary,details) VALUES ($1,'firm_quote_requested','TEST firm quote','{\"firm_quote\":true}')", [id(20)]);
+    expect(await send(db)).toEqual({ sent: true });
+    expect((await db.query("SELECT role FROM job_assignments WHERE job_id=$1", [id(20)])).rows).toEqual([{ role: "installer" }, { role: "electrician" }]);
+    // Any other job without quick taps and without a firm-quote request is still refused.
+    expect(await send(db, 21)).toEqual({ sent: false, reason: "Owner has not said yes in quick taps" });
+    expect((await db.query("SELECT * FROM job_assignments WHERE job_id=$1", [id(21)])).rows).toEqual([]);
+    // Installer-sourced jobs are untouched: still no quick-taps requirement.
+    await db.query("UPDATE jobs SET channel='installer_sourced' WHERE id=$1", [id(22)]);
+    await db.query("DELETE FROM lead_campaign_responses WHERE job_id=$1", [id(22)]);
+    expect(await send(db, 22)).toEqual({ sent: true });
+  } finally { await db.close(); }
+});
+
 test("Task 2 batch handoff without an electrician retains YES guards and writes installer only", async () => {
   const db = await setup(true, true); try {
     const give = () => db.query<{result:{sent:boolean;reason?:string}}>("SELECT allocate_in_house_batch_job($1,$2,$3,$4,$5,NULL) result",[id(50),id(10),id(20),id(1),id(2)]);

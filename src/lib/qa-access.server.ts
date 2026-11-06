@@ -191,6 +191,7 @@ async function createMissingIdentity(admin: Admin, email: string, name: string) 
 }
 
 type TradeSpec = { name: string; email: string; phone: string; role: "installer" | "electrician"; businessType: "eec_installer" | "rec"; cardKind: "installer" | "electrical";
+  quoteMethod?: "ready_check" | "photos"; servicePostcodes?: string[];
   items: Array<{ code: string; description: string; category: string; unit: string; display_unit?: string; r_value?: number | null; sort: number; unit_price_ex_gst: number }> };
 
 export async function createQaTrades(admin: Admin, actorId: string, specs: TradeSpec[]) {
@@ -207,6 +208,7 @@ export async function createQaTrades(admin: Admin, actorId: string, specs: Trade
     const business = checked(await admin.from("businesses").insert({ name: spec.name, legal_name: spec.name, trading_name: spec.name,
       business_type: spec.businessType, email: spec.email, phone: spec.phone, commercial_route: "hivic_full_invoice", default_comms_owner: "hivic",
       onboarding_status: "approved", is_active: true, approved_by: actorId, approved_at: now, gst_registered: true,
+      quote_method: spec.quoteMethod ?? "ready_check", service_postcodes: spec.servicePostcodes ?? [],
       onboarding_notes: `${TEST_PARTNER_MARK} Test account created from the Test Centre. Not a real partner.` }).select("id").single(), "Could not create the TEST business");
     if (!business) throw new WorkflowError("The new TEST business was not returned.");
     await addIdentityAssociations(admin, actorId, identity, spec.name, spec.role, business.id, "business_admin");

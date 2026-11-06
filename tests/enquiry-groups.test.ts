@@ -146,6 +146,15 @@ describe("one automatic email route", () => {
     const result = automaticLeadEmail({ ...baseRoute, ...change });
     expect(result.email).toBe("none"); expect(result.blocker).toContain(reason);
   });
+  // Jo 6 Nov: a TEST firm-quote job may receive email 1 (TEST inbox only); every other TEST job stays held.
+  test("a TEST firm-quote job gets the offer route; TEST jobs without the firm-quote flag stay held", () => {
+    expect(automaticLeadEmail({ ...baseRoute, source: "qa_test", firmQuote: true })).toEqual({ email: "offer_spot", blocker: null });
+    expect(automaticLeadEmail({ ...baseRoute, source: "qa_test", firmQuote: false }).blocker).toContain("TEST");
+  });
+  test("a TEST firm-quote job on an installer channel is still held", () => {
+    const result = automaticLeadEmail({ ...baseRoute, source: "qa_test", firmQuote: true, channel: "installer_sourced" });
+    expect(result.email).toBe("none"); expect(result.blocker).toContain("Not a website owner enquiry");
+  });
 });
 
 describe("office photo/video review outcomes (Jo, 8 Oct)", () => {

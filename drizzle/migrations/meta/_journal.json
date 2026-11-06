@@ -1373,6 +1373,13 @@
       "when": 1793941987767,
       "tag": "0195_dedupe_mitti_product_electrician_events",
       "breakpoints": true
+    },
+    {
+      "idx": 196,
+      "version": "7",
+      "when": 1793958340082,
+      "tag": "0196_firm_quote_handover",
+      "breakpoints": true
     }
   ]
 }

@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createTestEnquiry, getAdminPipeline, getQaJourneys } from "@/lib/portal.functions";
+import { attachTestEnquiryPhoto, testEnquiryPhotoUpload } from "@/lib/test-centre-photo.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { clearOnboardingStartBlock, issueOnboardingLink, listOnboardingLinks, listOnboardingStartBlocks, revokeOnboardingLink, runOnboardingUploadCleanup } from "@/lib/onboarding-links.functions";
 import { QA_PERSONA_LABEL, qaAccessPath, type QaPersona } from "@/lib/qa-role-link.core";
 import { archiveQaJourney, createTestTradeAccounts, issueQaPersonaLink, issueQaWorkerLink, prepareQaJourneyAccess, simulateQaJourneyTime, simulateQaPayment } from "@/lib/test-accounts.functions";
@@ -130,14 +132,24 @@ function QaRoleControls({ jobId }: { jobId: string }) {
 
 function CreateTestJob({ onDone }: { onDone: () => void }) {
   const create = useServerFn(createTestEnquiry);
+  const preparePhoto = useServerFn(testEnquiryPhotoUpload);
+  const attachPhoto = useServerFn(attachTestEnquiryPhoto);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState(INITIAL);
+  const [photo, setPhoto] = useState<File | null>(null);
   const field = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: event.target.value });
   return <Dialog open={open} onOpenChange={setOpen}>
     <DialogTrigger asChild><Button><Plus className="h-4 w-4" />Create dummy journey</Button></DialogTrigger>
     <DialogContent><DialogHeader><DialogTitle>Create isolated dummy journey</DialogTitle></DialogHeader>
-      <form className="grid gap-3 sm:grid-cols-2" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const result = await create({ data: { full_name: form.full_name, email: form.email, phone: form.phone || null, address_line: form.address_line, suburb: form.suburb || null, postcode: form.postcode || null, state: "VIC", occupancy: form.occupancy, estimated_area_m2: Number(form.area), area_unknown: false, life_support: form.life, life_support_status: form.life ? "yes" : "no", declared_property_type: form.property_type, declared_over_five_years: form.over_five_years, declared_previous_upgrade: form.previous_upgrade, assistance: form.assistance, age_confirmed: form.age_confirmed, contact_consent: form.contact_consent, contact_consent_version: form.contact_consent ? "website-v1" : null, contact_consented_at: form.contact_consent ? new Date().toISOString() : null, base44_answers: { insulation: form.existing_insulation, top_floor: "yes" } } }); toast.success(`${result.job_number} created as a test journey`); setForm(INITIAL); setOpen(false); onDone(); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not create test journey"); } finally { setBusy(false); } }}>
+      <form className="grid gap-3 sm:grid-cols-2" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const result = await create({ data: { full_name: form.full_name, email: form.email, phone: form.phone || null, address_line: form.address_line, suburb: form.suburb || null, postcode: form.postcode || null, state: "VIC", occupancy: form.occupancy, estimated_area_m2: Number(form.area), area_unknown: false, life_support: form.life, life_support_status: form.life ? "yes" : "no", declared_property_type: form.property_type, declared_over_five_years: form.over_five_years, declared_previous_upgrade: form.previous_upgrade, assistance: form.assistance, age_confirmed: form.age_confirmed, contact_consent: form.contact_consent, contact_consent_version: form.contact_consent ? "website-v1" : null, contact_consented_at: form.contact_consent ? new Date().toISOString() : null, base44_answers: { insulation: form.existing_insulation, top_floor: "yes" } } });
+          if (photo) {
+            const prep = await preparePhoto({ data: { name: photo.name, mimeType: photo.type, sizeBytes: photo.size } });
+            const up = await supabase.storage.from("job-files").uploadToSignedUrl(prep.path, prep.token, photo, { contentType: photo.type });
+            if (up.error) throw new Error("The photo upload failed. Try again.");
+            await attachPhoto({ data: { jobId: result.job_id, path: prep.path, name: photo.name, mimeType: photo.type, sizeBytes: photo.size } });
+          }
+          toast.success(`${result.job_number} created as a test journey`); setForm(INITIAL); setPhoto(null); setOpen(false); onDone(); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not create test journey"); } finally { setBusy(false); } }}>
         <p className="text-xs text-muted-foreground sm:col-span-2">These mirror the real online enquiry questions so Gate 1 behaves exactly as it would for a live customer.</p>
         <div><Label htmlFor="test-name">Owner name</Label><Input id="test-name" value={form.full_name} onChange={field("full_name")} required /></div>
         <div><Label htmlFor="test-email">Test email</Label><Input id="test-email" type="email" value={form.email} onChange={field("email")} required /></div>
@@ -155,6 +167,7 @@ function CreateTestJob({ onDone }: { onDone: () => void }) {
         <label className="text-sm"><span className="text-muted-foreground">Assistance needs</span><select className="h-9 w-full rounded-md border bg-background px-2" value={form.assistance} onChange={(event) => setForm({ ...form, assistance: event.target.value as typeof form.assistance })}><option value="none">None</option><option value="interpreter">Interpreter</option><option value="contract_support">Help understanding the paperwork</option><option value="both">Both</option></select></label>
         <label className="flex items-end gap-2 pb-2 text-sm"><Checkbox checked={form.age_confirmed} onCheckedChange={(value) => setForm({ ...form, age_confirmed: !!value })} />Owner is 18 or over</label>
         <label className="flex items-end gap-2 pb-2 text-sm"><Checkbox checked={form.contact_consent} onCheckedChange={(value) => setForm({ ...form, contact_consent: !!value })} />Owner consents to being contacted</label>
+        <div className="sm:col-span-2"><Label htmlFor="test-photo">Ceiling photo (optional)</Label><Input id="test-photo" type="file" accept="image/*,video/*" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} /></div>
         <Button type="submit" className="sm:col-span-2" disabled={busy}>{busy ? "Creating…" : "Create test journey"}</Button>
       </form>
     </DialogContent>
@@ -170,7 +183,7 @@ function TestTradeAccounts() {
       <h2 className="font-display text-xl font-bold">Test trade accounts</h2>
       <p className="mt-1 text-sm text-muted-foreground">Three installers and three electricians, all clearly marked TEST, each with different agreed rates. Use them to run example jobs and check quotes. Safe to press again — existing accounts are skipped.</p>
       <Button className="mt-4" disabled={busy} onClick={async () => { setBusy(true); try { const r = await create({ data: {} }); setResults(r.results); toast.success("Test trade accounts ready"); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not create test accounts"); } finally { setBusy(false); } }}>
-        {busy ? "Creating…" : "Create 6 test trade accounts"}
+        {busy ? "Creating…" : "Create 7 test trade accounts"}
       </Button>
       {results && <ul className="mt-4 grid gap-1 text-sm sm:grid-cols-2">{results.map((r) => <li key={r.name} className="flex items-center justify-between rounded border px-3 py-2"><span>{r.name} <span className="text-muted-foreground">({r.role})</span></span><Badge variant="outline">{r.status}</Badge></li>)}</ul>}
     </section>

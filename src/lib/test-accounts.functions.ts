@@ -17,6 +17,8 @@ type Spec = {
   role: "installer" | "electrician";
   businessType: "eec_installer" | "rec";
   cardKind: "installer" | "electrical";
+  quoteMethod?: "ready_check" | "photos";
+  servicePostcodes?: string[];
   name: string;
   email: string;
   phone: string;
@@ -53,6 +55,18 @@ const SPECS: Spec[] = [
       { code: "BATTS_REMOVAL", description: "Batts removal and disposal", category: "removal", unit: "m2", sort: 2, unit_price_ex_gst: 3.8 },
       { code: "LOOSE_FILL_REMOVAL", description: "Loose-fill removal and disposal", category: "removal", unit: "m2", sort: 3, unit_price_ex_gst: 6.0 },
       { code: "METAL_ROOF_ACCESS", description: "Metal sheet roof access", category: "access", unit: "flat", sort: 11, unit_price_ex_gst: 220 },
+    ],
+  },
+  {
+    // Firm-quote TEST installer (Jo 6 Nov): quotes from photos only, like a real photos partner.
+    key: "photos", role: "installer", businessType: "eec_installer", cardKind: "installer",
+    quoteMethod: "photos", servicePostcodes: ["3199", "3064", "3336", "3029", "3030", "3038", "3058"],
+    name: "TEST Photos Insulation", email: "qa.installer.photos@hivic-test.example", phone: "0400000104",
+    items: [
+      { code: "R5_BATTS", description: "R5.0 ceiling batts supply & install", category: "product", unit: "m2", r_value: 5, sort: 1, unit_price_ex_gst: 11.9 },
+      { code: "BATTS_REMOVAL", description: "Batts removal and disposal", category: "removal", unit: "m2", sort: 2, unit_price_ex_gst: 4.2 },
+      { code: "LOOSE_FILL_REMOVAL", description: "Loose-fill removal and disposal", category: "removal", unit: "m2", sort: 3, unit_price_ex_gst: 6.8 },
+      { code: "CALL_OUT_MINIMUM", description: "Minimum charge / call-out", category: "travel", unit: "flat", sort: 13, unit_price_ex_gst: 150 },
     ],
   },
   {

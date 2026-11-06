@@ -18,6 +18,9 @@ export async function selectLeadEmailRoute(jobId: string) {
     admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1),
   ]);
   if (!job) return null;
+  // Jo 6 Nov: a TEST firm-quote job may receive email 1 (TEST inbox only). Checked only for TEST
+  // jobs so real enquiries pay no extra reads; the firm-quote switch being OFF keeps this false.
+  const firmQuote = job.source === "qa_test" ? await (await import("./firm-quote.server")).isFirmQuoteJobId(jobId) : false;
   const latestOutcome = (review?.[0]?.metadata as { outcome?: string } | null | undefined)?.outcome ?? null;
   const property = job.properties as { enrichment: Record<string, unknown> | null } | null;
   const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
@@ -25,7 +28,7 @@ export async function selectLeadEmailRoute(jobId: string) {
   const answers=ownerInsulationAnswers(property?.enrichment);
   const extras = declaredExtras(answers);
   return automaticLeadEmail({
-    source: job.source, channel: job.channel, decisionSource: job.eligibility_decision_source,
+    source: job.source, channel: job.channel, decisionSource: job.eligibility_decision_source, firmQuote,
     reviewRequired: !!job.eligibility_review_required, outcome: job.eligibility_outcome,
     audit: job.eligibility_decision_rules as import("./enquiry-groups.core").StoredAudit,
     intakeWorkActive: !!work, // Jo 23 Oct 08:14 UTC: any saved tap answer means existing insulation was described -> Save my spot (thin or standard wording).

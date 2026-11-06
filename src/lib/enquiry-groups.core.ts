@@ -313,9 +313,12 @@ export function automaticLeadEmail(x: {
   /** Code switch ALL_NEW_ENQUIRIES_OFFER_APPROVED (passed by the router; OFF until Jo says go). */
   offerAllApproved?: boolean;
   audit?: StoredAudit;
+  /** Jo 6 Nov: a TEST firm-quote job may receive email 1 (delivery stays TEST-inbox only). */
+  firmQuote?: boolean;
 }): { email: AutomaticLeadEmail; blocker: string | null; assumedArea?: true; existingInsulation?: true; insulationUnknown?: true } {
-  if (x.source === "qa_test") return { email: "none", blocker: "TEST enquiry" };
-  if (x.source !== "base44" || x.channel !== "hivic_sourced") return { email: "none", blocker: "Not a website owner enquiry" };
+  if (x.source === "qa_test" && x.firmQuote !== true) return { email: "none", blocker: "TEST enquiry" };
+  const websiteEnquiry = x.source === "base44" || (x.source === "qa_test" && x.firmQuote === true);
+  if (!websiteEnquiry || x.channel !== "hivic_sourced") return { email: "none", blocker: "Not a website owner enquiry" };
   if (x.intakeWorkActive) return { email: "none", blocker: "Initial checks are still running" };
   if (x.decisionSource !== "system" && x.decisionSource !== "admin") return { email: "none", blocker: "Official eligibility result is missing" };
   if (x.reviewRequired) return { email: "none", blocker: "Eligibility needs office review" };
