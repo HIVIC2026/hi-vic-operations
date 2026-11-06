@@ -138,3 +138,9 @@ Our-lead jobs end differently: installer is paid 7 days after HIV approves the i
 - Ask Jo to merge PR #184.
 - Remind Jo: Publish → Update in Lovable after merges.
 - Paused: recovery plan Tasks 7–20 on branch `spec/recovery-paths`.
+
+### 6 Nov 13:39 — Design canvas (https://claude.ai/artifact/J4b2MUfmHFMkD1FeUFwYsF)
+Jo rejected the earlier mock-ups and asked for the whole portal in the Design tool. Source copied to `docs/superpowers/mockups/2026-11-06-installer-portal/canvas/`.
+- **Add a job: LOCKED IN (approved).** One page with Owner (name, mobile, email, address, contact tick) · Ceiling (how measured On site / Floor plan / Aerial photo, upload required for plan/aerial; areas with name + m²; what's up there now: Nothing / Old, staying / Old, removing → removal m²) · Product and access (product; access **Easy or Difficult** only; Difficult adds the installer's difficult access fee) · Price (**Use my rates** = install m² × rate + removal m² × rate + difficult fee, shown as sums; or **Type my own price**). Live Quote summary with a "Before you can send" checklist; Send for quote only green when all done; Save for now. Phone version on canvas.
+- Each installer picks their pricing default once in My business › Rates ("Your own jobs: priced from your rates").
+- Other canvas screens (Action items, Job page, Calendar, Jobs, Money, My business, Team) not yet approved.
