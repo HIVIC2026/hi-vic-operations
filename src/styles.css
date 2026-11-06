@@ -414,6 +414,11 @@
   font-weight: 800;
 }
 
+/* Firm-quote thank-you page (Jo 7 Nov): website canvas tone. */
+.estimate-brand.firm-thanks {
+  --estimate-canvas: #fafaf8;
+}
+
 /* Trade screens: older form pages (upload, add one job, staff) inherit the Work/Money/My business look. */
 .estimate-brand .trade-forms {
   min-width: 0;

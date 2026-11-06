@@ -10,7 +10,14 @@ test("page after Proceed uses Jo's approved wording", () => {
   expect(FIRM_PAGE_COPY.emailBy).toBe("We'll email your firm quote by");
   expect(FIRM_PAGE_COPY.nothingLocked).toBe("Nothing is locked in until you accept your firm quote.");
 });
-test("due date is shown in bold", () => expect(page).toContain("{FIRM_PAGE_COPY.emailBy} <strong>{formatDueDate(dueBy)}</strong>."));
+test("due date is shown in bold", () => expect(page).toContain("{FIRM_PAGE_COPY.emailBy} <strong>{formatDueDate(dueBy!)}</strong>."));
+test("footer line is exactly Jo's", () => expect(FIRM_PAGE_COPY.footer).toBe("Home Insulation Victoria · VEU Accredited Person A003654"));
+test("confirmation has three tick rows, the logo and no house icon", () => {
+  const confirmation = page.slice(page.indexOf("{saved ? <div"), page.indexOf(": <section"));
+  expect(confirmation.match(/<Tick>/g)).toHaveLength(3);
+  expect(confirmation).not.toContain("OwnerHouse");
+  expect(page).toContain('className="h-16 w-auto"');
+});
 test("no second Proceed button on the page", () => {
   expect(page).not.toContain("Proceed to firm quote");
   expect(page).not.toContain("<Button");
