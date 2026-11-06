@@ -7,6 +7,8 @@ export const BANK_APPROVED_STATUS = "reviewed";
 /** Partners and Needs me words (launch blocker plan Task 7). */
 export const BANK_CHANGE_WAITING = "Bank change waiting";
 export const BANK_CHANGE_TO_CHECK = "Bank change to check";
+/** Installer bank screen, while a change waits for the office (Jo approved these words 7 Nov 2026). */
+export const BANK_CHANGE_WAITING_INSTALLER = "Bank change waiting for Home Insulation Victoria to check";
 /** Existing office wording (office-partners.core application checks) for a business with no bank details on file. */
 export const BANK_NOT_GIVEN = "Bank details not given (collected after approval)";
 
@@ -25,6 +27,13 @@ const same = (a: BankInput, b: { account_name: string | null; bsb: string | null
 export function approvedBankAccount(row: BankRow | null | undefined): BankAccount | null {
   if (!row || row.review_status !== BANK_APPROVED_STATUS || !row.account_name || !row.bsb || !row.account_number) return null;
   return { accountName: row.account_name, bsb: row.bsb, accountNumber: row.account_number };
+}
+
+/** The change waiting beside an approved account (null = none). pending_* left over beside an account that is not
+ *  approved (e.g. a re-activation rewrote the live account) is stale and never offered or approved. */
+export function waitingChange(row: BankRow | null | undefined): { account_name: string; bsb: string; account_number: string } | null {
+  if (!approvedBankAccount(row) || !row!.pending_account_number || !row!.pending_bsb || !row!.pending_account_name) return null;
+  return { account_name: row!.pending_account_name, bsb: row!.pending_bsb, account_number: row!.pending_account_number };
 }
 
 /** A change the office still has to check: first details never approved, or a change waiting beside an approved account. */
@@ -54,8 +63,9 @@ export function bankSaveWrite(existing: BankRow | null | undefined, input: BankI
 export function bankApprovePatch(row: BankRow | null | undefined, actorId: string, nowIso: string): Record<string, unknown> | null {
   if (!row || !bankChangeWaiting(row)) return null;
   const reviewed = { review_status: BANK_APPROVED_STATUS, reviewed_by: actorId, reviewed_at: nowIso };
-  if (row.pending_account_number && row.pending_bsb && row.pending_account_name) {
-    return { account_name: row.pending_account_name, bsb: row.pending_bsb, account_number: row.pending_account_number, pending_account_name: null, pending_bsb: null, pending_account_number: null, updated_by: actorId, updated_at: nowIso, ...reviewed };
-  }
-  return reviewed;
+  const clear = { pending_account_name: null, pending_bsb: null, pending_account_number: null };
+  const change = waitingChange(row);
+  if (change) return { ...change, ...clear, updated_by: actorId, updated_at: nowIso, ...reviewed };
+  // First (or re-activated) details: approve the live account; drop any stale pending_* left beside it.
+  return row.pending_account_name != null || row.pending_bsb != null || row.pending_account_number != null ? { ...reviewed, ...clear } : reviewed;
 }

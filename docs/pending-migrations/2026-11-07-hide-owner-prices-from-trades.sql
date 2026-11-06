@@ -7,10 +7,17 @@
 -- the trigger is switched off for this one UPDATE only, inside one transaction (same as drizzle 0195).
 -- Read back first — the number of rows this will hide from trades (run on its own):
 -- PREVIEW: SELECT count(*)::int AS n FROM public.workflow_events WHERE internal = false AND ((event_type = 'invoice_created_local' AND (summary ILIKE '%inc GST%' OR details ? 'total_inc_gst')) OR (event_type = 'QUOTE_ACCEPTED' AND details ? 'total_inc_gst') OR (event_type = 'rectification_scope_approved' AND summary ILIKE '%inc GST%') OR (event_type = 'deposit_paid' AND (summary LIKE 'Safety check payment confirmed in Xero (%' OR details ? 'amount_paid')) OR (event_type = 'repeat_piesa_accepted' AND summary ILIKE '%inc GST%') OR (event_type = 'rectification_item_priced' AND details ? 'unit_price_inc_gst') OR (event_type = 'installer_quoted_answer' AND summary LIKE 'Installer quoted $%'));
--- Proven on PGlite by tests/trade-history-no-prices.test.ts (real policy text + trigger). Re-running is a no-op.
+-- The ids changed are saved in public._bk_20261107_hidden_owner_prices first (undo: the .rollback.sql file).
+-- Proven on PGlite by tests/trade-history-no-prices.test.ts (real policy text + trigger, fix + rollback). Re-running is a no-op.
 BEGIN;
+-- Record of the rows changed (ids only), so 2026-11-07-hide-owner-prices-from-trades.rollback.sql can undo exactly these.
+-- Office only (RLS on, no policy). Kept until the rollback drops it (or Jo says it can go).
+CREATE TABLE IF NOT EXISTS public._bk_20261107_hidden_owner_prices AS
+SELECT id FROM public.workflow_events
+WHERE internal = false AND ((event_type = 'invoice_created_local' AND (summary ILIKE '%inc GST%' OR details ? 'total_inc_gst')) OR (event_type = 'QUOTE_ACCEPTED' AND details ? 'total_inc_gst') OR (event_type = 'rectification_scope_approved' AND summary ILIKE '%inc GST%') OR (event_type = 'deposit_paid' AND (summary LIKE 'Safety check payment confirmed in Xero (%' OR details ? 'amount_paid')) OR (event_type = 'repeat_piesa_accepted' AND summary ILIKE '%inc GST%') OR (event_type = 'rectification_item_priced' AND details ? 'unit_price_inc_gst') OR (event_type = 'installer_quoted_answer' AND summary LIKE 'Installer quoted $%'));
+ALTER TABLE public._bk_20261107_hidden_owner_prices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workflow_events DISABLE TRIGGER workflow_events_immutable;
 UPDATE public.workflow_events SET internal = true
-WHERE internal = false AND ((event_type = 'invoice_created_local' AND (summary ILIKE '%inc GST%' OR details ? 'total_inc_gst')) OR (event_type = 'QUOTE_ACCEPTED' AND details ? 'total_inc_gst') OR (event_type = 'rectification_scope_approved' AND summary ILIKE '%inc GST%') OR (event_type = 'deposit_paid' AND (summary LIKE 'Safety check payment confirmed in Xero (%' OR details ? 'amount_paid')) OR (event_type = 'repeat_piesa_accepted' AND summary ILIKE '%inc GST%') OR (event_type = 'rectification_item_priced' AND details ? 'unit_price_inc_gst') OR (event_type = 'installer_quoted_answer' AND summary LIKE 'Installer quoted $%'));
+WHERE internal = false AND id IN (SELECT id FROM public._bk_20261107_hidden_owner_prices);
 ALTER TABLE public.workflow_events ENABLE TRIGGER workflow_events_immutable;
 COMMIT;

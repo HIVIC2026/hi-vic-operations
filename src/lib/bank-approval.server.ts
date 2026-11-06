@@ -4,7 +4,7 @@
 // (office-money.server moneyPayouts), Partners (office-partners.server) and Needs me (office.server).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError } from "./workflow.server";
-import { approvedBankAccount, bankApprovePatch, bankChangeWaiting, bankSaveWrite, payoutBankHold, type BankInput, type BankRow } from "./bank-approval.core";
+import { bankApprovePatch, bankChangeWaiting, bankSaveWrite, payoutBankHold, waitingChange, type BankInput, type BankRow } from "./bank-approval.core";
 
 type Db = { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 const db = admin as unknown as Db;
@@ -41,9 +41,13 @@ export async function saveBankDetails(businessId: string, actorId: string, input
     // Pending migration not applied yet: the older write (live columns, back to 'pending') — still held from pay below.
   }
   const live = { account_name: input.account_name, bsb: input.bsb, account_number: input.account_number, updated_by: actorId, updated_at: now, supplied_by: actorId, supplied_at: now, reviewed_by: null, reviewed_at: null, review_status: "pending" };
-  const { error } = existing
-    ? await db.from("business_bank_details").update(live).eq("business_id", businessId)
-    : await db.from("business_bank_details").insert({ business_id: businessId, ...live });
+  // Fix round 1: the live write also clears pending_*, so nothing stale (e.g. left by a re-activation) can wait beside it.
+  const clear = { pending_account_name: null, pending_bsb: null, pending_account_number: null };
+  const write = (patch: Record<string, unknown>) => existing
+    ? db.from("business_bank_details").update(patch).eq("business_id", businessId)
+    : db.from("business_bank_details").insert({ business_id: businessId, ...patch });
+  let { error } = await write({ ...live, ...clear });
+  if (error && missingPendingColumn(error)) ({ error } = await write(live)); // pending migration not run: no pending_* to clear
   if (error) throw new WorkflowError(error.message);
   await logBankEvent(businessId, actorId, existing ? "changed" : "supplied", { bsb_last3: last3(input.bsb), account_last3: last3(input.account_number) });
   return { ok: true };
@@ -55,7 +59,7 @@ export async function approveBank(businessId: string, actorId: string) {
   const now = new Date().toISOString();
   const patch = bankApprovePatch(row, actorId, now);
   if (!row || !patch) return { ok: true, approved: false };
-  const changed = "account_number" in patch;
+  const changed = !!waitingChange(row);
   // Approve exactly what was read: a change saved in between is left waiting (no row updated → nothing approved).
   let q = db.from("business_bank_details").update(patch).eq("business_id", businessId).eq("account_number", row.account_number).eq("review_status", row.review_status);
   if (changed) q = q.eq("pending_account_number", row.pending_account_number).eq("pending_bsb", row.pending_bsb).eq("pending_account_name", row.pending_account_name);
@@ -65,11 +69,6 @@ export async function approveBank(businessId: string, actorId: string) {
   const acc = changed ? { bsb: row.pending_bsb, account_number: row.pending_account_number } : { bsb: row.bsb, account_number: row.account_number };
   await logBankEvent(businessId, actorId, "reviewed", { bsb_last3: last3(acc.bsb), account_last3: last3(acc.account_number), changed });
   return { ok: true, approved: true };
-}
-
-/** The approved account we pay (never a waiting change), or null. */
-export async function approvedBankFor(businessId: string) {
-  return approvedBankAccount(await readRow(businessId));
 }
 
 /** Per business: why a payout can't be paid yet (null = approved account on file). Read errors throw (fails closed). */
@@ -84,18 +83,28 @@ export async function payoutBankHolds(businessIds: string[]): Promise<Map<string
   return new Map(ids.map((b) => [b, payoutBankHold(rows.get(b) ?? null)]));
 }
 
-/** Every business with a bank change the office still has to check (Needs me, Partners); TEST businesses left out. */
+/** Every APPROVED business with a bank change the office still has to check (Needs me, Partners); TEST businesses left
+ *  out. Reads page to the end in 200-row pages and 200-id scopes (AGENTS.md); any read failure throws (no partial list). */
 export async function bankChangesWaiting(): Promise<{ businessId: string; name: string }[]> {
-  const { data, error } = await db.from("business_bank_details").select("*").limit(5000);
-  if (error) throw new Error(`Could not read bank details: ${error.message}`);
-  const ids = ((data ?? []) as BankRow[]).filter((r) => bankChangeWaiting(r)).map((r) => String(r.business_id));
+  const ids: string[] = [];
+  for (let from = 0; ; from += 200) {
+    const { data, error } = await db.from("business_bank_details").select("*").order("business_id").range(from, from + 199);
+    if (error) throw new Error(`Could not read bank details: ${error.message}`);
+    const page = (data ?? []) as BankRow[];
+    ids.push(...page.filter((r) => bankChangeWaiting(r)).map((r) => String(r.business_id)));
+    if (page.length < 200) break;
+  }
   if (!ids.length) return [];
-  const { data: bs, error: be } = await db.from("businesses").select("id, name, onboarding_notes").in("id", ids);
-  if (be) throw new Error(`Could not read businesses: ${be.message}`);
   const { isTestBusiness } = await import("./test-send.core");
-  return ((bs ?? []) as { id: string; name: string | null; onboarding_notes?: string | null }[])
-    .filter((b) => !isTestBusiness(b) && !/^\s*TEST\b/i.test(b.name ?? ""))
-    .map((b) => ({ businessId: String(b.id), name: String(b.name ?? "") }));
+  const out: { businessId: string; name: string }[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data: bs, error: be } = await db.from("businesses").select("id, name, onboarding_notes").in("id", ids.slice(i, i + 200)).eq("onboarding_status", "approved");
+    if (be) throw new Error(`Could not read businesses: ${be.message}`);
+    for (const b of (bs ?? []) as { id: string; name: string | null; onboarding_notes?: string | null }[]) {
+      if (!isTestBusiness(b) && !/^\s*TEST\b/i.test(b.name ?? "")) out.push({ businessId: String(b.id), name: String(b.name ?? "") });
+    }
+  }
+  return out;
 }
 
 /** Who a payout goes to — the same payee the Payouts tab (office-money.server moneyPayouts) shows for that line. */

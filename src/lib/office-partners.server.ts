@@ -10,7 +10,7 @@ import { mittiAccessOf } from "./mitti-membership.core";
 import { maskBank, personRow, postcodeSummary, rateCardLine } from "./office-partners.core";
 import { credentialState, isElectricianBiz } from "./pilot.core";
 import { partnerIssues, signedRecRates } from "./partner.core";
-import { bankChangeWaiting, type BankRow } from "./bank-approval.core";
+import { bankChangeWaiting, waitingChange, type BankRow } from "./bank-approval.core";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const isTestBiz = (b: { name?: string | null; onboarding_notes?: string | null }) => /^TEST/i.test(b.name ?? "") || (b.onboarding_notes ?? "").includes("[TEST PARTNER]");
@@ -193,7 +193,7 @@ export async function businessFile(businessId: string) {
       masked: maskBank(bank.data ?? null), changedAt: lastBank?.created_at ?? bank.data?.updated_at ?? null, changedHow: lastBank?.event_type ?? null, review: bank.data?.review_status ?? null,
       // Launch blocker Task 7: a change (or first details) waiting for the office's Approve; the masked waiting account.
       changeWaiting: bankChangeWaiting((bank.data ?? null) as BankRow | null),
-      pendingMasked: (() => { const r = (bank.data ?? null) as BankRow | null; return r?.pending_account_number ? maskBank({ account_name: r.pending_account_name ?? "", bsb: r.pending_bsb ?? "", account_number: r.pending_account_number }) : null; })(),
+      pendingMasked: (() => { const w = waitingChange((bank.data ?? null) as BankRow | null); return w ? maskBank(w) : null; })(),
     },
     jobs: {
       thisMonth: jobs.filter((j) => j.assigned_at >= monthStart).length,
@@ -213,9 +213,9 @@ export async function revealBank(businessId: string, actorId: string) {
   if (!b) return null;
   const { error: le } = await db.from("admin_config_events").insert({ actor_id: actorId, event_type: "partner_bank_details_revealed", summary: "Office viewed a partner's full bank details", details: { business_id: businessId } });
   if (le) throw new Error("The view could not be logged, so the details are not shown.");
-  const r = b as Record<string, string | null>;
   // Launch blocker Task 7: a change waiting for the office's Approve is shown beside the approved account we pay.
-  const pending = r["pending_account_number"] ? { accountName: String(r["pending_account_name"] ?? ""), bsb: String(r["pending_bsb"] ?? ""), account: String(r["pending_account_number"]) } : null;
+  const w = waitingChange(b as BankRow);
+  const pending = w ? { accountName: w.account_name, bsb: w.bsb, account: w.account_number } : null;
   return { accountName: b.account_name as string, bsb: b.bsb as string, account: b.account_number as string, pending };
 }
 

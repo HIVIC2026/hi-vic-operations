@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { BizPage, Rows, field, greenBtn, navyBtn } from "@/components/trade/business-pages";
 import { getBankDetails, setBankDetails } from "@/lib/pilot.functions";
 import { BANK_CHANGE_NOTE, bankOnFileRows } from "@/lib/trade-view.core";
+import { BANK_CHANGE_WAITING_INSTALLER } from "@/lib/bank-approval.core";
 
 export const Route = createFileRoute("/_authenticated/field/business_/bank")({
   head: () => ({ meta: [{ title: "Bank details – Home Insulation Victoria" }, { name: "description", content: "Where Home Insulation Victoria pays you." }, { property: "og:title", content: "Bank details – Home Insulation Victoria" }, { property: "og:description", content: "Where Home Insulation Victoria pays you." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -24,6 +25,7 @@ function Bank({ businessId }: { businessId: string }) {
   const onFile = bankOnFileRows(data ?? null);
   return (<>
     {onFile ? <Rows rows={onFile} /> : <p className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card">No bank details yet. Add them so we can pay you.</p>}
+    {data?.change_waiting && <p className="rounded-[18px] border border-line bg-paper p-[19px] text-sm font-bold shadow-card" data-why="launch blocker Task 7: a bank change is held until the office checks it">{BANK_CHANGE_WAITING_INSTALLER}</p>}
     {!edit ? <button type="button" className={navyBtn} onClick={() => setEdit(true)}>{data ? "Change bank details" : "Add bank details"}</button> : (
       <form className="space-y-3 rounded-[18px] border border-line bg-paper p-[19px] shadow-card" onSubmit={async (e) => {
         e.preventDefault(); setBusy(true);

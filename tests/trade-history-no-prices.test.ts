@@ -9,6 +9,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 const LIB = new URL("../src/lib/", import.meta.url).pathname;
 const DATA_FIX = readFileSync(new URL("../docs/pending-migrations/2026-11-07-hide-owner-prices-from-trades.sql", import.meta.url), "utf8");
+const ROLLBACK_FIX = (() => { try { return readFileSync(new URL("../docs/pending-migrations/2026-11-07-hide-owner-prices-from-trades.rollback.sql", import.meta.url), "utf8"); } catch { return ""; } })();
 const CORE = readFileSync(new URL("../drizzle/migrations/0000_hivic_core_schema.sql", import.meta.url), "utf8");
 
 type Call = { file: string; line: number; eventType: string; summary: string; details: string; opts: string };
@@ -129,8 +130,27 @@ describe("data fix 2026-11-07-hide-owner-prices-from-trades.sql (PGlite, real RL
       "Install booked",
     ]);
     expect((await db.query<{ n: number }>(preview!)).rows[0]!.n).toBe(0);
+    // Fix round 1: the ids it hid are recorded, so the fix can be undone exactly.
+    const BK = "public._bk_20261107_hidden_owner_prices";
+    const recorded = async () => (await db.query<{ id: number }>(`SELECT id FROM ${BK} ORDER BY id`)).rows.map((r) => Number(r.id));
+    expect(await recorded()).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect((await db.query<{ rls: boolean }>(`SELECT relrowsecurity AS rls FROM pg_class WHERE oid = '${BK}'::regclass`)).rows[0]!.rls).toBe(true);
     await db.exec(DATA_FIX); // idempotent
+    expect(await recorded()).toEqual([1, 2, 3, 4, 5, 6, 7]);
     // The append-only guard is back on after the fix.
     await expect(db.exec("UPDATE public.workflow_events SET summary='x' WHERE id=1")).rejects.toThrow(/append-only/);
+    // Rollback: exactly the recorded rows are visible to the trade again, the record is dropped, the guard is back on.
+    expect(ROLLBACK_FIX).toMatch(/DISABLE TRIGGER workflow_events_immutable/);
+    await db.exec(ROLLBACK_FIX);
+    expect((await visible()).length).toBe(12);
+    expect((await db.query<{ t: string | null }>(`SELECT to_regclass('${BK}')::text AS t`)).rows[0]!.t).toBeNull();
+    await expect(db.exec("UPDATE public.workflow_events SET summary='x' WHERE id=1")).rejects.toThrow(/append-only/);
+    await db.exec(ROLLBACK_FIX); // re-run: no record, no change, no error
+    expect((await visible()).length).toBe(12);
+    // A row the office had marked internal itself stays internal through fix + rollback.
+    await db.exec("ALTER TABLE public.workflow_events DISABLE TRIGGER workflow_events_immutable; INSERT INTO public.workflow_events (job_id,event_type,summary,details,internal) VALUES ('" + J + "','invoice_created_local','Invoice raised: 10.00 inc GST','{}',true); ALTER TABLE public.workflow_events ENABLE TRIGGER workflow_events_immutable;");
+    await db.exec(DATA_FIX); await db.exec(ROLLBACK_FIX);
+    expect((await db.query<{ internal: boolean }>("SELECT internal FROM public.workflow_events WHERE summary = 'Invoice raised: 10.00 inc GST'")).rows[0]!.internal).toBe(true);
+    expect((await visible()).length).toBe(12);
   });
 });

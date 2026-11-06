@@ -47,6 +47,8 @@ mock.module("@tanstack/react-start", () => ({
 const pilot = await import("../src/lib/pilot.functions");
 const bank = await import("../src/lib/bank-approval.server");
 const partners = await import("../src/lib/office-partners.server");
+const { approvedBankAccount, BANK_CHANGE_WAITING, BANK_CHANGE_WAITING_INSTALLER } = await import("../src/lib/bank-approval.core");
+const src = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url), "utf8");
 
 const asBoss = () => { caller = { userId: BOSS, admin: false }; };
 const asOffice = () => { caller = { userId: OFFICE, admin: true }; };
@@ -96,7 +98,7 @@ describe("bank change approval (Task 7)", () => {
     await save("11112222"); asOffice(); await approve(); asBoss();
     await save("99998888", "123-456", "Someone Else");
     expect((await bank.payoutBankHolds([BIZ])).get(BIZ)).toBeNull();
-    expect(await bank.approvedBankFor(BIZ)).toEqual({ accountName: "Insul One Pty Ltd", bsb: "063-000", accountNumber: "11112222" });
+    expect(approvedBankAccount((await row()) as never)).toEqual({ accountName: "Insul One Pty Ltd", bsb: "063-000", accountNumber: "11112222" });
     const shown = await partners.revealBank(BIZ, OFFICE);
     expect(shown).toMatchObject({ account: "11112222", bsb: "063-000" });
     expect(shown?.pending).toMatchObject({ account: "99998888", bsb: "123-456", accountName: "Someone Else" });
@@ -140,5 +142,88 @@ describe("bank change approval (Task 7)", () => {
     expect(markPaid).toMatch(/payoutPayeeBusiness\(/);
     expect(markPaid).toMatch(/payoutBankHolds\(/);
     expect(money.slice(money.indexOf("export async function moneyPayouts"))).toMatch(/payoutBankHolds\(/);
+  });
+});
+
+describe("bank change approval — fix round 1 (review of PR C)", () => {
+  test("approvedBankFor is gone (only a test used it)", () => {
+    expect("approvedBankFor" in bank).toBe(false);
+  });
+
+  test("Partners > Approved row shows the waiting chip linking to the business file, with no Approve there", () => {
+    const page = src("routes/_authenticated/admin.partners.tsx");
+    const approved = page.slice(page.indexOf("function Approved("), page.indexOf("\nfunction ", page.indexOf("function Approved(") + 10));
+    expect(page).not.toMatch(/approveBankDetails/);
+    expect(approved).not.toMatch(/>Approve</);
+    // The chip sits inside a Link to that business's file.
+    expect(approved).toMatch(/<Link[^>]*to="\/admin\/partners\/business\/\$businessId"[^>]*params=\{\{ businessId: b\.id \}\}[^>]*>\s*<Pill tone="amber">\{BANK_CHANGE_WAITING\}<\/Pill>\s*<\/Link>/);
+    // Approve lives on the business file Bank panel, beside the masked waiting and current accounts.
+    const file = src("routes/_authenticated/admin.partners_.business.$businessId.tsx");
+    const panel = file.slice(file.indexOf("function BankPanel("), file.indexOf("\nfunction ", file.indexOf("function BankPanel(") + 10));
+    expect(panel).toMatch(/useAction\(approveBankDetails\)/);
+    expect(panel).toMatch(/approve\(\{ businessId \}/);
+    expect(panel).toMatch(/m\.accountName/);
+    expect(panel).toMatch(/\{p\.accountName\} · \{p\.bsb\} · \{p\.account\}/);
+  });
+
+  test("installer sees the approved waiting line while a change is waiting", async () => {
+    expect(BANK_CHANGE_WAITING_INSTALLER).toBe("Bank change waiting for Home Insulation Victoria to check");
+    const get = () => pilot.getBankDetails({ data: { businessId: BIZ } }) as Promise<Record<string, unknown> | null>;
+    await save("11112222");
+    expect(await get()).toMatchObject({ change_waiting: true, account_number: "****222" });
+    asOffice(); await approve(); asBoss();
+    expect(await get()).toMatchObject({ change_waiting: false, account_number: "****222" });
+    await save("99998888", "123-456", "Someone Else");
+    // Still the approved account on screen (masked), plus the waiting line; the waiting numbers are never sent to the trade.
+    const shown = await get();
+    expect(shown).toMatchObject({ change_waiting: true, account_number: "****222", account_name: "Insul One Pty Ltd" });
+    expect(JSON.stringify(shown)).not.toMatch(/9999|8888|Someone Else/);
+    asOffice(); await approve(); asBoss();
+    expect(await get()).toMatchObject({ change_waiting: false, account_number: "****888" });
+    // The installer bank screen shows the approved words only while change_waiting.
+    const screen = src("routes/_authenticated/field.business_.bank.tsx");
+    expect(screen).toMatch(/data\?\.change_waiting && [^\n]*\{BANK_CHANGE_WAITING_INSTALLER\}/);
+    expect(BANK_CHANGE_WAITING_INSTALLER.startsWith(BANK_CHANGE_WAITING)).toBe(true);
+  });
+
+  test("a save that writes the live account clears any stale waiting change", async () => {
+    await save("11112222"); asOffice(); await approve(); asBoss();
+    await save("99998888", "123-456", "Someone Else");
+    // Re-activation (activation SQL 0081–0083) upserts the live account back to 'pending' and leaves pending_* alone.
+    await db.query("update business_bank_details set account_number='55554444', review_status='pending' where business_id=$1", [BIZ]);
+    await save("77776666");
+    expect(await row()).toMatchObject({ account_number: "77776666", review_status: "pending", pending_account_number: null, pending_bsb: null, pending_account_name: null });
+    asOffice(); await approve();
+    expect(await row()).toMatchObject({ account_number: "77776666", review_status: "reviewed" });
+  });
+
+  test("approve after a re-activation approves the live account, never the stale waiting change", async () => {
+    await save("11112222"); asOffice(); await approve(); asBoss();
+    await save("99998888", "123-456", "Someone Else");
+    await db.query("update business_bank_details set account_number='55554444', review_status='pending' where business_id=$1", [BIZ]);
+    const shown = await partners.revealBank(BIZ, OFFICE);
+    expect(shown).toMatchObject({ account: "55554444", pending: null });
+    asOffice(); await approve();
+    expect(await row()).toMatchObject({ account_number: "55554444", account_name: "Insul One Pty Ltd", review_status: "reviewed", pending_account_number: null });
+    expect((await events()).at(-1)).toMatchObject({ event_type: "reviewed", details: { account_last3: "444", changed: false } });
+  });
+
+  test("bankChangesWaiting lists approved businesses only and reads past 200 rows", async () => {
+    const PENDING_BIZ = id(3);
+    await db.query("insert into businesses (id, name, onboarding_status) values ($1,'Applicant Co','pending') on conflict do nothing", [PENDING_BIZ]);
+    await db.query("insert into business_bank_details (business_id, account_name, bsb, account_number) values ($1,'A','063000','12345678')", [PENDING_BIZ]);
+    const many = Array.from({ length: 205 }, (_, i) => id(1000 + i));
+    await db.query("insert into businesses (id, name, onboarding_status) select x, 'Biz ' || x, 'approved' from unnest($1::uuid[]) x on conflict do nothing", [many]);
+    await db.query("insert into business_bank_details (business_id, account_name, bsb, account_number) select x, 'A', '063000', '12345678' from unnest($1::uuid[]) x", [many]);
+    await save("11112222");
+    const waiting = (await bank.bankChangesWaiting()).map((w) => w.businessId);
+    expect(waiting).not.toContain(PENDING_BIZ);
+    expect(waiting).toContain(BIZ);
+    expect(new Set(waiting).size).toBe(206);
+    const fn = src("lib/bank-approval.server.ts");
+    const body = fn.slice(fn.indexOf("export async function bankChangesWaiting"), fn.indexOf("export async function payoutPayeeBusiness"));
+    expect(body).not.toMatch(/limit\(5000\)/);
+    expect(body).toMatch(/\.range\(/);
+    expect(body).toMatch(/onboarding_status", "approved"/);
   });
 });

@@ -16,7 +16,7 @@ import { useAction } from "@/hooks/use-me";
 import { useReasonDialog } from "@/components/portal/reason-dialog";
 import { getPartnersBoard, resolvePartnerChangeRequest } from "@/lib/office-partners.functions";
 import { reviewHigherRates } from "@/lib/rate-requests.functions";
-import { approveBankDetails, runPartnerExpirySweep } from "@/lib/pilot.functions";
+import { runPartnerExpirySweep } from "@/lib/pilot.functions";
 import { BANK_CHANGE_WAITING } from "@/lib/bank-approval.core";
 
 type Tab = "applications" | "approved" | "people" | "rates" | "coverage";
@@ -103,7 +103,6 @@ function Applications({ d }: { d: Board }) {
 
 function Approved({ d }: { d: Board }) {
   const sweep = useAction(runPartnerExpirySweep);
-  const approveBank = useAction(approveBankDetails);
   const installers = d.approved.filter((b) => b.kind === "Installer").length;
   return (
     <section data-why="audit §5 business file; 153 CII, 193 insurance re-check, 157 electrician">
@@ -115,7 +114,7 @@ function Approved({ d }: { d: Board }) {
         {d.approved.map((b) => (
           <tr key={b.id}>
             <td><Link to="/admin/partners/business/$businessId" params={{ businessId: b.id }} data-partner-record-name className="font-semibold text-hiv-blue hover:underline">{b.name}</Link><span className="block text-xs text-sub">{b.kind}</span>
-              {b.bankChangeWaiting && <span className="mt-1 flex flex-wrap items-center gap-1.5" data-why="launch blocker Task 7: bank changes need the office's OK before pay goes there"><Pill tone="amber">{BANK_CHANGE_WAITING}</Pill><Btn tone="secondary" className="min-h-8 px-2.5 py-1 text-xs" onClick={() => void approveBank({ businessId: b.id }, "Approved")}>Approve</Btn></span>}</td>
+              {b.bankChangeWaiting && <span className="mt-1 flex flex-wrap items-center gap-1.5" data-why="launch blocker Task 7: bank changes need the office's OK before pay goes there; approve on the business file, where the account shows"><Link to="/admin/partners/business/$businessId" params={{ businessId: b.id }}><Pill tone="amber">{BANK_CHANGE_WAITING}</Pill></Link></span>}</td>
             <td>{b.area}</td>
             <td>{b.ciiCleared ?? "—"}</td>
             <td>{b.plExpires ? (b.plState === "valid" ? `to ${fmtDay(b.plExpires)}` : <Pill tone="rose">{b.plState === "expired" ? "expired" : "to"} {fmtDay(b.plExpires)}</Pill>) : <Pill tone="rose">Not on file</Pill>}</td>

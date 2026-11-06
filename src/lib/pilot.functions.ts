@@ -220,9 +220,16 @@ export const getBankDetails = createServerFn({ method: "POST" }).middleware([req
   .handler(async ({ data, context }) => {
     const adminUser = await isAdmin(context.supabase);
     if (!adminUser) await requireMember(context.userId, data.businessId, true);
-    const { data: b } = await admin.from("business_bank_details").select("account_name,bsb,account_number,updated_at,review_status,reviewed_at").eq("business_id", data.businessId).maybeSingle();
-    if (!b) return null;
-    return adminUser ? b : { account_name: b.account_name, bsb: `***-${b.bsb.slice(-3)}`, account_number: `****${b.account_number.slice(-3)}`, updated_at: b.updated_at };
+    // select("*"): the Task 7 pending_* columns may not exist yet (pending migration). Only the approved/live account is
+    // returned; a waiting change is a yes/no (change_waiting), never its numbers.
+    const { data: row } = await admin.from("business_bank_details").select("*").eq("business_id", data.businessId).maybeSingle();
+    if (!row) return null;
+    const { bankChangeWaiting } = await import("./bank-approval.core");
+    const b = row as { account_name: string; bsb: string; account_number: string; updated_at: string; review_status: string; reviewed_at: string | null };
+    const change_waiting = bankChangeWaiting(row as never);
+    return adminUser
+      ? { account_name: b.account_name, bsb: b.bsb, account_number: b.account_number, updated_at: b.updated_at, review_status: b.review_status, reviewed_at: b.reviewed_at, change_waiting }
+      : { account_name: b.account_name, bsb: `***-${b.bsb.slice(-3)}`, account_number: `****${b.account_number.slice(-3)}`, updated_at: b.updated_at, change_waiting };
   });
 
 export const getPartnerAgreementTemplate = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
