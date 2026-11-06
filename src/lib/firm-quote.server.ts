@@ -66,17 +66,27 @@ async function firmQuoteToken(token: unknown) {
   if (!link || !linkUsable(link)) return null;
   // Missing activation column returns off before any private owner read or mutation.
   if (!await isFirmQuoteJobId(link.job_id)) return null;
-  const { data: job, error: jobError } = await admin.from("jobs").select("source,owners(full_name)").eq("id", link.job_id).maybeSingle();
+  const { data: job, error: jobError } = await admin.from("jobs").select("source,stage,owners(full_name)").eq("id", link.job_id).maybeSingle();
   if (jobError) throw new Error("We couldn't check this request. Please try again.");
   if (!job) return null;
   const owner = job.owners as { full_name: string | null } | null;
-  return { link, source: job.source, firstName: owner?.full_name?.trim().split(/\s+/)[0] || null };
+  return { link, source: job.source, stage: (job as { stage?: string | null }).stage ?? null, firstName: owner?.full_name?.trim().split(/\s+/)[0] || null };
+}
+
+/** Recorded request due date (read-only), so "already asked" shows the same confirmation without another tap. */
+async function recordedFirmQuoteDueBy(jobId: string): Promise<string | null> {
+  const { data, error } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "firm_quote_requested")
+    .order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw new Error("We couldn't check this request. Please try again.");
+  const due = (data as { details?: { due_by?: unknown } } | null)?.details?.due_by;
+  return typeof due === "string" && /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null;
 }
 
 /** Read-only arming of the one-tap page; crawlers/preloads never record a request. */
 export async function firmQuoteRequestPage(token: unknown) {
   const c = await firmQuoteToken(token);
-  return c ? { available: true as const, firstName: c.firstName } : { available: false as const, firstName: null };
+  if (!c || (c.stage && CLOSED_STAGES.includes(c.stage))) return { available: false as const, firstName: null, dueBy: null };
+  return { available: true as const, firstName: c.firstName, dueBy: await recordedFirmQuoteDueBy(c.link.job_id) };
 }
 
 export async function requestFirmQuoteToken(token: unknown, preview: boolean) {

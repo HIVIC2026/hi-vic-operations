@@ -267,7 +267,7 @@ export function basisLine(f: JoEstimateFigures, someInsulation: boolean | "unkno
     : `Based on what you told us: ${K.m2(f.ceilingAreaM2)} ceiling, ${ins}.`;
 }
 
-const O1_INTRO = "That's the Victorian Energy Upgrades (VEU) rebate, taken straight off your price. To get it you need a certified installer, a licensed electrician and an Accredited Person. We bring them together and run the whole job for you.";
+export const O1_INTRO = "That's the Victorian Energy Upgrades (VEU) rebate, taken straight off your price. To get it you need a certified installer, a licensed electrician and an Accredited Person. We bring them together and run the whole job for you.";
 const O2_INTRO = "You told us there's some insulation in your ceiling already. If it's thin or patchy (below R2.0), you can still get the Victorian Energy Upgrades (VEU) rebate. You need a certified installer, a licensed electrician and an Accredited Person. We bring them together and run the whole job for you.";
 /** Decision 392 (Jo 25 Oct 2026): a new website enquirer who ticked "don't know" gets the O2 Save my spot email with this
  *  intro — never "You told us there's some insulation". Spot-only (decision 388). */
@@ -281,7 +281,7 @@ const O2Q_PHOTOS = "Got photos or a video? You can add them too, only if it's sa
 const RECEIVED_ACK = "Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.";
 const RECEIVED_SAFETY = "Only take photos or video if you can do so safely, and don’t enter the roof space.";
 const SAVE_TITLE = "Save your spot – it's free";
-const O2_CLOSING = "If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know. You'll see your exact price before you agree to anything.";
+export const O2_CLOSING = "If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know. You'll see your exact price before you agree to anything.";
 const O1_CLOSING = "You'll see your exact price before you agree to anything.";
 export const QUESTIONS = [
   { title: "What type is it?", detail: "Loose fill or batts" },
@@ -321,27 +321,29 @@ export const includedRows = (rebate: number) => [
   { title: "We handle the rebate", detail: `As a VEU Accredited Person (${K.AP_NUMBER}), we do the paperwork. The ${K.whole(rebate)} comes straight off your price.` },
 ];
 /** The two white cards: what's included, and what's not included (only if needed). */
-export function mjIncludedCards(i: { price: number; rebate: number; someInsulation?: boolean }): string {
+/** Optional caller removal rate (firm-quote email 1) replaces the approved $15 figure; omitted = unchanged wording. */
+const notIncluded = (some: boolean, rate?: number) => K.notIncludedItems(some).map((h) => rate == null ? h : h.replace("($15 per m²", `($${rate} per m²`));
+export function mjIncludedCards(i: { price: number; rebate: number; someInsulation?: boolean; removalRatePerM2?: number }): string {
   const inc = includedRows(i.rebate);
-  const not = K.notIncludedItems(i.someInsulation === true);
+  const not = notIncluded(i.someInsulation === true, i.removalRatePerM2);
   return section(`<mj-text mj-class="h2" padding="18px 18px 10px">${K.esc(`What's included in ${K.whole(i.price)}`)}</mj-text><mj-table padding="0 18px 6px">${inc.map((r, n) => tickRow(K.esc(r.title), K.esc(r.detail), n === inc.length - 1)).join("")}</mj-table>`, "panel-card")
     + section(`<mj-text mj-class="h2" padding="18px 18px 10px">Not included – only if needed</mj-text><mj-table padding="0 18px 6px">${not.map((h) => plusRow(h)).join("")}</mj-table>`, "panel-card");
 }
 /** Plain-text twin of the two cards (closing line added by the caller). */
-export const includedCardsText = (i: { price: number; rebate: number; someInsulation?: boolean }) => [
+export const includedCardsText = (i: { price: number; rebate: number; someInsulation?: boolean; removalRatePerM2?: number }) => [
   `WHAT'S INCLUDED IN ${K.whole(i.price)}`, ...includedRows(i.rebate).map((r) => `✓ ${r.title}: ${r.detail}`), "",
-  "NOT INCLUDED – ONLY IF NEEDED", ...K.notIncludedItems(i.someInsulation === true).map((h) => `+ ${K.stripTags(h)}`),
+  "NOT INCLUDED – ONLY IF NEEDED", ...notIncluded(i.someInsulation === true, i.removalRatePerM2).map((h) => `+ ${K.stripTags(h)}`),
 ];
 /** White card with a heading, one line and a blue arrow link (friend cards). */
 export const mjLinkCard = (title: string, body: string, href: string, label: string) =>
   section(`<mj-text mj-class="h2" padding="18px 18px 2px">${K.esc(title)}</mj-text><mj-text padding="0 18px 6px">${K.esc(body)}</mj-text><mj-text padding="0 18px 16px">${mjLink(href, `${K.esc(label)} &rarr;`)}</mj-text>`, "panel-card");
 
 /** Decision 67: "Your existing insulation" card ($0 if it can stay, $/m² if some needs removing). */
-export function mjExistingInsulation(areaM2: number, ratePerM2: number, upTo: number): string {
+export function mjExistingInsulation(areaM2: number, ratePerM2: number, upTo: number, heading = "Your existing insulation"): string {
   const td = (top: boolean) => (top ? "border-top:1px solid #E4E9F5;" : "");
   const row = (icon: string, title: string, detail: string, amount: string, color: string, top: boolean) =>
     `<tr><td width="32" valign="top" style="padding:12px 0;${td(top)}"><span class="${icon}">${icon === "tick" ? "&#10003;" : "+"}</span></td><td valign="top" style="padding:10px 0;${td(top)}"><strong>${title}</strong><br /><span class="muted">${detail}</span></td><td valign="top" align="right" style="padding:10px 0 10px 10px;white-space:nowrap;font-weight:700;color:${color};${td(top)}">${amount}</td></tr>`;
-  return section(`<mj-text mj-class="h2" padding="18px 18px 2px">Your existing insulation</mj-text><mj-text padding="0 18px 10px">Good news: <strong>it may be able to stay.</strong></mj-text><mj-table padding="0 18px 4px">${row("tick", "If it can stay", "New batts go straight over the top.", "$0", "#057D40", false)}${row("plus", "If some needs removing", `Only the areas that need it. Up to ${K.esc(K.whole(upTo))} for your ${K.esc(K.m2(areaM2))} ceiling.`, `$${ratePerM2}/m²`, "#3C51C4", true)}</mj-table><mj-text mj-class="small" padding="0 18px 14px">Prices incl. GST. You'll know the exact cost before you agree to anything.</mj-text>`, "panel-card");
+  return section(`<mj-text mj-class="h2" padding="18px 18px 2px">${K.esc(heading)}</mj-text><mj-text padding="0 18px 10px">Good news: <strong>it may be able to stay.</strong></mj-text><mj-table padding="0 18px 4px">${row("tick", "If it can stay", "New batts go straight over the top.", "$0", "#057D40", false)}${row("plus", "If some needs removing", `Only the areas that need it. Up to ${K.esc(K.whole(upTo))} for your ${K.esc(K.m2(areaM2))} ceiling.`, `$${ratePerM2}/m²`, "#3C51C4", true)}</mj-table><mj-text mj-class="small" padding="0 18px 14px">Prices incl. GST. You'll know the exact cost before you agree to anything.</mj-text>`, "panel-card");
 }
 
 function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, variant: SaveSpotVariant, rawSubject: string, dontKnow = false): EstimateEmail {

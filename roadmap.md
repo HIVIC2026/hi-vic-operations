@@ -1,3 +1,8 @@
+## Jo 6 Nov 20:53 UTC — final email 1 + one-tap Proceed (switch stays OFF)
+- [x] Email 1 rebuilt on today's Save my spot O2 layout with Jo's exact changes; one version for every firm-quote job.
+- [x] Proceed page: no second button, existing tap guard, already-asked shows the same confirmation, Jo's thank-you wording in the website look.
+- [x] New/changed tests and retired-terms scan run; no SQL, sends, switch change or publishing.
+
 ## Jo 6 Nov 11:33 UTC — broad TEST-only role audit
 - [x] Measure visitor page timings and local control durations; no unproven speed optimizations or gate changes. Findings in docs/overnight-portal-audit-2026-11-06.md.
 - [x] Run isolated phone/desktop browsers (28 pass, 6 fail, 2 blocked) and full isolated regression suite (13,820 pass, 473 fail). No hosted record mutations or delivery.

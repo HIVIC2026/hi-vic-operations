@@ -4,41 +4,83 @@ import { preliminaryEstimateEmail, firmQuoteOnItsWayEmail, firmQuoteReadyEmail }
 const estimate = { firstName: "Alex", price: 2940, rebate: 1610, fullPrice: 4550, areaM2: 150, insulation: "present" as const, removalRatePerM2: 15, proceedUrl: "https://example.test/estimate/test-token/firm-quote" };
 const ready = { firstName: "Alex", price: 3390, rebate: 1530, fullPrice: 4920, ownerM2: 150, confirmedM2: 142, removalM2: 40, removalRatePerM2: 15, validUntil: "2026-12-20", acceptUrl: "https://example.test/my-job/test-token" };
 
-test("preliminary estimate subject uses caller amounts", () => expect(preliminaryEstimateEmail(estimate).subject).toBe("Alex, your preliminary estimate: $2,940 after a $1,610 rebate"));
-test("preliminary estimate has the approved action and promises in both twins", () => {
+const decode = (html: string) => html.replace(/&#39;|&#x27;|&rsquo;/g, "'").replace(/&amp;/g, "&");
+const twins = (e: { html: string; plainText: string }) => [decode(e.html), e.plainText];
+const ACTION = "One of our certified installers will do a desktop assessment using your photos, aerial imagery and floor plan records. We'll email your firm quote within 7 business days. If your photos are unclear or don't show enough of your roof space, our panel of certified installers may not be able to complete the desktop assessment.";
+const O1 = "That's the Victorian Energy Upgrades (VEU) rebate, taken straight off your price. To get it you need a certified installer, a licensed electrician and an Accredited Person. We bring them together and run the whole job for you.";
+
+test("email 1 subject and preview use caller amounts, no spot wording", () => {
   const email = preliminaryEstimateEmail(estimate);
-  expect(email.previewText).toBe("Happy with it? Press Proceed to firm quote.");
-  for (const body of [email.html, email.plainText]) {
-    expect(body).toContain("Proceed to firm quote");
-    expect(body).toContain("within 7 business days");
-    expect(body).toContain("Nothing is locked in until you accept your firm quote.");
-    for (const retired of ["Save my", "spot", "Ready Check", "preliminary quote", "call us"]) expect(body).not.toContain(retired);
-    expect(body).not.toMatch(/\babout \$/i);
+  expect(email.subject).toBe("Alex, your preliminary estimate: $2,940 after a $1,610 rebate");
+  expect(email.previewText).toBe("Your price could be $2,940 after the government rebate.");
+});
+test("email 1 headline and O1 intro, never the some-insulation wording", () => {
+  for (const body of twins(preliminaryEstimateEmail(estimate))) {
+    expect(body).toContain("Alex, you could save $1,610 on ceiling insulation");
+    expect(body).toContain(O1);
+    expect(body).not.toContain("You told us there's some insulation");
+    expect(body).not.toContain("may qualify");
   }
 });
-test("existing-insulation removal card for present", () => {
-  const email = preliminaryEstimateEmail(estimate);
-  expect(email.html).toContain("Your existing insulation");
-  expect(email.plainText).toContain("YOUR EXISTING INSULATION");
+test("email 1 rebate and price boxes", () => {
+  for (const body of twins(preliminaryEstimateEmail(estimate))) {
+    for (const line of ["You save $1,610", "$2,940", "$4,550", "Based on what you told us: 150 m² ceiling."]) expect(body).toContain(line);
+    expect(body.toLowerCase()).toContain("your estimated rebate");
+    expect(body.toLowerCase()).toContain("your estimated quote based on what you've told us");
+    expect(body).not.toContain("150 m² ceiling,");
+  }
 });
-test("existing-insulation removal card for unknown", () => expect(preliminaryEstimateEmail({ ...estimate, insulation: "unknown" }).html).toContain("Your existing insulation"));
-test("no removal card for no existing insulation", () => {
-  const email = preliminaryEstimateEmail({ ...estimate, insulation: "none" });
+for (const insulation of ["none", "present", "unknown"] as const) test(`email 1 is one version for insulation ${insulation}`, () => {
+  const email = preliminaryEstimateEmail({ ...estimate, insulation });
+  expect(email).toEqual(preliminaryEstimateEmail(estimate));
+  expect(decode(email.html)).toContain("If you have existing insulation");
+  expect(email.plainText).toContain("IF YOU HAVE EXISTING INSULATION");
   expect(email.html).not.toContain("Your existing insulation");
-  expect(email.plainText).not.toContain("YOUR EXISTING INSULATION");
 });
-test("estimate removal rate and total come from caller", () => {
+test("email 1 existing-insulation card keeps today's rows", () => {
+  for (const body of twins(preliminaryEstimateEmail(estimate))) {
+    for (const line of ["it may be able to stay.", "If it can stay", "New batts go straight over the top.", "$0", "$15/m²", "Up to $2,250 for your 150 m² ceiling.", "Prices incl. GST. You'll know the exact cost before you agree to anything."]) expect(body).toContain(line);
+  }
+});
+test("email 1 firm quote action section and button", () => {
+  const email = preliminaryEstimateEmail(estimate);
+  for (const body of twins(email)) {
+    expect(body.toLowerCase()).toContain("get your firm quote – no home visit needed");
+    expect(body).toContain(ACTION);
+    expect(body).toContain("Proceed to firm quote");
+    expect(body).toContain("https://example.test/estimate/test-token/firm-quote");
+  }
+  expect(email.html).toContain('href="https://example.test/estimate/test-token/firm-quote"');
+});
+test("email 1 keeps What's included, Not included, R2.0 closing and VEU box", () => {
+  for (const body of twins(preliminaryEstimateEmail(estimate))) {
+    expect(body.toLowerCase()).toContain("what's included in $2,940");
+    expect(body.toLowerCase()).toContain("not included – only if needed");
+    expect(body).toContain("If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know. You'll see your exact price before you agree to anything.");
+  }
+});
+test("email 1 never mentions spots, Ready Check or calling", () => {
+  const email = preliminaryEstimateEmail(estimate);
+  for (const body of [email.subject, email.previewText, ...twins(email)]) {
+    for (const retired of ["spot", "Spot", "Save my", "Ready Check", "call us", "Why the price might change"]) expect(body).not.toContain(retired);
+  }
+});
+test("email 1 removal rate and total come from caller", () => {
   const email = preliminaryEstimateEmail({ ...estimate, removalRatePerM2: 12 });
-  for (const body of [email.html, email.plainText]) {
+  for (const body of twins(email)) {
     expect(body).toContain("$12/m²");
     expect(body).toContain("$1,800");
     expect(body).not.toContain("$15/m²");
+    expect(body).not.toContain("$15 per m²");
   }
 });
-test("estimate plain text mirrors rebate, price, full price and owner area", () => {
-  const email = preliminaryEstimateEmail(estimate);
-  for (const body of [email.html, email.plainText]) {
-    for (const line of ["You save $1,610", "$2,940", "$4,550", "Based on your 150 m² ceiling estimate"]) expect(body).toContain(line);
+test("email 1 names, price and proceed link are caller inputs", () => {
+  const email = preliminaryEstimateEmail({ ...estimate, firstName: "Sam", price: 3000, proceedUrl: "https://example.test/new-request" });
+  expect(email.subject).toBe("Sam, your preliminary estimate: $3,000 after a $1,610 rebate");
+  expect(email.previewText).toBe("Your price could be $3,000 after the government rebate.");
+  for (const body of twins(email)) {
+    expect(body).toContain("Sam, you could save $1,610 on ceiling insulation");
+    expect(body).toContain("https://example.test/new-request");
   }
 });
 test("day-four subject and due-date preview", () => {
@@ -93,16 +135,8 @@ test("validity and accept link are caller inputs", () => {
     expect(body).toContain("https://example.test/replacement-quote");
   }
 });
-test("names, price and proceed link are caller inputs", () => {
-  const email = preliminaryEstimateEmail({ ...estimate, firstName: "Sam", price: 3000, proceedUrl: "https://example.test/new-request" });
-  expect(email.subject).toBe("Sam, your preliminary estimate: $3,000 after a $1,610 rebate");
-  for (const body of [email.html, email.plainText]) {
-    expect(body).toContain("Sam, your preliminary estimate is ready");
-    expect(body).toContain("https://example.test/new-request");
-  }
-});
-test("every twin carries the approved full-brand sign-off", () => {
-  for (const email of [preliminaryEstimateEmail(estimate), firmQuoteOnItsWayEmail({ firstName: "Alex", dueDate: "2026-11-20" }), firmQuoteReadyEmail(ready)]) {
+test("emails 2 and 3 carry the approved full-brand sign-off; email 1 footer is as today", () => {
+  for (const email of [firmQuoteOnItsWayEmail({ firstName: "Alex", dueDate: "2026-11-20" }), firmQuoteReadyEmail(ready)]) {
     for (const body of [email.html, email.plainText]) expect(body).toContain("Cheers, the Home Insulation Victoria team");
   }
 });

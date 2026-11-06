@@ -18,6 +18,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {
     const q = { select: () => q, eq: (key: string, value: string) => { if (key === "token") tokenFilter = value; return q; }, order: () => q, limit: () => q, maybeSingle: () => q,
       then: (resolve: (v: unknown) => unknown) => Promise.resolve({ error: null, data:
         table === "workflow_settings" ? { firm_quote_flow_live_at: live } :
+        table === "workflow_events" ? (saved ? { details: { due_by: saved, firm_quote: true } } : null) :
         table === "documents" ? [{ kind: "intake_media", mime_type: "image/jpeg", storage_path: "job/photo.jpg" }] :
         table === "jobs" ? { id: "job", source, created_at: "2026-11-06T06:00:00Z", stage, owners: { full_name: "Alex Example" } } :
         table === "customer_estimate_links" ? (validToken && (!tokenFilter || tokenFilter === token) ? { id: "link", job_id: "job", status: "active", expires_at: "9999-12-31" } : null) : null }).then(resolve) };
@@ -62,12 +63,20 @@ test("invalid or revoked token cannot request another job", async () => { validT
 test("preview cannot write real website jobs", async () => { expect((await requestFirmQuoteToken(token, true)).ok).toBe(false); expect(rpcCalls).toBe(0); });
 test("preview qa_test request saves once and replays without messages", async () => {
   source = "qa_test";
-  expect(await firmQuoteRequestPage(token)).toEqual({ available: true, firstName: "Alex" });
+  expect(await firmQuoteRequestPage(token)).toEqual({ available: true, firstName: "Alex", dueBy: null });
   const first = await requestFirmQuoteToken(token, true);
   expect(first.ok).toBe(true);
   expect(first.ok && first.already).toBe(false);
   expect(await requestFirmQuoteToken(token, true)).toEqual({ ...first, already: true });
   expect(events).toHaveLength(1); expect(queue).toHaveLength(0); expect(sends).toBe(0);
 });
-test("reading the page does not request, enqueue or send", async () => { expect(await firmQuoteRequestPage(token)).toEqual({ available: true, firstName: "Alex" }); expect(rpcCalls).toBe(0); expect(queue).toHaveLength(0); expect(sends).toBe(0); });
-test("missing atomic writer fails closed without separate fallback writes", async () => { rpcError = true; await expect(requestFirmQuote("job", "link")).rejects.toThrow("couldn't save"); expect(events).toHaveLength(0); expect(queue).toHaveLength(0); });
+test("reading the page does not request, enqueue or send", async () => { expect(await firmQuoteRequestPage(token)).toEqual({ available: true, firstName: "Alex", dueBy: null }); expect(rpcCalls).toBe(0); expect(queue).toHaveLength(0); expect(sends).toBe(0); });
+test("missing atomic writer fails closed without separate fallback writes", async () => { rpcError = true; await expect(requestFirmQuote("job", "link")).rejects.toThrow("couldn't save"); expect(events).toHaveLength(0); expect(queue).toHaveLength(0); });test("already asked: page read returns the recorded due date without another request", async () => {
+  await requestFirmQuoteToken(token, false);
+  const calls = rpcCalls;
+  expect(await firmQuoteRequestPage(token)).toEqual({ available: true, firstName: "Alex", dueBy: saved });
+  expect(rpcCalls).toBe(calls); expect(events).toHaveLength(1); expect(sends).toBe(0);
+});
+for (const closed of ["cancelled", "complete", "on_hold"]) test(`${closed} job page read is unavailable (friendly line)`, async () => {
+  stage = closed; expect(await firmQuoteRequestPage(token)).toEqual({ available: false, firstName: null, dueBy: null }); expect(rpcCalls).toBe(0);
+});

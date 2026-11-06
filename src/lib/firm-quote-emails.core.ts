@@ -2,14 +2,15 @@
 import { esc, m2, plainText, whole } from "./email-kit.core";
 import { REMOVE_ENQUIRY_TEXT_SLOT } from "./emailsafety.core";
 import { formatDueDate } from "./firm-quote.core";
-import { mjHeadline, mjRebateAndPrice, mjExistingInsulation, mjSubSection, mjSmallEnd, rebateAndPriceText } from "./jo-outcome-email.core";
+import { includedCardsText, mjHeadline, mjIncludedCards, mjRebateAndPrice, mjExistingInsulation, mjSubSection, mjSmallEnd, O1_INTRO, O2_CLOSING, rebateAndPriceText } from "./jo-outcome-email.core";
 import { mjEmail, plusRow } from "./mail-mjml.core";
 import { veuBoxMj, veuBoxText } from "./owner-wording.core";
 
 export type FirmQuoteEmail = { subject: string; previewText: string; html: string; plainText: string };
 export type PreliminaryEstimateEmailInput = {
   firstName: string; price: number; rebate: number; fullPrice: number; areaM2: number;
-  insulation: "none" | "present" | "unknown"; removalRatePerM2: number; proceedUrl: string;
+  /** Ignored since Jo's 7 Nov email 1: one version for every firm-quote job. Kept so existing callers still type-check. */
+  insulation?: "none" | "present" | "unknown"; removalRatePerM2: number; proceedUrl: string;
 };
 export type FirmQuoteReadyEmailInput = {
   firstName: string; price: number; rebate: number; fullPrice: number; ownerM2: number | null;
@@ -19,13 +20,6 @@ export type FirmQuoteReadyEmailInput = {
 const sec = (inner: string, cls?: string) => `<mj-section><mj-column${cls ? ` mj-class="${cls}"` : ""}>${inner}</mj-column></mj-section>`;
 const SIGN_TEXT = "Cheers, the Home Insulation Victoria team";
 const SIGN = mjSmallEnd(SIGN_TEXT);
-const WHY_LINES = [
-  "Your ceiling size is different from your estimate",
-  "Old insulation needs removing",
-  "The roof space is hard to get to",
-  "Electrical work, if needed, is quoted separately",
-];
-const why = sec(`<mj-text mj-class="h2" padding="18px 18px 10px">Why the price might change</mj-text><mj-table padding="0 18px 6px">${WHY_LINES.map(plusRow).join("")}</mj-table>`, "panel-card");
 
 function finish(subject: string, previewText: string, sections: string[], lines: string[]): FirmQuoteEmail {
   return {
@@ -35,33 +29,33 @@ function finish(subject: string, previewText: string, sections: string[], lines:
   };
 }
 
+/** Email 1 (Jo, 7 Nov): today's Save my spot "some insulation" (O2) layout with Jo's firm-quote changes, one version for
+ *  every firm-quote job whatever the insulation answer. No spot wording, no sign-off (footer as today). */
+export const FIRM_EMAIL1_ACTION_TITLE = "Get your firm quote – no home visit needed";
+export const FIRM_EMAIL1_ACTION_TEXT = "One of our certified installers will do a desktop assessment using your photos, aerial imagery and floor plan records. We'll email your firm quote within 7 business days. If your photos are unclear or don't show enough of your roof space, our panel of certified installers may not be able to complete the desktop assessment.";
+export const FIRM_EMAIL1_EXISTING_HEADING = "If you have existing insulation";
 export function preliminaryEstimateEmail(i: PreliminaryEstimateEmailInput): FirmQuoteEmail {
-  const subject = `${i.firstName}, your preliminary estimate: ${whole(i.price)} after a ${whole(i.rebate)} rebate`;
-  const preview = "Happy with it? Press Proceed to firm quote.";
-  const headline = `${i.firstName}, your preliminary estimate is ready`;
-  const intro = "Thanks for sending your photos. Here's your preliminary estimate, based on what you told us.";
-  const box = { rebateLabel: "Your estimated rebate", rebate: i.rebate, priceLabel: "Your preliminary estimate", price: i.price, fullPrice: i.fullPrice, basis: `Based on your ${m2(i.areaM2)} ceiling estimate`, calculatorUrl: null };
-  const removal = i.insulation === "present" || i.insulation === "unknown";
+  const price = whole(i.price), rebate = whole(i.rebate);
+  const subject = `${i.firstName}, your preliminary estimate: ${price} after a ${rebate} rebate`;
+  const preview = `Your price could be ${price} after the government rebate.`;
+  const headline = `${i.firstName}, you could save ${rebate} on ceiling insulation`;
+  const box = { rebateLabel: "Your estimated rebate", rebate: i.rebate, priceLabel: "Your estimated quote based on what you've told us", price: i.price, fullPrice: i.fullPrice, basis: `Based on what you told us: ${m2(i.areaM2)} ceiling.`, calculatorUrl: null };
   const removalUpTo = i.areaM2 * i.removalRatePerM2;
-  const happy = "Press the button and we'll get your firm quote started.";
-  const next = "One of our certified installers does a desktop assessment, checking your ceiling size using aerial imagery, floor plan records and your photos. We email your firm quote within 7 business days.";
-  const nothingLocked = "Nothing is locked in until you accept your firm quote.";
+  const cards = { price: i.price, rebate: i.rebate, someInsulation: true, removalRatePerM2: i.removalRatePerM2 };
   return finish(subject, preview, [
-    mjHeadline(headline, intro),
+    mjHeadline(headline, O1_INTRO),
     mjRebateAndPrice(box),
-    ...(removal ? [mjExistingInsulation(i.areaM2, i.removalRatePerM2, removalUpTo)] : []),
-    mjSubSection("Happy with it?", happy, { href: i.proceedUrl, label: "Proceed to firm quote" }),
-    mjSubSection("What happens next", next),
-    why,
-    mjSmallEnd(nothingLocked),
-    SIGN,
+    mjExistingInsulation(i.areaM2, i.removalRatePerM2, removalUpTo, FIRM_EMAIL1_EXISTING_HEADING),
+    mjSubSection(FIRM_EMAIL1_ACTION_TITLE, FIRM_EMAIL1_ACTION_TEXT, { href: i.proceedUrl, label: "Proceed to firm quote" }),
+    mjIncludedCards(cards),
+    mjSmallEnd(esc(O2_CLOSING)),
     veuBoxMj(),
   ], [
-    headline, "", intro, "", ...rebateAndPriceText(box), "",
-    ...(removal ? ["YOUR EXISTING INSULATION", "Good news: it may be able to stay.", "✓ If it can stay: $0. New batts go straight over the top.", `+ If some needs removing: $${i.removalRatePerM2}/m², only the areas that need it. Up to ${whole(removalUpTo)} for your ${m2(i.areaM2)} ceiling.`, "Prices incl. GST. You'll know the exact cost before you agree to anything.", ""] : []),
-    "Happy with it?", happy, `Proceed to firm quote: ${i.proceedUrl}`, "",
-    "What happens next", next, "", "Why the price might change", ...WHY_LINES.map(line => `+ ${line}`), "",
-    nothingLocked, "", SIGN_TEXT, "", ...veuBoxText(),
+    headline, "", O1_INTRO, "", ...rebateAndPriceText(box), "",
+    FIRM_EMAIL1_EXISTING_HEADING.toUpperCase(), "Good news: it may be able to stay.", "✓ If it can stay: $0. New batts go straight over the top.", `+ If some needs removing: $${i.removalRatePerM2}/m², only the areas that need it. Up to ${whole(removalUpTo)} for your ${m2(i.areaM2)} ceiling.`, "Prices incl. GST. You'll know the exact cost before you agree to anything.", "",
+    FIRM_EMAIL1_ACTION_TITLE.toUpperCase(), FIRM_EMAIL1_ACTION_TEXT, `Proceed to firm quote: ${i.proceedUrl}`, "",
+    ...includedCardsText(cards), "",
+    O2_CLOSING, "", ...veuBoxText(),
   ]);
 }
 
