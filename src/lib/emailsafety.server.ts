@@ -54,15 +54,8 @@ export async function recordUnsubscribe(token: string, o: { closeJob?: boolean }
   // Jo 7 Nov 2026: the same rule as a STOP text — Do not contact on the job, then an open enquiry or saved spot is
   // cancelled "Opted out (unsubscribed)"; later work stays open. The opt-out above is already saved either way.
   if (o.closeJob === false) return true;
-  try {
-    const { setDoNotContactFromUnsubscribe } = await import("./do-not-contact-stop.server");
-    await setDoNotContactFromUnsubscribe(admin, row.job_id, at);
-    const { closeOptedOutJob } = await import("./sms-stop.server");
-    const closed = await closeOptedOutJob(admin, row.job_id, "email_unsubscribe", at);
-    if (closed.failure) console.error("unsubscribe: releasing the installer failed", row.job_id, closed.failure);
-  } catch (e) {
-    // The owner's opt-out is saved and every email/consent gate already reads it; the job clean-up is logged for the office.
-    console.error("unsubscribe: job clean-up failed", row.job_id, (e as Error).message);
-  }
+  // A failed clean-up raises an office row on Needs me and the 15-minute tick retries it (unsubscribe-cleanup.server).
+  const { cleanUpAfterUnsubscribe } = await import("./unsubscribe-cleanup.server");
+  await cleanUpAfterUnsubscribe(admin, row.job_id, at);
   return true;
 }

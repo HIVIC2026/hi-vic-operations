@@ -10,7 +10,7 @@ type Page = PromiseLike<{ data: unknown[] | null; error: { message: string } | n
 export const STOP_RETRY_DAYS = 14;
 export const STOP_RETRY_MAX_PER_TICK = 20;
 
-async function paged(what: string, page: (a: number, b: number) => Page): Promise<Row[]> {
+export async function paged(what: string, page: (a: number, b: number) => Page): Promise<Row[]> {
   const out: Row[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await page(from, from + 999);
@@ -19,7 +19,7 @@ async function paged(what: string, page: (a: number, b: number) => Page): Promis
     if (!data || data.length < 1000) return out;
   }
 }
-async function chunked(what: string, ids: string[], q: (chunk: string[], a: number, b: number) => Page): Promise<Row[]> {
+export async function chunked(what: string, ids: string[], q: (chunk: string[], a: number, b: number) => Page): Promise<Row[]> {
   const out: Row[] = [];
   for (let i = 0; i < ids.length; i += 150) out.push(...(await paged(what, (a, b) => q(ids.slice(i, i + 150), a, b))));
   return out;

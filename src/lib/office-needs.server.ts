@@ -262,6 +262,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Jo 7 Nov 2026: Mitti install holds (the DON'T START row when the hold was "no GO"); the last 60 days are plenty.
   const noGoHoldsP = early(all("install holds without a GO", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", INSTALL_COMPLETE_HELD_EVENT).gte("created_at", new Date(t0 - 60 * DAY).toISOString()).range(a, b)));
   const stopReleaseP = early(import("./stop-release.server").then(({ stopReleaseNeeds }) => stopReleaseNeeds(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : {}) })));
+  const unsubCleanupP = early(import("./unsubscribe-cleanup.server").then(({ unsubscribeCleanupNeeds }) => unsubscribeCleanupNeeds(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : {}) })));
 
   // Review R04: owner emails whose delivery outcome is unknown (warranty follow-up, completion pack) are never resent —
   // one row each until the fact is recorded. Started alongside wave 1 (rare events, then their closing events by job id).
@@ -692,6 +693,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       facts.set(n.jobId, x);
     }
   } catch { unavailable.push("STOP clean-up failures"); }
+  // Jo 7 Nov 2026: an unsubscribe's job clean-up failed → one row until the tick's retry writes `unsubscribe_cleanup_done`.
+  try {
+    for (const n of await unsubCleanupP) {
+      const x = f(n.jobId) ?? { jobId: n.jobId, jobNumber: n.jobNumber, surname: n.surname, suburb: n.suburb, ...(n.isTest ? { isTest: true } : {}) };
+      x.unsubscribeCleanupFailed = { at: n.at };
+      facts.set(n.jobId, x);
+    }
+  } catch { unavailable.push("unsubscribe clean-up failures"); }
   /** Batch 3a: the open jobs among `ids`, plus jobs still closed by an expired quote (their facts are made here). */
   const withExpiryClosedJobs = async (ids: string[]) => {
     const extra = ids.filter((id) => !facts.has(id));

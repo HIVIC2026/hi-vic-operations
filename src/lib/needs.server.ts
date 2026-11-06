@@ -169,7 +169,7 @@ export async function loadNeedsHivic() {
       "quote_auto_send_held", "quote_sent_automatically", "quote_sent_by_office", "xero_invoice_product_unconfirmed", "xero_invoice_product_confirmed",
       "install_deposit_unpaid_at_start", "install_booking_confirmed", "install_booking_released_unpaid",
       "owner_payment_match_unclear", "owner_payment_match_resolved",
-      "stop_installer_release_failed", "job_cancel_released"];
+      "stop_installer_release_failed", "job_cancel_released", "unsubscribe_cleanup_failed", "unsubscribe_cleanup_done"];
     const since = new Date(now.getTime() - 60 * 86_400_000).toISOString();
     const { data: mev, error: me } = await admin.from("workflow_events").select("job_id, event_type, created_at, details, summary").in("event_type", types).gte("created_at", since).order("created_at").limit(5000);
     if (me) throw new Error("Could not load Mitti office items.");

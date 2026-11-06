@@ -404,7 +404,7 @@ export type NeedsCode =
   | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing"
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held"
   | "xero_invoice_product_unconfirmed" | "veec_assignment_unsigned" | "electrician_install_attendance" | "install_deposit_unpaid_at_start"
-  | "payment_match_unclear" | "stop_installer_release_failed" | "esc_withdraw_required"
+  | "payment_match_unclear" | "stop_installer_release_failed" | "unsubscribe_cleanup_failed" | "esc_withdraw_required"
   // Part 9 Task 12: complaints (complaints.core) — acknowledge within 5 business days, aim to resolve within 20.
   | "complaint_ack_due" | "complaint_resolve_due";
 export type NeedsUrgency = "urgent" | "today" | "soon";
@@ -429,6 +429,7 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   complaint_ack_due: { why: "Complaint: acknowledge the owner within 5 business days of receiving it.", next: "Office needs to: contact the owner, acknowledge the complaint, then record it on the job (Acknowledge).", tab: "overview", urgency: "today" },
   complaint_resolve_due: { why: "Complaint: aim to resolve it within 20 business days of receiving it.", next: "Office needs to: sort it out with the owner, then record it on the job (Resolve).", tab: "overview", urgency: "today" },
   stop_installer_release_failed: { why: "STOP received, but releasing the installer failed — retrying automatically; open the job if this stays", next: "Office needs to: the portal retries every 15 minutes; if this stays, open the job and check the installer is released.", tab: "overview", urgency: "today" },
+  unsubscribe_cleanup_failed: { why: "Unsubscribe received, but the job clean-up failed — retrying automatically; open the job if this stays", next: "Office needs to: the portal retries every 15 minutes; if this stays, open the job, turn on Do not contact and cancel it if it is still an enquiry or saved spot.", tab: "overview", urgency: "today" },
   xero_invoice_product_unconfirmed: { why: "Xero invoice went out without the installed product/m² wording (ESC tax-invoice requirement).", next: "Office needs to: confirm the insulation product and measured area on the job, then add the brand, model, R-value and m² to the Xero invoice line.", tab: "quotes", urgency: "soon" },
   ready_check_chase_installer: { why: "Chase installer: the Ready Check is still missing answers or photos after 24 hours.", next: "Office needs to: call the installer and ask them to finish the Mitti form.", tab: "overview", urgency: "today" },
   // Retired 2 Nov 2026 (Part 7 Task 8): no longer raised; the code stays so old rows keep a label.

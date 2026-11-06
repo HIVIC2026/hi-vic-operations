@@ -82,6 +82,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['stopReleases'] = "failed";
         }
         try {
+          // Jo 7 Nov 2026: an unsubscribe whose job clean-up failed is retried here (max 20 a tick, last 14 days); success
+          // writes `unsubscribe_cleanup_done`, which clears the Needs me row. Counts only.
+          const { retryUnsubscribeCleanups } = await import("@/lib/unsubscribe-cleanup.server");
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          (out as Record<string, unknown>)['unsubscribeCleanups'] = await timed("retryUnsubscribeCleanups", () => retryUnsubscribeCleanups(supabaseAdmin, Date.now()));
+        } catch (e) {
+          console.error("allocation tick: unsubscribe clean-up retry failed", (e as Error).message);
+          (out as Record<string, unknown>)['unsubscribeCleanups'] = "failed";
+        }
+        try {
           const { sweepQuoteExpiry } = await import("@/lib/quote-expiry.server");
           (out as Record<string, unknown>)['quotes'] = await timed("sweepQuoteExpiry", () => sweepQuoteExpiry());
         } catch (e) {

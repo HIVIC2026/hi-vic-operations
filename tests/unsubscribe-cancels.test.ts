@@ -4,7 +4,9 @@ import { afterAll, beforeEach, expect, mock, test } from "bun:test";
 import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
 
 let T: Tables = {};
-const db = { from: (t: string) => memoryPostgrest(T).from(t) };
+// A table name here makes every read of it throw (a database outage mid clean-up).
+let broken: string | null = null;
+const db = { from: (t: string) => { if (t === broken) throw new Error(`${t} unavailable`); return memoryPostgrest(T).from(t); } };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: db }));
 const cancelCalls: unknown[][] = [];
 mock.module("../src/lib/office-actions.server", () => ({ cancelJobFully: async (...a: unknown[]) => { cancelCalls.push(a); } }));
@@ -21,7 +23,7 @@ function seed(stage: string, bucket: string) {
     job_assignments: [], partner_offers: [],
   };
 }
-beforeEach(() => { cancelCalls.length = 0; });
+beforeEach(() => { cancelCalls.length = 0; broken = null; });
 
 test("unsubscribe at enquiry stage cancels job with Opted out (unsubscribed)", async () => {
   seed("new_enquiry", "enquiry");
@@ -58,4 +60,47 @@ test("second unsubscribe click does nothing more", async () => {
   const before = JSON.stringify(T);
   expect(await recordUnsubscribe(TOKEN)).toBe(true);
   expect(JSON.stringify(T)).toBe(before);
+});
+
+test("a failed unsubscribe clean-up shows on Needs me and the tick retries it", async () => {
+  const { unsubscribeCleanupFailedFact, buildNeedsRows, UNSUBSCRIBE_CLEANUP_FAILED_LINE } = await import("../src/lib/office-needs.core");
+  const { cardOf } = await import("../src/lib/needs-cards.core");
+  const { unsubscribeCleanupNeeds, retryUnsubscribeCleanups } = await import("../src/lib/unsubscribe-cleanup.server");
+  seed("new_enquiry", "enquiry");
+  T["jobs"]![0]!["job_number"] = "HV-7";
+  broken = "office_enquiry_index";
+  expect(await recordUnsubscribe(TOKEN)).toBe(true);
+  expect(T["customer_email_optouts"]![0]!["opted_out_at"]).not.toBeNull(); // the opt-out itself is saved
+  expect(T["jobs"]![0]!["stage"]).toBe("new_enquiry");
+  const raised = T["workflow_events"]!.filter((e) => e["event_type"] === "unsubscribe_cleanup_failed");
+  expect(raised).toHaveLength(1);
+  expect(raised[0]!["internal"]).toBe(true);
+  expect(raised[0]!["details"]?.["needs_office"]).toBe(true);
+  // Needs me: one Today row on the Failed card until the clean-up has run.
+  const evs = () => T["workflow_events"]!.map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: e["details"] ?? null }));
+  const fact = unsubscribeCleanupFailedFact(evs());
+  expect(fact).not.toBeNull();
+  const rows = buildNeedsRows({ now: Date.now(), jobs: [{ jobId: "j1", jobNumber: "HV-7", surname: "Smith", suburb: null, unsubscribeCleanupFailed: fact }] });
+  expect(rows.today.map((r) => [r.kind, r.line, r.button.label])).toEqual([["unsubscribe_cleanup_failed", UNSUBSCRIBE_CLEANUP_FAILED_LINE, "Open job"]]);
+  expect(cardOf("unsubscribe_cleanup_failed")).toBe("failed");
+  expect((await unsubscribeCleanupNeeds(db, { includeTest: false })).map((n) => [n.jobId, n.jobNumber])).toEqual([["j1", "HV-7"]]);
+  // Still failing: the retry leaves the row up.
+  expect(await retryUnsubscribeCleanups(db, Date.now())).toEqual({ tried: 1, cleaned: 0 });
+  expect(unsubscribeCleanupFailedFact(evs())).not.toBeNull();
+  // Fixed: the retry does the clean-up (Do not contact + the STOP cancel rule) and clears the row.
+  broken = null;
+  expect(await retryUnsubscribeCleanups(db, Date.now())).toEqual({ tried: 1, cleaned: 1 });
+  expect(T["jobs"]![0]!["stage"]).toBe("cancelled");
+  expect(T["jobs"]![0]!["cancelled_reason"]).toBe("Opted out (unsubscribed)");
+  expect(T["workflow_events"]!.filter((e) => e["event_type"] === "owner_do_not_contact_set")).toHaveLength(1);
+  expect(unsubscribeCleanupFailedFact(evs())).toBeNull();
+  expect(await unsubscribeCleanupNeeds(db, { includeTest: false })).toEqual([]);
+  expect(await retryUnsubscribeCleanups(db, Date.now())).toEqual({ tried: 0, cleaned: 0 });
+});
+
+test("the older Needs list shows the failed unsubscribe clean-up until it is done", async () => {
+  const { mittiOfficeItems } = await import("../src/lib/ready-check-chase.core");
+  const raise = { job_id: "j1", event_type: "unsubscribe_cleanup_failed", created_at: "2026-11-07T01:00:00Z", details: { needs_office: true } };
+  expect(mittiOfficeItems([raise], new Date()).map((i) => i.code)).toEqual(["unsubscribe_cleanup_failed"]);
+  expect(mittiOfficeItems([raise, { job_id: "j1", event_type: "unsubscribe_cleanup_done", created_at: "2026-11-07T02:00:00Z", details: {} }], new Date())).toEqual([]);
 });

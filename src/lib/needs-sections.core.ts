@@ -11,7 +11,7 @@ export const NEEDS_SECTIONS = [
 export type NeedsSection = typeof NEEDS_SECTIONS[number]["key"];
 const deadlines = new Set<NeedsKind>(["in_house_ready_check_not_booked", "in_house_piesa_overdue", "in_house_install_not_booked", "esc_window", "sign_consent", "prestart_failed", "certificate_not_in", "booking_overdue", "lapsed_window", "repeat_piesa_choose", "upgrades_past_30_days", "upgrades_day_red", "ready_check_person_missing", "complaint_ack_due", "complaint_resolve_due", "payment_overdue", "piesa_owner_unsigned", "piesa_fixes_owner_unsigned", "veec_day_10", "tenant_notice_held"]);
 const partners = new Set<NeedsKind>(["in_house_handed_back", "own_job_piesa_handed_back", "in_house_esc_lead_changed", "choose_electrician", "choose_again", "mitti_electrician_choice", "own_job_piesa_held", "release_lapsed"]);
-const forms = new Set<NeedsKind>(["send_failed", "robot_failed", "piisa_form_failed", "piesa_form_failed", "mitti_form_problem", "in_house_form_sync_failed", "piesa_auto_complete_held", "same_day_part_c_failed", "own_job_swap_form_not_moved", "own_job_installer_not_told", "stop_release_failed", "invoice_failed", "install_deposit_request_failed", "new_quote_unfinished"]);
+const forms = new Set<NeedsKind>(["send_failed", "robot_failed", "piisa_form_failed", "piesa_form_failed", "mitti_form_problem", "in_house_form_sync_failed", "piesa_auto_complete_held", "same_day_part_c_failed", "own_job_swap_form_not_moved", "own_job_installer_not_told", "stop_release_failed", "unsubscribe_cleanup_failed", "invoice_failed", "install_deposit_request_failed", "new_quote_unfinished"]);
 
 export function needsSection(row: NeedsRow, _now: number): NeedsSection {
   if (row.kind === "choose_installer") return "installers";

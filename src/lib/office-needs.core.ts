@@ -34,7 +34,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "veec_b_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window" | "upgrades_past_30_days"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan" | "tenant_notice_held"
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "unsubscribe_cleanup_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan" | "tenant_notice_held"
   | "upgrades_day_not_set" | "upgrades_day_red" | "certificate_not_in"
   | "veec_refunded" | "complaint_ack_due" | "complaint_resolve_due" | "ready_check_person_missing";
 
@@ -187,6 +187,8 @@ export type NeedsFacts = {
   oldFixesInvoicePaid?: { at: string; paid: number } | null;
   /** Batch 2: a STOP reply could not release the installer and the job has not been cancelled again since. */
   stopReleaseFailed?: { at: string } | null;
+  /** Jo 7 Nov 2026: an email unsubscribe was saved but its job clean-up (Do not contact + the STOP cancel rule) failed. */
+  unsubscribeCleanupFailed?: { at: string } | null;
   /** Batch 3a: an installation quote expired but the owner can't be emailed, so the job was left open. */
   quoteExpiredBlocked?: { at: string; reason: string } | null;
   /** Batch 3a: the owner asked for a new quote but the installer could not be put back, or the reopen half-finished
@@ -208,6 +210,18 @@ export function stopReleaseFailedFact(events: { event_type: string; created_at: 
   const raised = events.filter((e) => e.event_type === "stop_installer_release_failed" && e.details?.["needs_office"] === true).map((e) => e.created_at).sort().pop();
   if (!raised) return null;
   return events.some((e) => e.event_type === "job_cancel_released" && e.created_at > raised) ? null : { at: raised };
+}
+
+/** Jo 7 Nov 2026 (office-only): an unsubscribe was saved but its job clean-up failed; the 15-minute tick retries it
+ *  (unsubscribe-cleanup.server) and writes `unsubscribe_cleanup_done` once it has run. */
+export const UNSUBSCRIBE_CLEANUP_FAILED_EVENT = "unsubscribe_cleanup_failed";
+export const UNSUBSCRIBE_CLEANUP_DONE_EVENT = "unsubscribe_cleanup_done";
+export const UNSUBSCRIBE_CLEANUP_FAILED_LINE = "Unsubscribe received, but the job clean-up failed — retrying automatically; open the job if this stays";
+/** The newest `unsubscribe_cleanup_failed` (needs_office) with no `unsubscribe_cleanup_done` after it; null otherwise. */
+export function unsubscribeCleanupFailedFact(events: { event_type: string; created_at: string; details?: Record<string, unknown> | null }[]): { at: string } | null {
+  const raised = events.filter((e) => e.event_type === UNSUBSCRIBE_CLEANUP_FAILED_EVENT && e.details?.["needs_office"] === true).map((e) => e.created_at).sort().pop();
+  if (!raised) return null;
+  return events.some((e) => e.event_type === UNSUBSCRIBE_CLEANUP_DONE_EVENT && e.created_at > raised) ? null : { at: raised };
 }
 
 /** Jo 28 Oct: one plain office line while a PIESA's electrical fixes are open. */
@@ -290,6 +304,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: f.quoteExpiredBlocked.reason === QUOTE_EXPIRED_HELD_REASON ? QUOTE_EXPIRED_HELD_REASON : `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
   if (f.newQuoteOffice) add({ rank: 9, group: "today", kind: f.newQuoteOffice.kind, line: f.newQuoteOffice.line, since: f.newQuoteOffice.at, button: { label: "Open job", to: "job", section: "ready-check" } });
   if (f.stopReleaseFailed) add({ rank: 9, group: "today", kind: "stop_release_failed", line: STOP_RELEASE_FAILED_LINE, since: f.stopReleaseFailed.at, button: { label: "Open job", to: "job" } });
+  if (f.unsubscribeCleanupFailed) add({ rank: 9, group: "today", kind: "unsubscribe_cleanup_failed", line: UNSUBSCRIBE_CLEANUP_FAILED_LINE, since: f.unsubscribeCleanupFailed.at, button: { label: "Open job", to: "job" } });
   if (f.invoiceFailed) add({ rank: 9, group: "today", kind: "invoice_failed", line: invoiceFailedLine(f.invoiceFailed.kind), since: f.invoiceFailed.at, button: { label: "Open job", to: "job", section: "money" }, slot: invoiceSlotOf(f.invoiceFailed.kind) });
   if (f.oldFixesInvoicePaid) add({ rank: 38, group: "today", kind: "old_fixes_invoice_paid", line: oldFixesInvoicePaidLine(f.oldFixesInvoicePaid.paid), since: f.oldFixesInvoicePaid.at, button: { label: "Open job", to: "job", section: "money" }, slot: "fixes" });
   if (f.oldFixesInvoiceUnpaid) add({ rank: 39, group: "today", kind: "old_fixes_invoice_unpaid", line: OLD_FIXES_INVOICE_LINE, since: f.oldFixesInvoiceUnpaid.at, button: { label: "Open job", to: "job", section: "money" }, slot: "fixes" });
