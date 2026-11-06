@@ -1,8 +1,8 @@
 ## Jo 6 Nov 11:33 UTC — broad TEST-only role audit
-- [ ] Jo 11:42 UTC: measure page/control timing, audit links/buttons and progression/gate checks; optimize measured bottlenecks without changing behaviour.
-- [ ] Run existing isolated browser journeys at phone/desktop sizes and the full isolated regression suite; no live record mutations, sends, publication or switch changes.
-- [ ] Reproduce actionable failures, repair only proven bugs without changing locked rules or approved wording, and repeat affected tests.
-- [ ] Report tested/failing/blocked coverage honestly; firm-quote switch remains OFF (NULL confirmed).
+- [x] Measure visitor page timings and local control durations; no unproven speed optimizations or gate changes. Findings in docs/overnight-portal-audit-2026-11-06.md.
+- [x] Run isolated phone/desktop browsers (28 pass, 6 fail, 2 blocked) and full isolated regression suite (13,820 pass, 473 fail). No hosted record mutations or delivery.
+- [x] Reproduce and repair blank-dialog feedback and Templates phone overflow; 8 chooser checks pass, Templates phone bounds now pass. Full handover is not proven.
+- [x] Report coverage and limitations; firm-quote switch read back NULL. Entire authenticated process remains blocked by missing isolated backend/office/owner/payment fixtures, not marked PASS.
 
 ## Jo 6 Nov 11:09 UTC — TEST sends now
 - [x] Record Test Centre consent ticks with TEST-only provenance; repaired HV-3831 from its original durable tick/version/time. 59 consent/access checks pass, scan clear, build OK; future Test Centre handler fix saved, not published.

@@ -57,9 +57,9 @@ export function TemplatesHub({ cat, t }: { cat: TemplateSection; t?: string }) {
       {cat === "waiting" && <p className="mb-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs">Nothing here is sent to anyone until Jo approves the wording.</p>}
       {!selected ? <p className="rounded-md border bg-card p-6 text-sm text-sub">Nothing in this section.</p> : (
         <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <div>
+          <div className="min-w-0">
             <label className="block lg:hidden"><span className="sr-only">Choose a template</span>
-              <select aria-label="Choose a template" className={fieldInput} value={selected.id} onChange={(e) => choose(e.target.value)}>
+              <select aria-label="Choose a template" className={`${fieldInput} min-w-0 max-w-full`} value={selected.id} onChange={(e) => choose(e.target.value)}>
                 {steps.map((s) => <optgroup key={s} label={STEP_LABEL[s]}>{list.filter((e) => e.step === s).map((e) => <option key={e.id} value={e.id}>{e.code ? `${e.code} · ` : ""}{e.name}</option>)}</optgroup>)}
               </select>
             </label>
@@ -100,7 +100,7 @@ function TemplateDetail({ entry, switches }: { entry: TemplateEntry; switches: S
           <dt className="text-sub">Who gets it</dt><dd>{entry.who}</dd>
           <dt className="text-sub">When</dt><dd>{entry.when}</dd>
           <dt className="text-sub">Status</dt><dd><Pill tone={TONE[status.tone]}>{status.label}</Pill></dd>
-          <dt className="text-sub">Approved</dt><dd>{entry.ownMessageKey && switches?.[ownMessageSwitch(entry.ownMessageKey)] === true ? 'Approved in Templates' : entry.approval === "waiting" ? <span className="text-rose">Waiting for Jo — {entry.approvalNote}</span> : entry.approvalNote}</dd>
+          <dt className="text-sub">Approved</dt><dd className="min-w-0 wrap-anywhere">{entry.ownMessageKey && switches?.[ownMessageSwitch(entry.ownMessageKey)] === true ? 'Approved in Templates' : entry.approval === "waiting" ? <span className="text-rose">Waiting for Jo — {entry.approvalNote}</span> : entry.approvalNote}</dd>
           <dt className="text-sub">Live code</dt><dd className="break-all text-xs"><code>{entry.source.fn}</code> in <code>{entry.source.builder}</code>, used by <code>{entry.source.sender}</code></dd>
           {entry.design && <><dt className="text-sub">Design file</dt><dd className="break-all text-xs"><code>{entry.design}</code></dd></>}
         </dl>

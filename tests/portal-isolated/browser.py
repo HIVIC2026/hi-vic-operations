@@ -50,15 +50,15 @@ async def main():
     await p.get_by_label('Your price inc GST',exact=True).fill('2500');await p.get_by_role('button',name='Send for quote',exact=False).click();await p.get_by_text('Price saved:',exact=False).wait_for();s=await p.evaluate('(k)=>JSON.parse(localStorage.getItem(k))',STORE);assert s['price']['record']['price_inc_gst']==2500
    await check('Price submit and fixture readback',price)
    async def price_refresh():
-    await p.reload();await p.get_by_text('Price saved:',exact=False).wait_for();await p.get_by_role('button',name='Change',exact=True).click();assert await p.get_by_label('Your price inc GST',exact=True).input_value()=='2500'
+    await p.reload();await p.get_by_text('Price saved:',exact=False).wait_for();await p.get_by_role('button',name='Change',exact=True).click();assert await p.get_by_label('New price inc GST',exact=True).input_value()=='2500'
    await check('Saved price refresh and Change readback',price_refresh)
    async def tabs():
-    tab=await c.new_page();await tab.goto(BASE+'/field');await tab.get_by_text('Quote being prepared',exact=True).wait_for()
-    await p.get_by_label('Your price inc GST',exact=True).fill('2600');await p.get_by_role('button',name='Send for quote',exact=False).click();await p.get_by_text('$2,600',exact=False).first.wait_for()
+    tab=await c.new_page();await tab.goto(BASE+'/field');await tab.get_by_text('Quote being prepared',exact=False).first.wait_for()
+    await p.get_by_label('New price inc GST',exact=True).fill('2600');await p.get_by_role('button',name='Save',exact=True).click();await p.get_by_text('$2,600',exact=False).first.wait_for()
     await tab.goto(BASE+JOB);await tab.get_by_text('$2,600',exact=False).first.wait_for();await tab.screenshot(path=str(OUT/f'{width}-tab-readback.png'));await tab.close()
    await check('Second tab navigation reads latest fixture price (not realtime/auth proof)',tabs)
    async def back():
-    await p.get_by_role('link',name='‹ My work',exact=False).click();await p.get_by_text('Quote being prepared',exact=True).wait_for();await p.go_back();await p.get_by_text('Price saved:',exact=False).wait_for()
+    await p.get_by_role('link',name='‹ My work',exact=False).click();await p.get_by_text('Quote being prepared',exact=False).first.wait_for();await p.go_back();await p.get_by_text('Price saved:',exact=False).wait_for()
    await check('Back navigation retains saved fixture value',back)
    async def portal():
     await p.evaluate('(k)=>localStorage.removeItem(k)',STORE);await open_page(JOB,text='Measure and quote');await p.get_by_role('button',name='Enter the details here',exact=False).click();await p.get_by_label('Install m²',exact=True).fill('100');await p.get_by_label('Removal m²',exact=True).fill('0');await p.get_by_label("What's in the ceiling now?",exact=True).select_option('none');await p.get_by_label('How did you measure it?',exact=True).select_option('other');await p.get_by_label('How did you measure it?',exact=True).last.fill('Synthetic independent measurements') if await p.get_by_label('How did you measure it?',exact=True).count()==1 else await p.locator('textarea').first.fill('Synthetic independent measurements')
