@@ -33,8 +33,17 @@ test("TEST office function allowlist is exactly this list", () => {
   "src/lib/installer-quote.functions.ts": ["getInstallerQuoteDraft", "sendInstallerQuote"],
   "src/lib/test-accounts.functions.ts": ["prepareQaJourneyAccess", "issueQaPersonaLink", "issueQaWorkerLink", "simulateQaJourneyTime", "simulateQaPayment", "archiveQaJourney"],
   "src/lib/portal.functions.ts": ["createTestEnquiry", "getQaJourneys"],
+  "src/lib/test-centre-photo.functions.ts": ["testEnquiryPhotoUpload", "attachTestEnquiryPhoto"],
   "src/lib/in-house-batch.functions.ts": ["allocateInHouseBatch", "getInHouseGiveForJob"],
  });
+});
+test("TEST office may use only the approved TEST photo upload actions", () => {
+ for (const name of ["testEnquiryPhotoUpload", "attachTestEnquiryPhoto"]) {
+  expect(qaOfficeFunctionAllowed("src/lib/test-centre-photo.functions.ts", name)).toBe(true);
+  expect(qaOfficeFunctionBlocker(qa, "src/lib/test-centre-photo.functions.ts", name)).toBeNull();
+ }
+ expect(qaOfficeFunctionAllowed("src/lib/test-centre-photo.functions.ts", "newUploadAction")).toBe(false);
+ expect(qaOfficeFunctionBlocker({ ...qa, email: "real@example.com" }, "src/lib/test-centre-photo.functions.ts", "attachTestEnquiryPhoto")).not.toBeNull();
 });
 test("Choose installer Give: TEST office may give and read the give offer; the rest of in-house stays denied", () => {
  for (const fn of ["allocateInHouseBatch", "getInHouseGiveForJob"]) {

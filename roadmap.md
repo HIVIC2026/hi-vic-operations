@@ -1,3 +1,9 @@
+## Jo 6 Nov 10:26 UTC — make the live TEST journey possible
+- [x] Normal TEST office sign-in uses the existing private QA_OFFICE_PASSWORD; no Jo tap, credential reset or role change needed.
+- [ ] Repair the exact TEST photo function allowlist omission; test verified TEST identity and default denial, then repeat the upload.
+- [ ] Seven-step published journey: TEST HV-3831 created; photo refused by TEST-office allowlist; no email sent. Installer role link available only after a checked assignment. Day-4 scope and quiet hours must remain intact.
+- [ ] Keep the approved live switch ON unless an owner-affecting failure is established; no real-record mutation or unscoped sweep.
+
 ## Jo 6 Nov firm quote — three approved go-live fixes (switch stays OFF)
 - [x] 1 Handover: live Give (allocate_in_house_batch_job) accepts a recorded firm_quote_requested event in place of quick-taps YES, firm-quote jobs only; every other job unchanged. PGlite proof first (13/13 incl. new firm-quote test), then applied live as 0196 and read back; original archived in docs/applied-migrations. Nothing else in the function changed (byte-diffed against the live body).
 - [~] 2 TEST From photos installer: code ready — 7th Test Centre spec "TEST Photos Insulation" (qa.installer.photos@hivic-test.example, quote_method photos, TEST postcodes, [TEST PARTNER] mark, own rate card); button now reads "Create 7 test trade accounts". Account NOT yet created: admin session mint unavailable in this context (approval cannot be shown). Jo presses the Test Centre button once, or signs in so it can be done next turn.
