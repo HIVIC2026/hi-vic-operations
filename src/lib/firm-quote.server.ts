@@ -102,3 +102,100 @@ export async function firmQuoteReadyFacts(jobId: string): Promise<{ ownerM2: num
   const removal = Number(md.removal_m2 ?? 0);
   return { ownerM2: owner !== null && Number.isFinite(owner) && owner > 0 ? owner : null, confirmedM2: confirmed, removalM2: Number.isFinite(removal) && removal > 0 ? removal : 0, removalRatePerM2: rate };
 }
+
+// ---------- Task 10: day 4 "Your firm quote is on its way" email ----------
+export type Day4Deps = {
+  liveAt: () => Promise<string | null>;
+  requests: () => Promise<{ job_id: string; created_at: string; due_by: string | null }[]>;
+  isFirm: (jobId: string) => Promise<boolean>;
+  job: (jobId: string) => Promise<{ closed: boolean; source: string | null; email: string | null; firstName: string | null } | null>;
+  quoteSentAt: (jobId: string) => Promise<string | null>;
+  day4SentAt: (jobId: string) => Promise<string | null>;
+  commsOn: () => Promise<boolean>;
+  consent: (jobId: string) => Promise<boolean>;
+  send: (p: { jobId: string; jobSource: string | null; to: string; key: string; firstName: string; dueDate: string }) => Promise<string>;
+  record: (jobId: string, dueBy: string) => Promise<void>;
+};
+
+const CLOSED_STAGES = ["cancelled", "complete", "on_hold"];
+
+function realDay4Deps(): Day4Deps {
+  return {
+    liveAt: firmQuoteLiveAt,
+    isFirm: isFirmQuoteJobId,
+    async requests() {
+      const { data, error } = await admin.from("workflow_events").select("job_id,created_at,details").eq("event_type", "firm_quote_requested").order("created_at").limit(500);
+      if (error) throw new Error("Could not read firm quote requests.");
+      return (data ?? []).filter(r => r.job_id).map(r => ({ job_id: r.job_id as string, created_at: r.created_at, due_by: ((r.details ?? {}) as { due_by?: unknown }).due_by as string ?? null }));
+    },
+    async job(jobId) {
+      const { data, error } = await admin.from("jobs").select("stage,source,deleted_at,qa_archived_at,owners(email,full_name)").eq("id", jobId).maybeSingle();
+      if (error) throw new Error("Could not read job.");
+      if (!data) return null;
+      const o = data.owners as { email: string | null; full_name: string | null } | null;
+      return { closed: !!data.deleted_at || !!(data as { qa_archived_at?: string | null }).qa_archived_at || CLOSED_STAGES.includes(data.stage as string),
+        source: data.source, email: o?.email ?? null, firstName: (o?.full_name ?? "").trim().split(/\s+/)[0] || null };
+    },
+    async quoteSentAt(jobId) {
+      const { data, error } = await admin.from("customer_email_sends").select("sent_at,status").eq("job_id", jobId).eq("purpose", "quote_ready").in("status", ["sent", "sending", "delivered_unrecorded"]).limit(1).maybeSingle();
+      if (error) throw new Error("Could not read quote email log.");
+      return data ? (data.sent_at ?? "attempted") : null;
+    },
+    async day4SentAt(jobId) {
+      const [ev, log] = await Promise.all([
+        admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "firm_quote_day4_sent").limit(1).maybeSingle(),
+        admin.from("customer_email_sends").select("id").eq("idempotency_key", `firm-quote-day4:v1:${jobId}`).maybeSingle(),
+      ]);
+      if (ev.error || log.error) throw new Error("Could not read day 4 history.");
+      return ev.data?.created_at ?? (log.data ? "attempted" : null);
+    },
+    async commsOn() {
+      const { data, error } = await admin.from("workflow_settings").select("customer_comms_enabled").eq("id", 1).maybeSingle();
+      return !error && (data as { customer_comms_enabled?: boolean } | null)?.customer_comms_enabled === true;
+    },
+    consent: async (jobId) => (await import("./comms.server")).hasCurrentOwnerContactConsent(jobId),
+    async send(p) {
+      const { firmQuoteOnItsWayEmail } = await import("./firm-quote-emails.core");
+      const { withUnsubscribe } = await import("./emailsafety.core");
+      return (await import("./owner-email-send.server")).sendGuardedOwnerEmail({
+        jobId: p.jobId, jobSource: p.jobSource, to: p.to, purpose: "firm_quote_day4", key: p.key,
+        build: (unsubscribe) => {
+          const m0 = firmQuoteOnItsWayEmail({ firstName: p.firstName, dueDate: p.dueDate });
+          const m = unsubscribe ? withUnsubscribe(m0, unsubscribe) : m0;
+          return { subject: m.subject, html: m.html, text: m.plainText };
+        },
+      });
+    },
+    async record(jobId, dueBy) {
+      const { FIRM_QUOTE_DAY4_EVENT } = await import("./firm-quote.core");
+      const { error } = await admin.from("workflow_events").insert({ job_id: jobId, event_type: FIRM_QUOTE_DAY4_EVENT, summary: "Firm quote on its way email sent (day 4)", details: { due_by: dueBy }, internal: true });
+      if (error) console.error("firm quote day 4 record failed", error.message);
+    },
+  };
+}
+
+/** Post-intake tick. Never throws per job; a switched-off flow reads nothing beyond the switch. */
+export async function sweepFirmQuoteDay4(now = new Date(), deps: Day4Deps = realDay4Deps()) {
+  const out: { jobId: string; status: string }[] = [];
+  if (await deps.liveAt() === null) return { held: false, results: out };
+  const { smsQuietReason } = await import("./quote-hold.core");
+  if (smsQuietReason(now.toISOString())) return { held: true, results: out };
+  if (!await deps.commsOn()) return { held: false, results: out };
+  const { firmQuoteDay4Due } = await import("./firm-quote.core");
+  const seen = new Set<string>();
+  for (const r of await deps.requests()) {
+    if (seen.has(r.job_id)) continue; seen.add(r.job_id);
+    try {
+      if (!r.due_by || !await deps.isFirm(r.job_id)) continue;
+      const job = await deps.job(r.job_id);
+      if (!job || !job.email || !job.firstName) continue;
+      const due = firmQuoteDay4Due({ requestedAt: r.created_at, now, closed: job.closed, quoteSentAt: await deps.quoteSentAt(r.job_id), day4SentAt: await deps.day4SentAt(r.job_id) });
+      if (!due) continue;
+      if (!await deps.consent(r.job_id)) { out.push({ jobId: r.job_id, status: "no_consent" }); continue; }
+      const status = await deps.send({ jobId: r.job_id, jobSource: job.source, to: job.email, key: `firm-quote-day4:v1:${r.job_id}`, firstName: job.firstName, dueDate: r.due_by });
+      if (status === "sent") await deps.record(r.job_id, r.due_by);
+      out.push({ jobId: r.job_id, status });
+    } catch (e) { out.push({ jobId: r.job_id, status: `error: ${e instanceof Error ? e.message : "unknown"}` }); }
+  }
+  return { held: false, results: out };
+}

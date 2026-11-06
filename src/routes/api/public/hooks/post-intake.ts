@@ -36,6 +36,8 @@ export const Route = createFileRoute("/api/public/hooks/post-intake")({
             await import("@/lib/roof-check.server").then((m) => m.roofCheckTick({ limit: 2 })).catch((e) => console.error("roof check tick failed", (e as Error).message));
             // AI photo check on owner uploads (ranking only), 1 home per tick (keeps this request inside the 55 s limit).
             await import("@/lib/photo-check.server").then((m) => m.photoCheckTick({ limit: 1 })).catch((e) => console.error("photo check tick failed", (e as Error).message));
+            // Firm quote Task 10: day 4 "on its way" email, after the existing sweeps; a failure never breaks the worker.
+            await import("@/lib/firm-quote.server").then((m) => m.sweepFirmQuoteDay4()).catch((e) => console.error("firm quote day 4 sweep failed", (e as Error).message));
             return Response.json({ ok: true, recovered: r.recovered, claimed: r.claimed,
               results: r.results.map((x) => ({ status: x.status })), first_response: firstResponse });
           } catch (e) {
