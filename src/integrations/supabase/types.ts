@@ -13125,6 +13125,7 @@ export type Database = {
           due_trade_reply_exception_hours: number
           due_trade_reply_warn_hours: number
           esc_registry_robot_enabled: boolean
+          firm_quote_flow_live_at: string | null
           id: number
           installer_quote_max_inc_gst_per_m2: number | null
           installer_quote_min_inc_gst_per_m2: number | null
@@ -13184,6 +13185,7 @@ export type Database = {
           due_trade_reply_exception_hours?: number
           due_trade_reply_warn_hours?: number
           esc_registry_robot_enabled?: boolean
+          firm_quote_flow_live_at?: string | null
           id?: number
           installer_quote_max_inc_gst_per_m2?: number | null
           installer_quote_min_inc_gst_per_m2?: number | null
@@ -13243,6 +13245,7 @@ export type Database = {
           due_trade_reply_exception_hours?: number
           due_trade_reply_warn_hours?: number
           esc_registry_robot_enabled?: boolean
+          firm_quote_flow_live_at?: string | null
           id?: number
           installer_quote_max_inc_gst_per_m2?: number | null
           installer_quote_min_inc_gst_per_m2?: number | null
@@ -14422,6 +14425,10 @@ export type Database = {
         Returns: string
       }
       repair_campaign_spot_stage: { Args: { p_job: string }; Returns: boolean }
+      request_firm_quote_atomic: {
+        Args: { p_due_by: string; p_job: string; p_link: string }
+        Returns: Json
+      }
       required_deposit_amount: { Args: { _total: number }; Returns: number }
       review_external_action: {
         Args: {
