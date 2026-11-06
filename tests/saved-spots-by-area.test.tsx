@@ -77,6 +77,7 @@ const list = {
   rows: [
     row("hv-1", { batch: { kind: "said_yes" }, band: "ok", score: 1 }),
     row("hv-2", {
+      firmQuoteDueBy: "2026-11-17",
       band: "best",
       score: 5,
       reason: "No insulation · house",
@@ -160,6 +161,10 @@ test("each spot shows band, reason, tags, estimated ceiling and links (new tab)"
   expect(within(weak).getByText("Life support").className).toContain("text-rose");
   expect(within(weak).queryByRole("link", { name: "Satellite" })).toBeNull();
   expect(within(weak).queryByRole("link", { name: "Listing" })).toBeNull();
+});
+test("firm quote request shows its saved due date in the area row", () => {
+  const r = mount();
+  expect(r.getByText("Asked for firm quote · due Tuesday 17 November")).toBeTruthy();
 });
 
 test("a Weak row can be ticked; ticks from two areas show 2 ticked; said yes / waiting rows can't be ticked", () => {

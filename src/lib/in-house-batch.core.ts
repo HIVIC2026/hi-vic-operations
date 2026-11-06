@@ -5,6 +5,7 @@ import { installerEmailWords, type GiveEmailOutcome } from "./in-house-give-emai
 import { PHOTO_QUOTE_WORDS, quoteMethodOf, type QuoteMethod } from "./photo-quote.core";
 import { isTestPartner } from "./test-send.core";
 import { qaOfficeReservedEmail } from "./qa-office.core";
+import { firmQuoteInstallerBlocker } from "./firm-quote.core";
 
 export type BatchJob = {
   id: string; stage: string; source: string; deleted_at: string | null; spot_saved_at: string | null;
@@ -13,6 +14,8 @@ export type BatchJob = {
   channel?: string; quickTapsYes: boolean; quickTapsBatchId?: string | null; oldStylePass?: boolean; waitingBusinessId?: string | null;
   /** At least one owner photo/video (`intake_media`). Missing = not known to have any (a photos installer can't take it). */
   hasOwnerMedia?: boolean;
+  firmQuote?: boolean;
+  firmQuoteDueBy?: string | null;
 };
 export type InHousePartner = {
   id: string; name: string; in_house: boolean; is_active: boolean; openJobs: number;
@@ -23,7 +26,7 @@ export type InHousePartner = {
 };
 /** A "From photos" installer only gets leads with at least one owner photo or video. Reason, or null when it can be given. */
 export function photoLeadBlocked(job: BatchJob, partner: InHousePartner): string | null {
-  return givenQuoteMethod(job, partner) === "photos" && job.hasOwnerMedia !== true ? PHOTO_QUOTE_WORDS.noPhotos(partner.name) : null;
+  return firmQuoteInstallerBlocker(job.firmQuote === true, partner) ?? (givenQuoteMethod(job, partner) === "photos" && job.hasOwnerMedia !== true ? PHOTO_QUOTE_WORDS.noPhotos(partner.name) : null);
 }
 /** How this job is quoted if given to this installer: photos only for a "From photos" installer and a Home Insulation
  *  Victoria lead; the installer's own customers always keep the Ready Check (spec: not in scope). */
@@ -44,7 +47,7 @@ export function jobGiveOffer(job: BatchJob | undefined, partners: InHousePartner
 }
 /** `test` (TEST office only, Jo 5 Nov 2026): the same rules for qa_test jobs ONLY; the real office never sees qa_test jobs. */
 export function batchJobEligible(job: BatchJob, test = false): boolean {
-  return !job.deleted_at && (test ? job.source === "qa_test" : job.source !== "qa_test") && (job.channel === "installer_sourced" || (!!job.spot_saved_at && job.quickTapsYes === true)) && !job.optedOut && !job.hasActiveInstaller
+  return !job.deleted_at && (test ? job.source === "qa_test" : job.source !== "qa_test") && (job.channel === "installer_sourced" || (!!job.spot_saved_at && (job.quickTapsYes === true || job.firmQuote === true))) && !job.optedOut && !job.hasActiveInstaller
     && ["preliminary_estimate_ready", "ready_check_ready_to_schedule"].includes(job.stage);
 }
 export const WAITING_FOR_CALL_CONSENT = "Waiting for the owner to say the installer can call";
@@ -54,7 +57,7 @@ export type ConsentRow = { consent_status: string; consented_at: string | null; 
  *  off, but still waiting for that tap. A pass recorded before this change (no go label, `oldStylePass`) is grandfathered:
  *  it is never waiting and hands off as before. */
 export function waitingForCallConsent(job: BatchJob, consents: readonly ConsentRow[], nowIso: string, test = false): boolean {
-  if (job.oldStylePass || job.channel === "installer_sourced" || !batchJobEligible({ ...job, quickTapsYes: true }, test)) return false;
+  if (job.firmQuote || job.oldStylePass || job.channel === "installer_sourced" || !batchJobEligible({ ...job, quickTapsYes: true }, test)) return false;
   // The batch's own pass-tap consent (key quick_taps_reconsent:{batch}:{job}) counts whatever its age: the owner said yes to this installer in this batch.
   const ownKey = job.quickTapsBatchId ? `quick_taps_reconsent:${job.quickTapsBatchId}:${job.id}` : null;
   if (job.quickTapsYes && ownKey && consents.some((r) => r.consent_key === ownKey && r.consent_status === "granted")) return false;
@@ -99,7 +102,7 @@ export function blockedForPartner(jobs: BatchJob[], partners: InHousePartner[], 
   const suggested = new Set(suggestBatches(jobs, partners, test).flatMap(g => g.jobIds));
   const out: Record<string, { jobId: string; reason: string }[]> = {};
   for (const job of jobs) {
-    if (suggested.has(job.id) || !batchJobEligible(job, test)) continue;
+    if ((suggested.has(job.id) && !job.firmQuote) || !batchJobEligible(job, test)) continue;
     for (const p of partners) {
       const reason = canTake(job, p) ? photoLeadBlocked(job, p) : null;
       if (reason && !(out[p.id] ?? []).some(r => r.jobId === job.id)) (out[p.id] ??= []).push({ jobId: job.id, reason });

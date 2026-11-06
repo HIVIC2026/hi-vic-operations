@@ -13,7 +13,7 @@ export const sendAreaBatchFn = createServerFn({ method: "POST" }).middleware([re
     for (const id of data.jobIds) await requireOfficeJob(context.supabase, id, context);
     await requireOfficeBusiness(context.supabase, data.businessId, context);
     const r = await (await import("./area-batch.server")).sendBatch(data.jobIds, data.businessId, context.userId);
-    return { batchId: r.batchId, installer: r.installer, homes: r.homes, held: r.texts.filter((t) => t.status !== "sent" && t.status !== "not_texted").length,
+    return { batchId: r.batchId, installer: r.installer, homes: r.homes, ...(r.batchId === "" ? { firmQuoteGiven: true } : {}), held: r.batchId === "" ? 0 : r.texts.filter((t) => t.status !== "sent" && t.status !== "not_texted").length,
       results: r.texts.map((t) => ({ jobId: t.jobId, text: { status: t.status, detail: t.detail }, email: t.email })) };
   });
 

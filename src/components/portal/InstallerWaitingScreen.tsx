@@ -16,6 +16,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isLastCopy, useRememberLastCopy } from "@/lib/office-last-copy";
 import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -112,20 +113,21 @@ function TickSendBar({ ticked, numbers, onSent, updating }: { ticked: string[]; 
   const blocker = tickSendBlocker(jobIds.length);
   const iq = useQuery({ queryKey: ["installers-for-homes", jobIds], queryFn: () => loadInstallers({ data: { jobIds } }), enabled: !blocker, staleTime: 30_000 });
   const installers = blocker ? [] : iq.data?.installers ?? [];
-  const choice = installers.some((i) => i.id === picked) ? picked : installers.length === 1 ? installers[0]!.id : "";
+  const allowed = installers.filter(i => !i.blocker);
+  const choice = allowed.some((i) => i.id === picked) ? picked : allowed.length === 1 ? allowed[0]?.id ?? "" : "";
   const chosen = installers.find((i) => i.id === choice);
   useEffect(() => setNote(null), [jobIds.length]);
   const go = async () => {
     if (busy || updating) return;
     const why = tickSendBlocker(jobIds.length);
     if (why) { setNote(why); return; }
-    if (!chosen) return;
+    if (!chosen || chosen.blocker) return;
     setNote(null);
     setBusy(true);
     const sentNumbers = Object.fromEntries(jobIds.map((id) => [id, numbers[id] ?? "Home"]));
     try {
       const r = await send({ data: { jobIds, businessId: chosen.id } });
-      toast.success(`Sent to ${r.homes} ${r.homes === 1 ? "owner" : "owners"} for ${chosen.name}${r.held ? ` · ${r.held} text${r.held === 1 ? "" : "s"} held (see the job)` : ""}`);
+      toast.success(r.firmQuoteGiven ? `${r.homes} ${r.homes === 1 ? "job" : "jobs"} given to ${chosen.name}.` : `Sent to ${r.homes} ${r.homes === 1 ? "owner" : "owners"} for ${chosen.name}${r.held ? ` · ${r.held} text${r.held === 1 ? "" : "s"} held (see the job)` : ""}`);
       setLast({ results: r.results, numbers: sentNumbers });
       setPicked("");
       onSent();
@@ -146,11 +148,12 @@ function TickSendBar({ ticked, numbers, onSent, updating }: { ticked: string[]; 
           : (
             <select aria-label="Installer" className="h-10 min-w-0 flex-1 rounded-[10px] border border-line bg-paper px-2 text-sm" value={choice} onChange={(e) => setPicked(e.target.value)}>
               {installers.length > 1 && <option value="">Pick an installer</option>}
-              {installers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+              {installers.map((i) => <option key={i.id} value={i.id} disabled={!!i.blocker}>{i.name}{i.blocker ? ` — ${i.blocker}` : ""}</option>)}
             </select>
           ))}
-        <button type="button" className={btnClass("primary")} disabled={busy || updating || (!blocker && !chosen)} onClick={() => void go()}>{busy ? "Sending…" : updating ? "Updating…" : "Send"}</button>
+        <Button disabled={busy || updating || (!blocker && (!chosen || !!chosen.blocker))} onClick={() => void go()}>{busy ? "Sending…" : updating ? "Updating…" : "Send"}</Button>
       </div>
+      {installers.filter(i => i.blocker).map(i => <p key={i.id} className="mt-1 text-sm text-sub">{i.name} · {i.blocker}</p>)}
       {shownNote && <p role="alert" className="mt-2 text-[13px] font-semibold text-rose">{shownNote}</p>}
       {last && <div className="mt-3"><p className="mb-1 text-[13px] font-semibold text-ink">Last Send</p><SendResultList results={last.results} label={(id) => last.numbers[id] ?? "Home"} /></div>}
     </div>

@@ -1,6 +1,6 @@
 import { beforeEach, expect, mock, test } from "bun:test";
 type Row=Record<string,unknown>;
-let ledger:Row[]=[], approved=false,optedOut=false,allowed=true,jobSource="base44",photoMarked=false;
+let ledger:Row[]=[], approved=false,optedOut=false,allowed=true,jobSource="base44",photoMarked=false,firm=false;
 const providerCalls:string[]=[];
 function from(table:string){
   let one=false,head=false,op="read",payload:Row={};const filters:((r:Row)=>boolean)[]=[];
@@ -35,10 +35,16 @@ const mod=await import("../src/lib/in-house-batch-email.server");
 // Decision #23: the wording comes from owner-will-call.core behind OWNER_WILL_CALL_APPROVED (injected here); the real
 // guarded email sender, ledger and safeguards run unchanged.
 const deps=()=>({approved,now:()=>new Date("2026-11-03T01:00:00Z"),contactFor:async()=>({name:"Rapid Insulation",tradingName:null,officePhone:"03 9000 0000",email:"office@rapid.example"}),
-  sendSms:async()=>({status:"sent" as const,detail:"ok",sid:null}),logEvent:async()=>null});
+  firmQuote:async()=>firm,sendSms:async()=>({status:"sent" as const,detail:"ok",sid:null}),logEvent:async()=>null});
 const sendInHousePartnerCall=(id:string)=>mod.sendInHousePartnerCall(id,deps());
 const sweepInHousePartnerCalls=()=>mod.sweepInHousePartnerCalls(deps());
-beforeEach(()=>{jobSource="base44";photoMarked=false;ledger=[];approved=false;optedOut=false;allowed=true;providerCalls.length=0;});
+beforeEach(()=>{firm=false;jobSource="base44";photoMarked=false;ledger=[];approved=false;optedOut=false;allowed=true;providerCalls.length=0;});
+test("firm job never gets will-call or no-visit-needed email/text, even with approvals", async()=>{
+  firm=true; approved=true;
+  const p=photoDeps();
+  expect(await mod.sendInHousePartnerCall("j",p.d as never)).toBe("firm_quote_job");
+  expect(ledger).toEqual([]);expect(providerCalls).toEqual([]);expect(p.sms).toEqual([]);expect(p.events).toEqual([]);expect(p.tests).toEqual([]);
+});
 test("approved wording uses real guarded ledger claim and sends once even concurrently",async()=>{
   approved=true;await Promise.all([sendInHousePartnerCall("j"),sendInHousePartnerCall("j")]);
   expect(ledger).toHaveLength(1);expect(ledger[0]).toMatchObject({purpose:"in_house_partner_call",status:"sent"});expect(providerCalls).toEqual(["in-house-partner-call:v1:j"]);

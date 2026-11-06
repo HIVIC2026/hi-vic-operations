@@ -1,3 +1,8 @@
+## Jo 6 Nov firm quote from photos — Task 7 only
+- [x] Due-date tag on saved spots; photos-only giving on screen and server; no owner message; normal jobs unchanged in isolated tests.
+- [x] Tests individually: 229 passed, 0 failed; retired-terms scan 0 customer-visible failures; preview build OK. No SQL run, sends, switch changes or publishing. Stopped after Task 7. Report: docs/firm-quote-task7-report.md.
+- [ ] Active firm Give remains BLOCKED: existing atomic allocation still requires quick-taps YES; Jo prohibited SQL. No consent fabricated or gate bypassed. Activation/request SQL is also pending.
+
 ## Jo 6 Nov firm quote from photos — Task 5 only
 - [x] Test-first token request and saved due-date replay; mocked atomic event/save/queue contract and no-message tap. 14 new request tests failed before implementation and pass afterwards.
 - [x] Public estimate-look page; dedicated post-intake size-check dispatch without first-response delivery. Both saved-confirmation entry points skip firm jobs, including recovery from the saved response.

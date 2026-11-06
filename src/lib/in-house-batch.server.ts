@@ -11,6 +11,7 @@ import { inHouseFactsFor } from "./installer-paid-electricians.server";
 import { inHouseEnableBlockers } from "./in-house.core";
 import { chunkIds } from "./sweep-batch.core";
 import { displayName } from "./display-name.core";
+import { FIRM_QUOTE_REQUESTED_EVENT, firmQuoteRequestDueBy, firmQuoteInstallerBlocker } from "./firm-quote.core";
 
 // Pending tables/columns are deliberately a local overlay, not generated schema edits.
 const db = supabaseAdmin as unknown as SupabaseClient;
@@ -65,7 +66,7 @@ export async function loadInHouseBatches(opts: { now?: Date | undefined; jobIds?
     byIds<{ job_id: string }>(ids, (c,a,b) => db.from("customer_email_optouts").select("job_id").in("job_id", c).not("opted_out_at", "is", null).order("id").range(a,b)),
     byIds<Property>(propertyIds, (c,a,b) => db.from("properties").select("id,postcode,address_line,suburb").in("id", c).order("id").range(a,b)),
     byIds<{ property_id: string; value: unknown }>(propertyIds, (c,a,b) => db.from("property_facts").select("property_id,value").in("property_id", c).eq("fact_key", "coordinates").eq("is_current", true).order("id").range(a,b)),
-    byIds<{ job_id: string; event_type: string; details: Record<string, unknown> | null; created_at: string }>(ids, (c,a,b) => db.from("workflow_events").select("job_id,event_type,details,created_at").in("job_id", c).in("event_type", [QUICK_TAPS_ANSWERED_EVENT, "area_batch_sent"]).order("created_at", { ascending: false }).order("id", { ascending: false }).range(a,b)),
+    byIds<{ job_id: string; event_type: string; details: Record<string, unknown> | null; created_at: string }>(ids, (c,a,b) => db.from("workflow_events").select("job_id,event_type,details,created_at").in("job_id", c).in("event_type", [QUICK_TAPS_ANSWERED_EVENT, "area_batch_sent", FIRM_QUOTE_REQUESTED_EVENT]).order("created_at", { ascending: false }).order("id", { ascending: false }).range(a,b)),
     byIds<ConsentRow & { job_id: string }>(ids, (c,a,b) => db.from("owner_contact_consents").select("job_id,consent_status,consented_at,snapshot,source,consent_key").in("job_id", c).order("id").range(a,b)),
   ]) : [[], [], [], [], [], [], []];
   // Photo-quote installers (Jo 5 Nov 2026): how each installer quotes. A missing column (pending SQL) = Ready Check.
@@ -82,12 +83,14 @@ export async function loadInHouseBatches(opts: { now?: Date | undefined; jobIds?
     media = ids.length ? await byIds<OwnerMediaDoc & { job_id: string }>(ids, (c,a,b) => db.from("documents").select("job_id,kind,mime_type,storage_path").in("job_id", c).eq("kind", "intake_media").order("id").range(a,b)) : [];
   } catch (e) { mediaReadFailed = true; console.error("Owner photo read for Choose installer failed", (e as Error).message); }
   const partners: InHousePartner[] = businesses.map(b => ({ ...b, name: displayName(b.trading_name || b.name), quote_method: quoteMethodOf({ quote_method: methods.get(b.id) ?? null }), openJobs: assignments.filter(a => a.business_id === b.id && a.role === "installer").length }));
+  const { isFirmQuoteJobId } = await import("./firm-quote.server");
+  const firmIds = new Set((await Promise.all(jobs.map(async j => await isFirmQuoteJobId(j.id) ? j.id : null))).filter((id): id is string => id !== null));
   const batchJobs: BatchJob[] = jobs.map(j => {
     const p = properties.find(p => p.id === j.property_id), coords = facts.find(f => f.property_id === j.property_id)?.value;
     const answer = events.find(e => e.job_id === j.id && e.event_type === QUICK_TAPS_ANSWERED_EVENT)?.details;
     const batch = events.find(e => e.job_id === j.id && e.event_type === "area_batch_sent" && e.details?.["batch_id"] === answer?.["batch_id"])?.details;
     const { owners, ...jobFields } = j;
-    return { ...jobFields, ownerName: owners?.full_name ?? null, ownerPhone: owners?.phone ?? null, spot_saved_at: saved.find(s => s.job_id === j.id)?.spot_saved_at ?? null,
+    return { ...jobFields, ...(firmIds.has(j.id) ? { firmQuote: true, firmQuoteDueBy: firmQuoteRequestDueBy(events.filter(e => e.job_id === j.id)) } : {}), ownerName: owners?.full_name ?? null, ownerPhone: owners?.phone ?? null, spot_saved_at: saved.find(s => s.job_id === j.id)?.spot_saved_at ?? null,
       quickTapsYes: answer?.["outcome"] === "pass" && answer?.["consent_share"] === true,
       quickTapsBatchId: typeof answer?.["batch_id"] === "string" ? answer["batch_id"] : null,
       oldStylePass: answer?.["outcome"] === "pass" && !answer?.["go_label"],
@@ -145,6 +148,14 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
   }
   const screen = await loadInHouseBatches({ now: opts.now, testOffice: test });
   const partner = screen.partners.find(p => p.id === input.businessId);
+  const blockedFirm = new Set<string>();
+  for (const jobId of new Set(input.jobIds)) {
+    const firm = await (await import("./firm-quote.server")).isFirmQuoteJobId(jobId);
+    const reason = firmQuoteInstallerBlocker(firm, partner ?? {});
+    if (reason) { refused.push({ jobId, reason }); blockedFirm.add(jobId); }
+  }
+  input = { ...input, jobIds: input.jobIds.filter(id => !blockedFirm.has(id)) };
+  if (!input.jobIds.length) return { sent, refused };
   // Task 5: a lead whose owner hasn't tapped "can call me" (phone consent over 3 months old) is never handed off.
   for (const jobId of new Set(input.jobIds)) if (screen.waitingForCallConsent.includes(jobId)) refused.push({ jobId, reason: WAITING_FOR_CALL_CONSENT });
   const requested = [...new Set(input.jobIds)].filter(id => !screen.waitingForCallConsent.includes(id));
@@ -193,8 +204,10 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
     if (outcome.sent) {
       sent.push(jobId);
       // Email failure never undoes allocation. The durable pending event is picked up after approval by the tick.
-      const {runAfterResponse}=await import('./background.server');
-      runAfterResponse(()=>sendInHousePartnerCall(jobId));
+      if (!job?.firmQuote) {
+        const {runAfterResponse}=await import('./background.server');
+        runAfterResponse(()=>sendInHousePartnerCall(jobId));
+      }
     } else refused.push({ jobId, reason: outcome.reason ?? "Job unavailable" });
   }
   if (!sent.length) return { sent, refused };

@@ -7,6 +7,7 @@ import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { Pill, listCard, type PillTone } from "@/components/portal/kit";
 import { batchRowLine } from "@/lib/area-batch.core";
+import { firmQuoteRequestTag } from "@/lib/firm-quote.core";
 import type { SpotBand } from "@/lib/saved-spot-rank.core";
 import {
   areaSpotOrder,
@@ -99,6 +100,7 @@ function SpotRow({
         <span className="text-[13px] text-sub">{f.waiting}</span>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] lg:mt-1">
+        {r.firmQuoteDueBy && <Pill tone="amber">{firmQuoteRequestTag(r.firmQuoteDueBy)}</Pill>}
         {batchLine ? (
           <span
             className={cn(

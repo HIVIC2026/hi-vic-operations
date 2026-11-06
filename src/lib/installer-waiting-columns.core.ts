@@ -56,6 +56,7 @@ export type InstallerWaitingRow = {
   /** The last Ready Check offer came back (declined / no times in 24h) — the office chooses again. */
   lastOffer: { status: "declined" | "expired"; name: string | null } | null;
   isTest: boolean;
+  firmQuoteDueBy?: string | null;
   /** Decision 389: the release state — "Released to X · waiting for owner since …", "Owner confirmed — choose installer",
    *  "Didn't confirm after release…". A pending release is NOT available to release again. */
   release?: { state: SpotReleaseStateName; line: string | null; releasable: boolean } | undefined;

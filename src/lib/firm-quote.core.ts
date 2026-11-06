@@ -1,8 +1,20 @@
 // Pure classification and Melbourne dates; no workflow writes or delivery.
 import { addVicBusinessDays, addYmd, melbourneToday } from "./melbourne-time.core";
+import { quoteMethodOf } from "./photo-quote.core";
 
 export const FIRM_QUOTE_REQUESTED_EVENT = "firm_quote_requested";
 export const FIRM_QUOTE_DAY4_EVENT = "firm_quote_day4_sent";
+
+export const FIRM_QUOTE_INSTALLER_REASON = "Firm quote jobs go to installers who quote from photos.";
+export function firmQuoteInstallerBlocker(firm: boolean, business: { quote_method?: string | null }): string | null {
+  return firm && quoteMethodOf(business) !== "photos" ? FIRM_QUOTE_INSTALLER_REASON : null;
+}
+export function firmQuoteRequestDueBy(events: readonly { event_type: string; details: unknown }[]): string | null {
+  const event = events.find(e => e.event_type === FIRM_QUOTE_REQUESTED_EVENT);
+  const date = (event?.details as { due_by?: unknown } | null)?.due_by;
+  return typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) ? date : null;
+}
+export const firmQuoteRequestTag = (date: string | null | undefined): string | null => date ? `Asked for firm quote · due ${formatDueDate(date)}` : null;
 
 export function isFirmQuoteJob(i: { createdAt: string; hasMedia: boolean; liveAt: string | null; source: string | null }): boolean {
   if (i.source !== "base44" || !i.hasMedia || i.liveAt === null) return false;

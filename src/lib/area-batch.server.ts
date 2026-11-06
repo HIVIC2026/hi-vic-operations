@@ -38,6 +38,7 @@ import { parseStreet } from "./address-complete.core";
 import { smsQuietReason } from "./quote-hold.core";
 import { smsHeldForRecipient } from "./sms.core";
 import { displayName } from "./display-name.core";
+import { firmQuoteInstallerBlocker } from "./firm-quote.core";
 
 type Row = Record<string, unknown>;
 type Res = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
@@ -188,10 +189,16 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
 /** Task 6 (Jo 2 Nov 2026), Choose installer › To release: the installers who can be offered EVERY ticked home (the same
  *  `batchInstallers` rule Send re-checks), names in normal case. Read only. `testBusinessIds` scopes the TEST office login
  *  to its TEST partners. A ticked job that can't be read refuses (never a list for fewer homes). */
-export async function installersForHomes(jobIdsIn: string[], testBusinessIds?: string[]): Promise<{ id: string; name: string }[]> {
+export async function installersForHomes(jobIdsIn: string[], testBusinessIds?: string[]): Promise<{ id: string; name: string; blocker?: string | null }[]> {
   const jobIds = [...new Set(jobIdsIn)];
   if (!jobIds.length) return [];
   if (jobIds.length > AREA_BATCH_MAX_HOMES) throw new WorkflowError(`Up to ${AREA_BATCH_MAX_HOMES} homes per Send.`);
+  const firm = await Promise.all(jobIds.map(id => import("./firm-quote.server").then(m => m.isFirmQuoteJobId(id))));
+  if (firm.some(Boolean)) {
+    const screen = await (await import("./in-house-batch.server")).loadInHouseBatches({ jobIds });
+    const { batchPartnerCovers } = await import("./in-house-batch.core");
+    return screen.partners.filter(p => screen.jobs.length === jobIds.length && screen.jobs.every(j => batchPartnerCovers(j, p))).map(p => ({ id: p.id, name: p.name, blocker: firmQuoteInstallerBlocker(true, p) }));
+  }
   const [jobs, installers] = await Promise.all([
     byIds("ticked homes", jobIds, (c, f, t) => admin.from("jobs").select("id, source, properties(postcode)").in("id", c).range(f, t)),
     (await import("./installer-waiting.server")).installerFacts(testBusinessIds),
@@ -220,6 +227,16 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   const jobIds = [...new Set(jobIdsIn)];
   if (!jobIds.length) throw new WorkflowError("Pick at least one home.");
   if (jobIds.length > MAX_SEND) throw new WorkflowError(`A batch is at most ${MAX_SEND} homes.`);
+  const firm = await Promise.all(jobIds.map(id => import("./firm-quote.server").then(m => m.isFirmQuoteJobId(id))));
+  if (firm.some(Boolean)) {
+    if (!firm.every(Boolean)) throw new WorkflowError("Give firm quote jobs separately from saved spots.");
+    const { sendInHouseBatch } = await import("./in-house-batch.server");
+    if (!actorId) throw new WorkflowError("Office only");
+    // Never put a firm request into an owner-answer batch; ordinary Send remains unchanged.
+    const r = await sendInHouseBatch({ jobIds, businessId, actorId });
+    if (!r.sent.length) throw new WorkflowError(r.refused.map(x => x.reason).join("; ") || "No eligible jobs for this installer");
+    return { batchId: "", installer: businessId, homes: r.sent.length, texts: r.sent.map(jobId => ({ jobId, status: "skipped", detail: "firm_quote_job", email: { status: "skipped", detail: "firm_quote_job" } })) };
+  }
 
   const { data: numbers, error: ne } = await admin.from("jobs").select("id, job_number").in("id", jobIds);
   if (ne) throw new WorkflowError(`Could not read the jobs: ${ne.message} — nothing was sent.`);

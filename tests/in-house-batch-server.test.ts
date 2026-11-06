@@ -20,6 +20,7 @@ function fixture(failedTable?: string, failPage = -1) {
   const inserts: { table: string; row: any }[] = [];
   const failInsert = { on: false };
   const giveMode: { fail: boolean; outcome: any } = { fail: false, outcome: { status: "not_approved" } };
+  const firmIds = new Set<string>();
   const data: Record<string, unknown[]> = {
     jobs: [{ id: "j", job_number: "HV-1", property_id: "p", stage: "preliminary_estimate_ready", source: "base44", deleted_at: null }],
     businesses: [{ id: "b", name: "Rapid", trading_name: "Rapid Insulation", in_house: true, is_active: true, service_postcodes: ["3199"], covers_all_victoria: false }],
@@ -46,6 +47,8 @@ function fixture(failedTable?: string, failPage = -1) {
     return q;
   }, async rpc(name: string, input: unknown) { rpcCalls.push({ name, input }); return { data: refuseJobs.has((input as any)._job) ? { sent: false, reason: "Already booked" } : { sent: true }, error: null }; } };
   const dependencies: Record<string, unknown> = {
+    "./firm-quote.server": { isFirmQuoteJobId: async (id: string) => firmIds.has(id) },
+    "./firm-quote.core": require("../src/lib/firm-quote.core"),
     "./background.server": { runAfterResponse: (task: () => Promise<unknown>) => { void task(); return "wait_until"; } },
     "@/integrations/supabase/client.server": { supabaseAdmin: admin }, "./in-house-batch.core": rules,
     "./in-house-batch-email.server": { sendInHousePartnerCall:async(id:string)=>{expect(rpcCalls.length).toBeGreaterThan(0);emailCalls.push(id);return "draft";} },
@@ -67,8 +70,34 @@ function fixture(failedTable?: string, failPage = -1) {
     }
     return ["j", "j1", "j2", "j3", "j4"];
   };
-  return { api: output, data, calls, rpcCalls, emailCalls, giveCalls, giveMode, refuseJobs, five, inserts, failInsert };
+  return { api: output, data, calls, rpcCalls, emailCalls, giveCalls, giveMode, refuseJobs, five, inserts, failInsert, firmIds };
 }
+test("firm request is eligible without quick taps, carries saved due date and suggests only photos", async () => {
+  const f = fixture(); f.firmIds.add("j");
+  f.data.workflow_events = [{ job_id: "j", event_type: "firm_quote_requested", details: { due_by: "2026-11-17" } }];
+  f.data.owner_contact_consents = [];
+  f.data.businesses.push({ ...(f.data.businesses[0] as object), id: "photos", quote_method: "photos" });
+  f.data.documents = [{ job_id: "j", kind: "intake_media", mime_type: "image/jpeg", storage_path: "private/photo.jpg" }];
+  const r = await f.api.loadInHouseBatches();
+  expect(r.jobs[0].firmQuoteDueBy).toBe("2026-11-17");
+  expect(r.waitingForCallConsent).toEqual([]);
+  expect(r.suggestions).toEqual([{ businessId: "photos", jobIds: ["j"] }]);
+  expect(r.blocked.b).toEqual([{ jobId: "j", reason: "Firm quote jobs go to installers who quote from photos." }]);
+});
+test("server refuses firm job to Ready Check installer before writes or messages", async () => {
+  const f = fixture(); f.firmIds.add("j");
+  const r = await f.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" });
+  expect(r).toEqual({ sent: [], refused: [{ jobId: "j", reason: "Firm quote jobs go to installers who quote from photos." }] });
+  expect(f.rpcCalls).toEqual([]); expect(f.inserts).toEqual([]); expect(f.emailCalls).toEqual([]); expect(f.giveCalls).toEqual([]);
+});
+test("photos firm give keeps installer email unchanged and schedules no owner notice", async () => {
+  const f = fixture(); f.firmIds.add("j");
+  Object.assign(f.data.businesses[0] as object, { quote_method: "photos" });
+  f.data.documents = [{ job_id: "j", kind: "intake_media", mime_type: "image/jpeg", storage_path: "private/photo.jpg" }];
+  const r = await f.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" });
+  expect(r.sent).toEqual(["j"]); expect(f.rpcCalls).toHaveLength(1);
+  expect(f.emailCalls).toEqual([]); expect(f.giveCalls).toHaveLength(1); expect(f.giveCalls[0].method).toBe("photos");
+});
 test("real loader excludes deleted/TEST jobs in its query and maps saved spots with opt-out protection", async () => {
   const f = fixture();
   const result = await f.api.loadInHouseBatches();

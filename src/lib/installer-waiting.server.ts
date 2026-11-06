@@ -16,6 +16,7 @@ import { BAND_ORDER, estimatedCeiling, spotBand, spotReason, spotScore, spotTags
 import { groupByArea, type AreaGroup } from "./saved-spot-areas.core";
 import type { SpotRows } from "./saved-spot-facts.server";
 import type { SpotReleaseState } from "./spot-release.core";
+import { FIRM_QUOTE_REQUESTED_EVENT, firmQuoteRequestDueBy } from "./firm-quote.core";
 
 type Row = Record<string, unknown>;
 type Res = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
@@ -142,7 +143,7 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }, t
       byIds("measurements", ids, (c, f, t) => admin.from("ceiling_measurements").select("job_id, measured_area_m2").in("job_id", c).eq("is_current", true).not("measured_area_m2", "is", null).range(f, t)),
       byIds("website estimates", ids, (c, f, t) => admin.from("indicative_estimates").select("id, job_id, area_m2, insulation_declared, scenarios, created_at").in("job_id", c).eq("status", "current").order("created_at", { ascending: false }).range(f, t)),
       // Task 6 (Jo 2 Nov 2026): area batch sends and the owners' quick-taps answers, for the row's batch status.
-      byIds("batch history", ids, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [...AREA_BATCH_EVENTS, QUICK_TAPS_ANSWERED_EVENT]).order("created_at").order("id").range(f, t)),
+      byIds("batch history", ids, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [...AREA_BATCH_EVENTS, QUICK_TAPS_ANSWERED_EVENT, FIRM_QUOTE_REQUESTED_EVENT]).order("created_at").order("id").range(f, t)),
       // Saved spots by area: the ranking's property facts, read alongside (property ids come from the jobs read).
       (async () => (await import("./saved-spot-facts.server")).readSpotPropertyFacts(propIds))(),
       // Decision 389: each job's release state (batched by job id).
@@ -190,6 +191,7 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }, t
       lastOffer: member.lastOffer, isTest,
       ...(() => { const r = releases.get(id); return r ? { release: { state: r.state, line: releaseStatusLine(r, now), releasable: releasable(r) } } : {}; })(),
       batch: batchRowState(batchBy.get(id) ?? []),
+      ...(batchBy.get(id)?.some(e => e.event_type === FIRM_QUOTE_REQUESTED_EVENT) && await (await import("./firm-quote.server")).isFirmQuoteJobId(id) ? { firmQuoteDueBy: firmQuoteRequestDueBy(batchBy.get(id) ?? []) } : {}),
     });
   }
   return { now, rows, areas: await rankToRelease(rows, now, { rows: { jobs, saved, events: batchHistory }, facts: spotFacts }) };

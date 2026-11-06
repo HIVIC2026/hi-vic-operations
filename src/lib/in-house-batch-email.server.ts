@@ -46,9 +46,11 @@ export type WillCallDeps = {
   photoGive: (jobId: string, db: WillCallDeps["db"]) => Promise<PhotoGive | null>;
   /** TEST jobs only: once per key through test-send. Returns the outcome word. */
   sendTest: (p: { jobId: string; jobSource: string | null; to: string; key: string; mail: Mail }) => Promise<string>;
+  firmQuote: (jobId: string) => Promise<boolean>;
 };
 const defaults = (): WillCallDeps => ({
   db: admin as unknown as WillCallDeps["db"],
+  firmQuote: async (jobId) => (await import("./firm-quote.server")).isFirmQuoteJobId(jobId),
   approved: OWNER_WILL_CALL_APPROVED,
   now: () => new Date(),
   // Jo 2 Nov 2026 (#126): names the owner reads show in normal case ("RAPID INSULATION" → "Rapid Insulation"); display only.
@@ -79,6 +81,7 @@ const pastBookingStep = (stage: string) => ["cancelled", "complete"].includes(st
 
 export async function sendInHousePartnerCall(jobId: string, over: Partial<WillCallDeps> = {}): Promise<string> {
   const d = { ...defaults(), ...over };
+  if (await d.firmQuote(jobId)) return "firm_quote_job";
   // Photo-quote installers: never "will call you" (email or text) on a From photos give. While the will-call switch is
   // off only the photo notice can go, and a failed read changes nothing ("awaiting approval", as before); with it on,
   // the give is read with the other safeguards and any failed read stops the send the same way.
@@ -139,6 +142,7 @@ const PHOTO_WHAT = "No visit needed email";
 /** Spec decision 3: the owner's ONE email when the job goes to a From photos installer. Same no-back-send rule and holds as
  *  will-call; once per job + give (key and `customer_email_sends` purpose); no text. */
 async function sendOwnerPhotoQuoteNotice(jobId: string, give: PhotoGive, d: WillCallDeps): Promise<string> {
+  if (await d.firmQuote(jobId)) return "firm_quote_job";
   const db = d.db;
   const key = ownerPhotoQuoteNoticeKey(jobId, give.batchId);
   const [job, ledger, prior] = await Promise.all([

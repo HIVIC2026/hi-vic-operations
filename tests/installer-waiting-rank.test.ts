@@ -65,9 +65,19 @@ mock.module("../src/lib/readycheck-booking.server", () => ({
   }),
 }));
 mock.module("../src/lib/spot-release.server", () => ({ spotReleaseStates: async () => new Map() }));
+mock.module("../src/lib/firm-quote.server", () => ({ isFirmQuoteJobId: async (id: string) => id === "firm" }));
 
 const { loadInstallerWaitingList } = await import("../src/lib/installer-waiting.server");
 const { readSpotFacts } = await import("../src/lib/saved-spot-facts.server");
+test("waiting loader carries recorded firm due date into area rows", async () => {
+  tables["jobs"].push(job("firm", { suburb: "Rowville", postcode: "3178" }));
+  tables["lead_campaign_responses"].push(saved("firm"));
+  (tables["workflow_events"] ??= []).push({ job_id: "firm", event_type: "firm_quote_requested", details: { due_by: "2026-11-17" } });
+  const r = await loadInstallerWaitingList({ includeTest: false });
+  expect(r.rows.find(j => j.id === "firm")?.firmQuoteDueBy).toBe("2026-11-17");
+  expect(r.areas.some(a => a.jobIds.includes("firm"))).toBe(true);
+  expect(r.rows.find(j => j.id === "a")?.firmQuoteDueBy).toBeUndefined();
+});
 
 const NOW = Date.parse("2026-11-03T00:00:00.000Z");
 function job(id: string, prop: Row, extra: Row = {}): Row {

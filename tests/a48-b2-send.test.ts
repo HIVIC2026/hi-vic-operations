@@ -123,6 +123,31 @@ mock.module("../src/lib/office-actions.server", () => ({
   },
 }));
 const S = await import("../src/lib/area-batch.server");
+const firmIds = new Set<string>();
+const directGives: unknown[] = [];
+mock.module("../src/lib/firm-quote.server", () => ({ isFirmQuoteJobId: async (id: string) => firmIds.has(id) }));
+mock.module("../src/lib/in-house-batch.server", () => ({
+  loadInHouseBatches: async () => ({ jobs: [{ id: "firm", postcode: "3000" }], partners: [{ id: "photos", name: "Photos", quote_method: "photos", covers_all_victoria: true }, { id: "rc", name: "Ready Check", quote_method: "ready_check", covers_all_victoria: true }] }),
+  sendInHouseBatch: async (p: { jobIds: string[]; businessId: string }) => {
+    directGives.push(p);
+    return p.businessId === "photos" ? { sent: p.jobIds, refused: [] } : { sent: [], refused: [{ jobId: "firm", reason: "Firm quote jobs go to installers who quote from photos." }] };
+  },
+}));
+test("firm ticks show Ready Check greyed with exact reason; photos remains available", async () => {
+  firmIds.add("firm");
+  try { expect(await S.installersForHomes(["firm"])).toEqual([{ id: "photos", name: "Photos", blocker: null }, { id: "rc", name: "Ready Check", blocker: "Firm quote jobs go to installers who quote from photos." }]); }
+  finally { firmIds.clear(); }
+});
+test("firm Send uses direct Give, never an owner-message batch", async () => {
+  firmIds.add("firm"); const priorTexts = sent.length, priorEmails = emails.length;
+  try {
+    const r = await S.sendBatch(["firm"], "photos", "office");
+    expect(r.homes).toBe(1); expect(r.texts[0]).toMatchObject({ status: "skipped", detail: "firm_quote_job" });
+    expect(sent.length).toBe(priorTexts); expect(emails.length).toBe(priorEmails);
+    expect(directGives.at(-1)).toEqual({ jobIds: ["firm"], businessId: "photos", actorId: "office" });
+    await expect(S.sendBatch(["firm"], "rc", "office")).rejects.toThrow("Firm quote jobs go to installers who quote from photos.");
+  } finally { firmIds.clear(); }
+});
 
 // ---- fixtures ---------------------------------------------------------------------------------------------------
 const NOW = new Date("2026-10-30T01:00:00.000Z"); // 12pm Melbourne — outside quiet hours
