@@ -103,7 +103,7 @@ describe("Add a job — the screen", () => {
     expect(job).toContain("data-added-next");
     expect(job).toContain("nextLine(page.ownerFirst");
     expect(ui).toContain("ADD_JOB_WORDS.button");
-    expect(ui).toContain("ADD_JOB_WORDS.electrician");
+    expect(ui).not.toContain("data-electrician-picker"); // Jo 6 Nov 2026: picked on the job page before the PIESA
     expect(ui).toContain("ADD_JOB_WORDS.howNote");
     expect(ui).toContain("addJobConsentLine(");
   });

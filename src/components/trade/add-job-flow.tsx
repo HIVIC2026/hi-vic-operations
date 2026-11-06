@@ -1,5 +1,5 @@
 // Installer Add a job — ONE screen per the approved new-job-flow mock-up (installer screens Task 7): how did you get this
-// customer, the owner's details, the electrician for the PIESA, the consent tick naming Home Insulation Victoria AND the
+// customer, the owner's details, the consent tick naming Home Insulation Victoria AND the
 // installer, one "Add the job" button. On success the phone goes straight to the job page, where the Next step box says
 // "Book the Ready Check". Error state = red 2px borders + one short line per field + a summary banner (decision 237).
 // Uses only the existing guarded server handler (startOnsiteReadyCheck); intake validation is unchanged.
@@ -10,10 +10,9 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { CustomerFields, FieldError } from "./customer-fields";
 import { addJobOptions, startOnsiteReadyCheck } from "@/lib/onsite-ready-check.functions";
-import { defaultPick } from "@/lib/installer-electricians.core";
 import { LEAD_ORIGINS, leadOriginProblem, type LeadOrigin, type OnsiteInput } from "@/lib/onsite-ready-check.core";
 import {
-  ADD_JOB_DRAFT_WORDS, ADD_JOB_OFFLINE_NOTE, ADD_JOB_WORDS, BUSY_LABEL, OWNER_CARD_TITLE, TRY_AGAIN_LABEL, addJobConsentLine, blankCustomer, customerProblems, electricianProblem,
+  ADD_JOB_DRAFT_WORDS, ADD_JOB_OFFLINE_NOTE, ADD_JOB_WORDS, BUSY_LABEL, OWNER_CARD_TITLE, TRY_AGAIN_LABEL, addJobConsentLine, blankCustomer, customerProblems,
   errorSummary, fieldErrors, nextLine, restoreCustomer, restoreRequestKey, saveErrorMessage,
 } from "@/lib/add-job-flow.core";
 import { inputCls } from "@/components/trade/TradeShell";
@@ -43,14 +42,11 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   // Task 7: the business name (for the consent line) and its Team electricians, read once before the form is used.
   const loadOptions = useServerFn(addJobOptions);
   const options = useQuery({ queryKey: ["add-job-options", businessId], queryFn: () => loadOptions({ data: { businessId } }), retry: 1 });
-  const electricians = options.data?.electricians ?? [];
   const businessName = options.data?.businessName ?? null;
-  const [electrician, setElectrician] = useState<string>("");
   // Photo-quote installers Part 2: a From photos business adds the photo quote with the job.
   const photos = options.data?.quoteMethod === "photos";
   const [photoQuote, setPhotoQuote] = useState<OwnPhotoQuoteInput | null>(null);
-  // Jo 5 Nov 2026: the Main electrician is the default pick on a new job (only when it can be picked here).
-  useEffect(() => { if (!electrician && options.data) { const m = defaultPick(options.data.electricians); if (m) setElectrician(m); } }, [options.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Jo 6 Nov 2026: no electrician question here — they may not know who yet; it is picked on the job page before the PIESA.
   // Consent integrity: the tick is only ever shown with the exact line for THIS business; if the name changes the tick is reset.
   useEffect(() => { setCustomer((c) => (c.contact_permission || c.consent_by ? { ...c, contact_permission: false, consent_by: null } : c)); }, [businessName]);
   // A1: asked fresh every time (not kept in the phone draft).
@@ -64,14 +60,13 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   useEffect(() => { if (!draftLoaded) return; try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null, request_key: requestKey })); } catch { /* ignore */ } }, [draftLoaded, customer, requestKey]);
   useEffect(() => { if (shown.length) bannerRef.current?.focus(); }, [shown]);
   // Fixing an answer clears the old hint list; it is rebuilt on the next tap.
-  useEffect(() => { setShown([]); }, [customer, leadOrigin, electrician]);
+  useEffect(() => { setShown([]); }, [customer, leadOrigin]);
 
   const start = useServerFn(startOnsiteReadyCheck);
 
   const problems = (): string[] => {
     const lop = leadOriginProblem(leadOrigin);
-    const ecp = electricianProblem(electrician, electricians);
-    return [...(lop ? [lop] : []), ...customerProblems(customer, { businessName }), ...(ecp ? [ecp] : []),
+    return [...(lop ? [lop] : []), ...customerProblems(customer, { businessName }),
       ...(photos ? (photoQuote ? ownPhotoQuoteProblems(photoQuote) : ownPhotoQuoteProblems({ underR2: null, removeM2: null, installM2: null, product: null, priceIncGst: null })) : [])];
   };
 
@@ -81,7 +76,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
     if (p.length) return;
     inFlight.current = true; setBusy(true);
     try {
-      const r = await start({ data: { businessId, owner: customer, leadOrigin, requestKey, electricianWorkerId: electrician, ...(photos && photoQuote ? { photoQuote } : {}) } });
+      const r = await start({ data: { businessId, owner: customer, leadOrigin, requestKey, ...(photos && photoQuote ? { photoQuote } : {}) } });
       // Review IMPORTANT 1c: the job is saved but its photo quote didn't go through — say so plainly and keep the draft
       // (same request key), so Try again finishes the same job and its quote.
       if (r.photoQuote?.failed) { setErr(r.photoQuote.failed); return; }
@@ -96,8 +91,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
     finally { setBusy(false); inFlight.current = false; }
   };
 
-  const ecpShown = shown.length ? electricianProblem(electrician, electricians) : null;
-  const errors = { ...fieldErrors(shown), ...(ecpShown ? { electrician: ecpShown } : {}) };
+  const errors = fieldErrors(shown);
   const summary = errorSummary(shown.length);
   const consentLabel = businessName ? addJobConsentLine(businessName) : undefined;
   if (addedJobId) return (
@@ -126,18 +120,6 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
         <h2 className={CARD_TITLE}>{OWNER_CARD_TITLE}</h2>
         <div className="mt-3.5"><CustomerFields value={customer} addressHelper="Start typing, then pick it from the list." labels={{ name: ADD_JOB_WORDS.name, mobile: ADD_JOB_WORDS.mobile, email: ADD_JOB_WORDS.email, address: ADD_JOB_WORDS.address }} consentLabel={consentLabel} hideConsent={!consentLabel} errors={errors} onChange={(n) => { setCustomer(n); setErr(null); }} /></div>
         {!consentLabel && <p className="mt-3 text-sm text-sub" data-consent-loading>{ADD_JOB_DRAFT_WORDS.loadingBusiness}</p>}
-      </section>
-      <section className={CARD} data-electrician-picker>
-        <label className="block">
-          <span className={CARD_TITLE}>{ADD_JOB_WORDS.electrician}</span>
-          <select className={`${inputCls} mt-2`} value={electrician} disabled={busy || options.isLoading} onChange={(e) => { setElectrician(e.target.value); setErr(null); }} aria-invalid={errors.electrician ? true : undefined}>
-            <option value="">{options.isLoading ? ADD_JOB_DRAFT_WORDS.loading : ADD_JOB_DRAFT_WORDS.chooseElectrician}</option>
-            {electricians.map((w) => <option key={w.id} value={w.id} disabled={!w.allowed}>{w.name}{w.reason ? ` — ${w.reason}` : ""}</option>)}
-          </select>
-        </label>
-        {options.isSuccess && !electricians.some((w) => w.allowed) && <p className="mt-2 text-[13px] leading-[1.45] text-sub" data-no-electrician>{ADD_JOB_DRAFT_WORDS.noTeamElectrician}</p>}
-        {options.isError && <p role="alert" className="mt-2 text-sm text-rose">{ADD_JOB_DRAFT_WORDS.teamFailed}</p>}
-        <FieldError>{errors.electrician}</FieldError>
       </section>
       {photos && <OwnPhotoQuoteFields businessId={businessId} postcode={customer.postcode} disabled={busy} onChange={setPhotoQuote} />}
       {photos && shown.length > 0 && photoQuote && ownPhotoQuoteProblems(photoQuote)[0] && <p className="text-sm text-rose" data-photo-quote-problem>{ownPhotoQuoteProblems(photoQuote)[0]}</p>}

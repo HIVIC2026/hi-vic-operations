@@ -275,7 +275,7 @@ describe("M3 heavier Add a job (decision 237)", () => {
     const flow = readFileSync("src/components/trade/add-job-flow.tsx", "utf8");
     const fields = readFileSync("src/components/trade/customer-fields.tsx", "utf8");
     expect(flow).toContain("data-owner-card");
-    expect(flow).toContain("data-electrician-picker"); // Task 7: the visit card is gone; the electrician picker sits under the owner
+    expect(flow).not.toContain("data-electrician-picker"); // Jo 6 Nov 2026: no electrician on Add a job
     expect(flow).toContain("min-h-14");
     expect(flow).toContain("errorSummary(");
     expect(fields).toContain("min-h-[52px]");
