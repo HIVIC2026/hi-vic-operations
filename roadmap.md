@@ -1,8 +1,8 @@
 ## Jo 6 Nov 10:26 UTC — make the live TEST journey possible
 - [x] Normal TEST office sign-in uses the existing private QA_OFFICE_PASSWORD; no Jo tap, credential reset or role change needed.
-- [ ] Repair the exact TEST photo function allowlist omission; test verified TEST identity and default denial, then repeat the upload.
-- [ ] Seven-step published journey: TEST HV-3831 created; photo refused by TEST-office allowlist; no email sent. Installer role link available only after a checked assignment. Day-4 scope and quiet hours must remain intact.
-- [ ] Keep the approved live switch ON unless an owner-affecting failure is established; no real-record mutation or unscoped sweep.
+- [x] Repair the exact TEST photo function allowlist omission; 37 checks pass, scan clear, build OK. Published and verified on the same TEST HV-3831 through Test Centre; private intake_media saved and read back live.
+- [ ] Seven-step published journey blocked at email 1: HV-3831 has no immutable owner_contact_consents row despite Test Centre consent tick; intake records consent only for base44. No consent fabricated or sender bypass. Installer role link available after checked assignment, not yet exercised. Day-4 is also held by Melbourne quiet hours; no broad sweep invoked.
+- [x] Approved switch remains ON at original 10:11:41 UTC timestamp; failures identified are TEST-only. No real-record mutation, email attempt or SMS delivery. Report docs/firm-quote-tonight-test-report.md.
 
 ## Jo 6 Nov firm quote — three approved go-live fixes (switch stays OFF)
 - [x] 1 Handover: live Give (allocate_in_house_batch_job) accepts a recorded firm_quote_requested event in place of quick-taps YES, firm-quote jobs only; every other job unchanged. PGlite proof first (13/13 incl. new firm-quote test), then applied live as 0196 and read back; original archived in docs/applied-migrations. Nothing else in the function changed (byte-diffed against the live body).
