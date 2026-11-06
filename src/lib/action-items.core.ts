@@ -3,7 +3,7 @@ import { cardAddress, type MyWorkRow } from "./my-work.core";
 import { displayName } from "./display-name.core";
 
 export type ActionRow = MyWorkRow & { stop: string | null; waitingOn: string | null; ownerFirst: string | null; installAt?: string | null };
-export type ActionCard = { jobId: string; action: string; address: string; meta: string; due: string | null; button: string; stop: boolean };
+export type ActionCard = { jobId: string; action: string; address: string; meta: string; due: string | null; button: string; stop: boolean; overdue: boolean };
 export type WaitingCard = { jobId: string; address: string; status: string; waitingOn: string };
 export type WeekItem = { day: string; date: number; kind: "Install" | "PIESA" | "Ready Check"; time: string; place: string; who: string; flag: string | null; flagTone: "red" | "amber" | null };
 
@@ -26,8 +26,8 @@ export function actionItems(rows: ActionRow[]): { count: number; sub: string; fi
   const fix: ActionCard[] = [], turn: ActionCard[] = [], waiting: WaitingCard[] = [];
   for (const r of rows) {
     const address = cardAddress(r.street, r.suburb);
-    if (r.stop) fix.push({ jobId: r.jobId, action: r.stop, address, meta: metaFor(r), due: r.installAt ? `Install ${dayLabel(new Date(r.installAt))}` : null, button: r.box.button ?? "Open", stop: true });
-    else if (r.box.yours) turn.push({ jobId: r.jobId, action: r.box.title, address, meta: metaFor(r), due: r.box.bookBy ? `By ${niceDate(r.box.bookBy)}` : null, button: r.box.button ?? "Open", stop: false });
+    if (r.stop) fix.push({ jobId: r.jobId, action: r.stop, address, meta: metaFor(r), due: r.installAt ? `Install ${dayLabel(new Date(r.installAt))}` : null, button: r.box.button ?? "Open", stop: true, overdue: false });
+    else if (r.box.yours) turn.push({ jobId: r.jobId, action: r.box.title, address, meta: metaFor(r), due: r.box.bookBy ? `By ${niceDate(r.box.bookBy)}` : null, button: r.box.button ?? "Open", stop: false, overdue: r.box.overdue && !!r.box.bookBy });
     else if (r.box.kind !== "closed") waiting.push({ jobId: r.jobId, address, status: r.box.title, waitingOn: r.waitingOn ?? "Home Insulation Victoria" });
   }
   const count = fix.length + turn.length;

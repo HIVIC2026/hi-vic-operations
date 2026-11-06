@@ -57,3 +57,11 @@ describe("thisWeek", () => {
     expect(r.map((w) => [w.day, w.date, w.kind, w.time])).toEqual([["Mon", 9, "Install", "8:00am"], ["Tue", 10, "PIESA", "9:00am"]]);
   });
 });
+
+test("overdue only with a book-by date", () => {
+  const { actionItems } = require("../src/lib/action-items.core");
+  const b = { kind: "book_install", title: "Book the install", sub: null, yours: true, bookBy: "2026-11-01", overdue: true, phone: null, button: "Book", lines: [], alsoBookInstall: null, pickPerson: null };
+  const r = { jobId: "j", jobNumber: "HV-1", owner: "A B", street: null, suburb: "Kew", channel: null, box: b, reason: "", stop: null, waitingOn: null, ownerFirst: "A" };
+  expect(actionItems([r]).turn[0].overdue).toBe(true);
+  expect(actionItems([{ ...r, box: { ...b, bookBy: null } }]).turn[0].overdue).toBe(false);
+});

@@ -1,6 +1,6 @@
 // Installer redesign shell (plan Task 3): left menu on computer, top bar + bottom tabs on phone.
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
-GlobalRegistrator.register();
+if (!GlobalRegistrator.isRegistered) GlobalRegistrator.register();
 import { describe, expect, mock, test, afterEach } from "bun:test";
 import type { ReactNode } from "react";
 
