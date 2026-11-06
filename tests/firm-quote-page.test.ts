@@ -18,13 +18,24 @@ test("confirmation has three tick rows, the logo and no house icon", () => {
   expect(confirmation).not.toContain("OwnerHouse");
   expect(page).toContain('className="h-16 w-auto"');
 });
-test("no second Proceed button on the page", () => {
+test("before the tap: one big green button with Jo's exact wording, no other line", () => {
+  expect(FIRM_PAGE_COPY.confirmButton).toBe("Confirm my firm quote request");
+  const before = page.slice(page.indexOf(": <section"), page.indexOf("</section>"));
+  expect(before).toContain("OwnerHouse");
+  expect(before).toContain(">Your firm quote</h1>");
+  expect(before.match(/<button/g)).toHaveLength(1);
+  expect(before).toContain("w-full");
+  expect(before).toContain("bg-estimate-green");
+  expect(before).toContain("onClick={() => void proceed()}");
   expect(page).not.toContain("Proceed to firm quote");
-  expect(page).not.toContain("<Button");
 });
-test("one tap keeps the link-scanner guard: saved only on a real tap, never on load", () => {
-  expect(page).toContain("shouldFireOneTapSave");
-  expect(page).toContain("ONE_TAP_SAVE_EVENTS");
+test("only the button saves: no tap-anywhere / first-touch save, never on load", () => {
+  expect(page).not.toContain("shouldFireOneTapSave");
+  expect(page).not.toContain("ONE_TAP_SAVE_EVENTS");
+  expect(page).not.toContain("addEventListener");
   expect(page).not.toMatch(/\.then\(\(r\) => \{[^}]*proceed\(/);
+  expect(page.match(/proceed\(\)/g)).toHaveLength(1);
 });
+test("saving shows the thanks page straight from the save result", () => expect(page).toContain('setFirst(result.firstName ?? first); setDueBy(result.dueBy); setState("saved");'));
+test("closed / not eligible keeps the existing friendly line", () => expect(page).toContain("This one's already been taken care of."));
 test("already asked shows the same confirmation from the page read", () => expect(page).toContain('if (r.available && r.dueBy) { setDueBy(r.dueBy); setState("saved"); return; }'));
