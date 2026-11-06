@@ -107,13 +107,16 @@ export const createTestEnquiry = createServerFn({ method: "POST" })
     const blocker = testEnquiryBlocker(roles, data.email, { emailHasAccount });
     if (blocker) throw new WorkflowError(blocker);
     // Jo 31 Oct: new Test Centre journeys get the automatic eligibility check like real leads (never auto-email).
-    return upsertEnquiry(
+    const result = await upsertEnquiry(
       { ...data, external_enquiry_id: `qa-${crypto.randomUUID()}` },
       "qa_test",
       context.userId,
       undefined,
       { testCentreAutoChecks: true },
     );
+    // Persist only the Test Centre's submitted tick; the helper rechecks qa_test.
+    await (await import("./test-centre-consent.server")).recordTestCentreConsent(result.job_id, data);
+    return result;
   });
 
 export const setEligibility = createServerFn({ method: "POST" })

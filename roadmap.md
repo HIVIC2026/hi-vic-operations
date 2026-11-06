@@ -1,3 +1,7 @@
+## Jo 6 Nov 11:09 UTC — TEST sends now
+- [x] Record Test Centre consent ticks with TEST-only provenance; repaired HV-3831 from its original durable tick/version/time. 59 consent/access checks pass, scan clear, build OK; future Test Centre handler fix saved, not published.
+- [ ] Published journey STOPPED at step 3: Choose installer dialog has no choices/Give; With photos also excludes the requested job. Potential real-owner blocker, switch immediately set NULL and read back. Email 1 sent to TEST inbox; Proceed twice produced one event; no spot messages. Steps 4–6 blocked, no second job or day-4 sweep. Await handover repair and explicit reactivation; details in docs/firm-quote-tonight-test-report.md.
+
 ## Jo 6 Nov 10:26 UTC — make the live TEST journey possible
 - [x] Blank-screen repair: reproduced Vite recovery swallowing import rejection into undefined; keep rejection intact while reloading. 22 recovery tests pass; sign-in/calculator/TEST office Test Centre render without runtime errors in preview; build OK. No workflow changes or publication.
 - [x] Normal TEST office sign-in uses the existing private QA_OFFICE_PASSWORD; no Jo tap, credential reset or role change needed.

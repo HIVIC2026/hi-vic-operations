@@ -1,5 +1,25 @@
 # Firm-quote TEST journey — 6 Nov 2026
 
+## Latest approved run — Jo 11:09 UTC, TEST emails now
+
+**STOPPED: firm_quote_flow_live_at is now NULL**, read back after the live Choose installer dialog showed no choices or Give button. The shared presentation requires `ready_check_ready_to_schedule`, but the firm-quote request left HV-3831 at `spot_saved`; this can strand a real owner's requested quote. No further progression or broad sweep was forced.
+
+| Step | Actual result | Email subject |
+| --- | --- | --- |
+| 1 | PASS for HV-3831: repaired consent from its durable Test Centre snapshot (original true tick, website-v1, 10:35:33.731 UTC), preserving qa_test provenance and original time. Email accepted/sent to jolowexo@hotmail.com only; removal wording and Proceed link present. | [TEST] Test, your preliminary estimate: $3,728 after a $1,470 rebate |
+| 2 | PASS: emailed link on estimate.homeinsulationvictoria.com.au; Proceed clicked twice; due Tuesday 17 November; exactly one firm_quote_requested event; no new owner message. | None |
+| 3 | FAIL/PARTIAL: Choose installer To release shows HV-3831 and its due tag in By area; Enquiries With photos count is 0 and excludes it after Proceed. Table Choose installer opens a blank dialog, so Ready Check refusal and Give to TEST Photos Insulation could not be exercised. | None |
+| 4 | BLOCKED by step 3; no assignment, installer submission or held quote manufactured. | None |
+| 5 | BLOCKED by step 3; no office Send and no email 3. | None |
+| 6 | NOT RUN after safety stop; no second job created, no request backdated, no sweep called. | None |
+| 7 | PASS for HV-3831 only: one preliminary email and no SMS or spot messages; two-job proof NOT RUN because second job was not created. | None |
+
+Email 1 used the existing TEST sender and job reservation, with a one-process quiet-hours override after exact qa_test job/owner preflight and an extra final recipient check restricting provider calls to Jo's inbox. No persisted overnight policy changes and no real records or sends. The existing `group: likely` TEST input selected the firm preliminary renderer rather than the old uncertain-manifest onsite invitation guard. Initial preview held on that old guard; no message was sent during preview.
+
+Permanent consent repair is confined to createTestEnquiry and a rechecking TEST-only helper; checked, unchecked and missing ticks remain distinct, retries insert once, real jobs refuse without writes. 59 checks pass (4 new), retired-terms scan clear, preview build OK. Not published: the safety stop makes a new live run inappropriate until the handover failure is repaired. No passwords exposed or changed; TEST office browser login succeeded normally.
+
+Evidence: `/tmp/browser/firm-now/proceed.png`, `ticked.png`, `enquiries.png`; private browser session and token-bearing email preview are not deliverables.
+
 ## Access and repair
 - TEST office normal password sign-in succeeded on the published portal using the existing private QA_OFFICE_PASSWORD secret. No password was disclosed, reset, or changed; no Jo approval tap was necessary.
 - Explicit-user platform session mint cannot show approval in this context; self mint found no matching account. Neither was bypassed.
