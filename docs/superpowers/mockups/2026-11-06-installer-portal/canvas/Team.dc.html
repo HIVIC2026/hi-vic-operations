@@ -16,7 +16,6 @@ a{color:#3C51C4}a:hover{color:#22376B}
 </style>
 </helmet>
 <div style="min-height: 860px; display: flex; flex-wrap: wrap; font-family: 'Open Sans', Arial, sans-serif; color: #22376B; background: #F5F7FB">
-
 <nav aria-label="Main" style="flex: 1 1 220px; max-width: 240px; min-width: 200px; background: #FFFFFF; border-right: 1px solid #E3E8F2; padding: 24px 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px">
 <img src="/_blob/3bbf4febd79e89c461ef7e11e5cfb335" alt="Home Insulation Victoria" style="width: 120px; height: auto; margin: 0 8px 24px">
 <a href="AddJob.dc.html" style="display: block; text-align: center; background: #3C51C4; color: #FFFFFF; font-weight: 700; font-size: 15px; padding: 12px; border-radius: 10px; text-decoration: none; margin-bottom: 14px">+ Add a job</a>
@@ -28,119 +27,134 @@ a{color:#3C51C4}a:hover{color:#22376B}
 <div style="flex-grow: 1"></div>
 <div style="padding: 12px 14px; font-size: 13px; color: #5B6785; line-height: 1.5"><b style="color: #22376B">Reinsulate</b><br>Deep Singh</div>
 </nav>
-
 <main style="flex: 999 1 560px; min-width: 0; padding: 40px 48px; box-sizing: border-box">
-<a href="Business.dc.html" style="font-size: 14px; font-weight: 600; text-decoration: none">‹ My business</a>
-<div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 10px">
-<h1 style="margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.5px">Team</h1>
-<a href="#" style="background: #3C51C4; color: #FFFFFF; font-weight: 700; font-size: 15px; padding: 13px 20px; border-radius: 10px; text-decoration: none">+ Add a person</a>
+<a href="Business.dc.html" style="font-size: 14px; font-weight: 700; text-decoration: none">‹ My business</a>
+<div style="max-width: 1120px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-top: 10px">
+<div><h1 style="margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.5px">Team</h1>
+<p style="margin: 4px 0 0; font-size: 16px; color: #5B6785">{{summary}}</p></div>
+<button type="button" onClick="{{addNew}}" style="background: #3C51C4; color: #FFFFFF; font-family: inherit; font-weight: 700; font-size: 15px; min-height: 48px; padding: 0 20px; border: 0; border-radius: 12px; cursor: pointer">+ Add a person</button>
 </div>
-
-<div style="display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; margin-top: 28px">
-<div style="flex: 3 1 440px; min-width: 0">
-<sc-for list="{{groups}}" as="g" hint-placeholder-count="2">
-<h2 style="margin: 0 0 12px; font-size: 15px; font-weight: 700; color: #5B6785">{{g.title}}</h2>
-<div style="background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 14px; overflow: hidden; margin-bottom: 28px">
+<div style="display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; margin-top: 8px">
+<div style="flex: 999 1 440px; min-width: 0">
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+<section style="margin-top: 24px; background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 16px; overflow: hidden">
+<h2 style="margin: 0; padding: 16px 22px; font-size: 15px; font-weight: 800; color: #22376B; display: flex; justify-content: space-between">{{g.title}}<span style="color: #5B6785">{{g.count}}</span></h2>
 <sc-for list="{{g.people}}" as="p" hint-placeholder-count="2">
-<button type="button" onClick="{{p.pick}}" style="{{p.style}}">
+<button type="button" onClick="{{p.pick}}" style="{{p.rowStyle}}">
 <span style="min-width: 0">
-<span style="display: block; font-size: 17px; font-weight: 700; color: #22376B">{{p.name}}</span>
-<span style="display: block; font-size: 14px; color: #5B6785; margin-top: 2px">{{p.role}}</span>
+<span style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap"><span style="font-size: 17px; font-weight: 800; color: #22376B">{{p.name}}</span><sc-for list="{{p.tags}}" as="t"><span style="font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: #EAEEFB; color: #3C51C4">{{t}}</span></sc-for></span>
+<span style="display: block; font-size: 14px; font-weight: 700; margin-top: 4px; color: {{p.ink}}">{{p.status}}</span>
 </span>
-<span style="font-size: 14px; font-weight: 700; white-space: nowrap; color: {{p.statusInk}}">{{p.status}}</span>
+<span aria-hidden="true" style="font-size: 20px; color: #9AA5BE">›</span>
 </button>
 </sc-for>
-</div>
+</section>
 </sc-for>
 </div>
 
-<aside style="flex: 2 1 320px; min-width: 280px; background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 14px; padding: 24px">
-<h2 style="margin: 0; font-size: 22px; font-weight: 800">{{sel.name}}</h2>
-<div style="font-size: 14px; color: #5B6785; margin-top: 2px">{{sel.role}}</div>
-
-<sc-if value="{{sel.fix}}" hint-placeholder-val="{{ false }}">
-<div style="margin-top: 16px; padding: 12px 14px; border-radius: 10px; background: #FEF3E2; color: #8A4B00; font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 12px">{{sel.fix}}<a href="#" style="color: #8A4B00; white-space: nowrap">{{sel.fixBtn}}</a></div>
-</sc-if>
-
-<sc-if value="{{sel.notElec}}" hint-placeholder-val="{{ true }}">
-<div style="margin-top: 20px; font-size: 13px; font-weight: 700">Goes to jobs as</div>
-<div role="radiogroup" aria-label="Goes to jobs as" style="display: flex; gap: 8px; margin-top: 8px">
-<button type="button" role="radio" aria-checked="{{sel.isLead}}" onClick="{{setLead}}" style="{{leadStyle}}">Lead Installer</button>
-<button type="button" role="radio" aria-checked="{{sel.isCrew}}" onClick="{{setCrew}}" style="{{crewStyle}}">Crew</button>
+<aside style="flex: 1 1 340px; min-width: 0; margin-top: 24px; background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 16px; padding: 24px">
+<sc-if value="{{isNew}}" hint-placeholder-val="{{ false }}">
+<h2 style="margin: 0; font-size: 22px; font-weight: 800">Add a person</h2>
+<div style="display: flex; flex-direction: column; gap: 14px; margin-top: 18px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Name<input placeholder="Full name" style="font-family: inherit; font-size: 16px; padding: 13px 14px; border: 1px solid #CED6E6; border-radius: 12px"></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Mobile<input type="tel" placeholder="04" style="font-family: inherit; font-size: 16px; padding: 13px 14px; border: 1px solid #CED6E6; border-radius: 12px"></label>
+<div style="font-size: 14px; font-weight: 700">They are a</div>
+<div role="radiogroup" aria-label="Role" style="display: flex; gap: 8px; flex-wrap: wrap"><sc-for list="{{newRoles}}" as="r"><button type="button" role="radio" aria-checked="{{r.on}}" onClick="{{r.pick}}" style="{{r.style}}">{{r.label}}</button></sc-for></div>
+<div style="background: #F5F7FB; border-radius: 12px; padding: 14px 16px; font-size: 14px; line-height: 1.6"><b>We'll need</b><br>{{newNeeds}}</div>
+<button type="button" onClick="{{closeNew}}" style="min-height: 52px; background: #07BF61; color: #FFFFFF; font-family: inherit; font-weight: 800; font-size: 16px; border: 0; border-radius: 12px; cursor: pointer">Add them</button>
 </div>
-<p style="margin: 8px 0 0; font-size: 13px; color: #5B6785; line-height: 1.5">{{roleNote}}</p>
 </sc-if>
-
-<div style="margin-top: 20px; border-top: 1px solid #E3E8F2">
-<sc-for list="{{sel.rows}}" as="r" hint-placeholder-count="4">
-<div style="display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid #E3E8F2; font-size: 14px"><span style="color: #5B6785">{{r.k}}</span><span style="font-weight: 700; text-align: right; color: {{r.ink}}">{{r.v}}</span></div>
-</sc-for>
+<sc-if value="{{isPerson}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap"><h2 style="margin: 0; font-size: 22px; font-weight: 800">{{sel.name}}</h2><sc-for list="{{sel.tags}}" as="t"><span style="font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: #EAEEFB; color: #3C51C4">{{t}}</span></sc-for></div>
+<div style="font-size: 15px; color: #5B6785; margin-top: 4px">{{sel.mobileText}}</div>
+<sc-if value="{{sel.missing}}" hint-placeholder-val="{{ false }}">
+<div style="margin-top: 16px; background: #FEF3E2; border-radius: 12px; padding: 14px 16px">
+<div style="font-size: 14px; font-weight: 800; color: #8A4B00">Missing</div>
+<sc-for list="{{sel.missingList}}" as="m"><div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 10px; font-size: 15px; color: #22376B">{{m.t}}<a href="#" style="font-weight: 800; color: #8A4B00; white-space: nowrap">{{m.btn}}</a></div></sc-for>
 </div>
-
+</sc-if>
+<sc-if value="{{sel.installer}}" hint-placeholder-val="{{ true }}">
+<div style="font-size: 14px; font-weight: 700; margin-top: 20px">Goes to jobs as</div>
+<div role="radiogroup" aria-label="Goes to jobs as" style="display: flex; gap: 8px; margin-top: 8px"><sc-for list="{{roleBtns}}" as="r"><button type="button" role="radio" aria-checked="{{r.on}}" onClick="{{r.pick}}" style="{{r.style}}">{{r.label}}</button></sc-for></div>
+<p style="margin: 8px 0 0; font-size: 13px; color: #5B6785; line-height: 1.5">{{sel.roleNote}}</p>
+</sc-if>
+<sc-if value="{{sel.isElec}}" hint-placeholder-val="{{ false }}">
+<div style="margin-top: 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid #E3E8F2; border-radius: 12px; font-size: 15px"><span><b>Main electrician</b><br><span style="font-size: 13px; color: #5B6785">Picked first when you book a PIESA</span></span><button type="button" onClick="{{makeMain}}" style="{{mainStyle}}">{{mainLabel}}</button></div>
+</sc-if>
+<div style="margin-top: 18px; border-top: 1px solid #E3E8F2">
+<sc-for list="{{sel.rows}}" as="r"><div style="display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid #EEF1F7; font-size: 15px"><span style="color: #5B6785">{{r.k}}</span><span style="font-weight: 700; text-align: right; color: {{r.ink}}">{{r.v}}</span></div></sc-for>
+</div>
 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 18px">
-<a href="#" style="font-size: 14px; font-weight: 700">Edit details</a>
-<a href="#" style="font-size: 14px; font-weight: 600; color: #B42318">Remove from team</a>
+<a href="#" style="font-size: 15px; font-weight: 700">Edit details</a>
+<a href="#" style="font-size: 15px; font-weight: 700; color: #B42318">Remove from team</a>
 </div>
+</sc-if>
 </aside>
+</div>
 </div>
 </main>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":860}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
 class Component extends DCLogic {
-  constructor(props) {
-    super(props);
-    this.state = { sel: 'tom', roles: { tom: 'Lead', deep: 'Lead', raj: 'Crew', wayne: 'Crew', james: 'Elec', peter: 'Elec' } };
-  }
+  constructor(props) { super(props); this.state = { sel: 'wayne', main: 'james', newRole: 'Crew', roles: { tom: 'Lead', deep: 'Lead', raj: 'Crew', wayne: 'Crew' } }; }
   renderVals() {
-    const OK = '#067A40', WARN = '#8A4B00';
-    const base = [
-      { id: 'tom', name: 'Tom Lowe', boss: true, mobile: '0473 541 226', cii: 'Expires 18 Dec 2026', esc: 'Registered', fix: '', fixBtn: '' },
-      { id: 'deep', name: 'Deep Singh', boss: false, mobile: '0412 300 118', cii: 'Expires 2 Mar 2027', esc: 'Registered', fix: '', fixBtn: '' },
-      { id: 'raj', name: 'Raj Kumar', boss: false, mobile: '', cii: 'Expires 9 Jun 2027', esc: 'Not needed', fix: 'Missing: mobile number', fixBtn: 'Add mobile' },
-      { id: 'wayne', name: 'Wayne Fletcher', boss: false, mobile: '0433 220 914', cii: 'Expires Wed 11 Nov', esc: 'Not needed', fix: 'Missing: new CII (expires in 5 days)', fixBtn: 'Upload CII' },
-      { id: 'james', name: 'James Spark', boss: false, elec: true, mobile: '0400 118 552', licence: 'Expires 4 Aug 2027', rec: 'REC 31244', ins: 'Expires 30 Jun 2027', fix: '', fixBtn: '' },
-      { id: 'peter', name: 'Peter Orlando', boss: false, elec: true, mobile: '0421 777 301', licence: 'Expires 1 Feb 2027', rec: 'REC 28810', ins: 'Missing', fix: 'Missing: public liability insurance', fixBtn: 'Upload' }
+
+    const st = this.state, OK = '#067A40', WARN = '#8A4B00', INK = '#22376B';
+    const ppl = [
+      { id: 'tom', name: 'Tom Lowe', boss: true, kind: 'inst', mobile: '0473 541 226', cii: 'Expires 18 Dec 2026', missing: [] },
+      { id: 'deep', name: 'Deep Singh', kind: 'inst', mobile: '0412 300 118', cii: 'Expires 2 Mar 2027', missing: [] },
+      { id: 'raj', name: 'Raj Kumar', kind: 'inst', mobile: '', cii: 'Expires 9 Jun 2027', missing: [{ t: 'Mobile number', btn: 'Add' }] },
+      { id: 'wayne', name: 'Wayne Fletcher', kind: 'inst', mobile: '0433 220 914', cii: 'Expires Wed 11 Nov', missing: [{ t: 'New CII (expires in 5 days)', btn: 'Upload' }] },
+      { id: 'james', name: 'James Spark', kind: 'elec', mobile: '0400 118 552', licence: 'Expires 4 Aug 2027', rec: 'REC 31244', ins: 'Expires 30 Jun 2027', missing: [] },
+      { id: 'peter', name: 'Peter Orlando', kind: 'elec', mobile: '0421 777 301', licence: 'Expires 1 Feb 2027', rec: 'REC 28810', ins: '', missing: [{ t: 'Public liability insurance', btn: 'Upload' }] }
     ];
-    const roles = this.state.roles;
-    const people = base.map(p => {
-      const lead = roles[p.id] === 'Lead';
-      const role = p.elec ? 'Electrician' : (p.boss ? 'Boss · ' : '') + (lead ? 'Lead Installer' : 'Crew');
-      const chosen = this.state.sel === p.id;
+    const roles = st.roles, main = st.main;
+    const dec = p => {
+      const lead = roles[p.id] === 'Lead', elec = p.kind === 'elec';
+      const tags = [];
+      if (p.boss) tags.push('Boss');
+      if (elec && main === p.id) tags.push('Main');
+      const chosen = st.sel === p.id;
       return Object.assign({}, p, {
-        lead, role, notElec: !p.elec,
-        isLead: lead ? 'true' : 'false', isCrew: lead ? 'false' : 'true',
-        status: p.fix ? p.fix : 'Approved ✓',
-        statusInk: p.fix ? WARN : OK,
+        lead, elec, tags, isElec: elec, installer: !elec,
+        status: p.missing.length ? 'Missing: ' + p.missing.map(m => m.t.toLowerCase()).join(', ') : 'Approved ✓',
+        ink: p.missing.length ? WARN : OK,
+        missingList: p.missing, missing: p.missing.length > 0,
+        mobileText: p.mobile || 'No mobile yet',
+        roleNote: lead ? 'Runs install days and signs the install form. Needs ESC registration. Gets Mitti.' : 'Works on install days. Needs CII and a mobile. No Mitti.',
         pick: () => this.setState({ sel: p.id }),
-        style: 'width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px 22px; border: 0; border-bottom: 1px solid #E3E8F2; font-family: inherit; text-align: left; cursor: pointer; background: ' + (chosen ? '#F0F3FC' : '#FFFFFF'),
-        rows: p.elec ? [
-          { k: 'Mobile', v: p.mobile, ink: '#22376B' },
-          { k: 'Electrical licence', v: p.licence, ink: '#22376B' },
-          { k: 'REC', v: p.rec, ink: '#22376B' },
-          { k: 'Public liability', v: p.ins, ink: p.ins === 'Missing' ? WARN : '#22376B' }
+        rowStyle: 'width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 22px; border: 0; border-top: 1px solid #E3E8F2; font-family: inherit; text-align: left; cursor: pointer; background: ' + (chosen ? '#F0F3FC' : '#FFFFFF'),
+        rows: elec ? [
+          { k: 'Electrical licence', v: p.licence, ink: INK }, { k: 'REC', v: p.rec, ink: INK }, { k: 'Public liability', v: p.ins || 'Missing', ink: p.ins ? INK : WARN }
         ] : [
-          { k: 'Mobile', v: p.mobile || 'Missing', ink: p.mobile ? '#22376B' : WARN },
-          { k: 'CII', v: p.cii, ink: p.fix && p.id === 'wayne' ? WARN : '#22376B' },
-          { k: 'ESC', v: lead ? p.esc : 'Not needed', ink: '#22376B' },
-          { k: 'Date of birth', v: 'On file', ink: '#22376B' },
-          { k: 'Mitti', v: lead ? 'Yes' : 'No', ink: '#22376B' }
+          { k: 'CII', v: p.cii, ink: p.id === 'wayne' ? WARN : INK }, { k: 'ESC registered', v: lead ? 'Yes' : 'Not needed', ink: INK },
+          { k: 'Date of birth', v: 'On file', ink: INK }, { k: 'Mitti', v: lead ? 'Yes' : 'No', ink: INK }
         ]
       });
-    });
-    const sel = people.find(p => p.id === this.state.sel);
+    };
+    const all = ppl.map(dec);
+    const groups = [
+      { title: 'Lead Installers', people: all.filter(p => !p.elec && p.lead) },
+      { title: 'Crew', people: all.filter(p => !p.elec && !p.lead) },
+      { title: 'Electricians', people: all.filter(p => p.elec) }
+    ].map(g => Object.assign(g, { count: String(g.people.length) }));
+    const need = all.filter(p => p.missing).length;
+    const sel = all.find(p => p.id === st.sel) || all[0];
+    const seg = on => 'flex: 1; min-height: 48px; font-family: inherit; font-size: 15px; font-weight: 700; border-radius: 12px; cursor: pointer; padding: 0 12px; ' + (on ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6');
     const setRole = r => () => this.setState({ roles: Object.assign({}, roles, { [sel.id]: r }) });
-    const seg = on => 'flex: 1; min-height: 44px; font-family: inherit; font-size: 15px; font-weight: 700; border-radius: 10px; cursor: pointer; ' + (on ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6');
+    const NEEDS = { 'Lead Installer': 'CII certificate · date of birth (for ESC) · email for Mitti', 'Crew': 'CII certificate', 'Electrician': 'Electrical licence · REC number · public liability insurance' };
     return {
-      groups: [
-        { title: 'Lead Installers', people: people.filter(p => !p.elec && p.lead) },
-        { title: 'Crew', people: people.filter(p => !p.elec && !p.lead) },
-        { title: 'Electricians', people: people.filter(p => p.elec) }
-      ],
-      sel,
-      leadStyle: seg(sel.lead), crewStyle: seg(!sel.lead),
-      roleNote: sel.lead ? 'Runs install days and signs the install form. Gets Mitti.' : 'Works on install days. No Mitti.',
-      setLead: setRole('Lead'), setCrew: setRole('Crew')
+      summary: all.length + ' people · ' + (need ? need + ' need something' : 'all approved'),
+      groups, sel, isNew: st.sel === 'new', isPerson: st.sel !== 'new',
+      roleBtns: [{ label: 'Lead Installer', on: sel.lead ? 'true' : 'false', pick: setRole('Lead'), style: seg(sel.lead) }, { label: 'Crew', on: sel.lead ? 'false' : 'true', pick: setRole('Crew'), style: seg(!sel.lead) }],
+      mainLabel: main === sel.id ? '✓ Main' : 'Make main',
+      mainStyle: 'min-height: 44px; padding: 0 14px; font-family: inherit; font-size: 14px; font-weight: 800; border-radius: 10px; cursor: pointer; ' + (main === sel.id ? 'background: #E7F8EF; color: #067A40; border: 1px solid #BFE9D2' : 'background: #FFFFFF; color: #3C51C4; border: 1px solid #CED6E6'),
+      makeMain: () => this.setState({ main: sel.id }),
+      addNew: () => this.setState({ sel: 'new' }), closeNew: () => this.setState({ sel: 'tom' }),
+      newRoles: ['Lead Installer', 'Crew', 'Electrician'].map(label => ({ label, on: st.newRole === label ? 'true' : 'false', pick: () => this.setState({ newRole: label }), style: seg(st.newRole === label) })),
+      newNeeds: NEEDS[st.newRole]
     };
   }
 }
