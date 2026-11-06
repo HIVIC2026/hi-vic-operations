@@ -45,7 +45,7 @@ function weekKeys(now: Date): Set<string> {
   return out;
 }
 
-const KIND: Record<string, WeekItem["kind"]> = { install: "Install", piesa: "PIESA", ready_check: "Ready Check", a1_ready_check: "Ready Check", measure: "Ready Check" };
+const KIND: Record<string, WeekItem["kind"]> = { installation: "Install", install: "Install", assessment: "PIESA", piesa: "PIESA", ready_check: "Ready Check" };
 
 export function thisWeek(bookings: { kind: string; scheduled_start: string; suburb: string | null; who: string | null; flag: string | null; flagTone: "red" | "amber" | null }[], now: Date): WeekItem[] {
   const keys = weekKeys(now);
@@ -58,4 +58,17 @@ export function thisWeek(bookings: { kind: string; scheduled_start: string; subu
       const p = parts(at); const h = Number(p.hour) % 24;
       return { day: p.weekday!, date: Number(p.day), kind: KIND[b.kind]!, time: `${h % 12 || 12}:${p.minute}${h < 12 ? "am" : "pm"}`, place: b.suburb ?? "", who: b.who ?? "", flag: b.flag, flagTone: b.flagTone };
     });
+}
+
+/** Who a waiting job is waiting on (spec v2 §4.2), by the box kind. Unknown → Home Insulation Victoria. */
+export function waitingOnFor(i: { kind: string; title: string; channel: string | null; ownerFirst: string | null; electricianName: string | null }): string {
+  const owner = displayName(i.ownerFirst) || "the owner";
+  const hiv = "Home Insulation Victoria";
+  switch (i.kind) {
+    case "waiting_quote": return i.title.startsWith("Quote being prepared") ? hiv : owner;
+    case "waiting_electrician_book": case "piesa_booked": { const e0 = displayName(i.electricianName).split(/\s+/)[0] ?? ""; const e = e0 && e0[0]!.toUpperCase() + e0.slice(1); return e ? `${e} (electrician)` : "the electrician"; }
+    case "waiting_deposit": return owner;
+    case "after_install": return i.channel === "installer_sourced" ? owner : hiv;
+    default: return hiv;
+  }
 }
