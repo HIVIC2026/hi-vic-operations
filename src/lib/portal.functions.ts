@@ -3274,7 +3274,7 @@ export const getGate1Evidence = createServerFn({ method: "POST" })
     await requireAdmin(context.supabase);
     const { previewGate1 } = await import("./eligibility.server");
     const [gate, firmQuote] = await Promise.all([previewGate1(data.jobId), import("./firm-quote.server").then((m) => m.isFirmQuoteJobId(data.jobId))]);
-    return { ...gate, firmQuote };
+    return gate ? { ...gate, firmQuote } : null;
   });
 
 /** Admin-only compact Base44 intake summary: owner answers, consent, photos. No research or raw snapshots. */

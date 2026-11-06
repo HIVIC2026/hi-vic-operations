@@ -1185,6 +1185,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 ## Jo 5 Nov — isolated Ready Check contradiction experiment
 - [x] Inspect existing parser/checks, add pure sample-only validator, run sample/related tests and report data/freshness limitations; no live calls or production screens/gates.
-- [ ] Jo 7 Nov 10am: fix TEST office Choose installer box (blank, no list/Give).
-- [ ] Jo 7 Nov 10am: photo jobs show "Photos to be checked by installer" instead of "Needs Onsite Confirmation" (no-photo jobs unchanged).
-- [ ] Jo 7 Nov 10am: carry on the TEST journey from where it stopped (TEST only, sends only to Jo's TEST inbox/mobile, no publish, no switches).
+- [x] Jo 7 Nov 10am: TEST office Choose installer — history read allowed, firm-quote jobs get Give for the covering photos installer, TEST Photos Lead + electrician Team access added. Browser check pending TEST sign-in approval.
+- [x] Jo 7 Nov 10am: photo (firm-quote) jobs show "Photos to be checked by installer" on the job page; no-photo jobs unchanged.
+- [ ] Jo 7 Nov 10am: carry on the TEST journey — BLOCKED: needs Jo's approval to sign in as the TEST logins (approval card unavailable this turn).
