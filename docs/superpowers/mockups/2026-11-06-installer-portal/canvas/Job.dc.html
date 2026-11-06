@@ -76,6 +76,13 @@ a{color:#3C51C4}a:hover{color:#22376B}
 <sc-if value="{{f.isInput}}" hint-placeholder-val="{{ false }}"><input value="{{f.value}}" style="font-family: inherit; font-size: 16px; padding: 13px 14px; border: 1px solid #CED6E6; border-radius: 12px; color: #22376B"></sc-if>
 </label>
 </sc-for>
+<sc-if value="{{s.cal}}" hint-placeholder-val="{{ false }}">
+<div style="font-size: 14px; font-weight: 700">Put it in the calendar?</div>
+<div role="radiogroup" aria-label="Put it in the calendar" style="display: flex; gap: 8px"><sc-for list="{{calBtns}}" as="c"><button type="button" role="radio" aria-checked="{{c.on}}" onClick="{{c.pick}}" style="{{c.style}}">{{c.label}}</button></sc-for></div>
+<sc-if value="{{calYes}}" hint-placeholder-val="{{ true }}">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">How long<select style="font-family: inherit; font-size: 16px; padding: 13px 12px; border: 1px solid #CED6E6; border-radius: 12px; color: #22376B; background: #FFFFFF"><option>Full day</option><option>Half day</option><option>2 hours</option><option>1 hour</option><option>2 days</option></select></label>
+</sc-if>
+</sc-if>
 <sc-if value="{{s.ticks}}" hint-placeholder-val="{{ false }}">
 <fieldset style="border: 1px solid #CED6E6; border-radius: 12px; padding: 4px 14px 6px; margin: 0"><legend style="font-size: 14px; font-weight: 700; padding: 0 4px">Crew</legend>
 <sc-for list="{{s.ticks}}" as="t"><label style="display: flex; align-items: center; gap: 12px; padding: 10px 0; font-size: 16px"><input type="checkbox" checked="{{t.on}}" style="width: 22px; height: 22px; accent-color: #07BF61">{{t.name}}</label></sc-for>
@@ -83,7 +90,16 @@ a{color:#3C51C4}a:hover{color:#22376B}
 </sc-if>
 <sc-if value="{{s.button}}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{go}}" style="width: 100%; min-height: 54px; background: {{btnBg}}; color: #FFFFFF; font-family: inherit; font-weight: 800; font-size: 17px; border: 0; border-radius: 12px; cursor: pointer">{{s.button}}</button></sc-if>
 <sc-if value="{{blockNote}}" hint-placeholder-val="{{ false }}"><p style="margin: -4px 0 0; font-size: 13px; color: #8A4B00; text-align: center">{{blockNote}}</p></sc-if>
-<sc-if value="{{s.links}}" hint-placeholder-val="{{ false }}"><div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap"><sc-for list="{{s.links}}" as="l"><a href="#" style="font-size: 15px; font-weight: 700; padding: 6px 0">{{l}}</a></sc-for></div></sc-if>
+<sc-if value="{{s.links}}" hint-placeholder-val="{{ false }}"><div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap"><sc-for list="{{linkObjs}}" as="l"><button type="button" onClick="{{l.go}}" style="background: none; border: 0; font-family: inherit; font-size: 15px; font-weight: 700; color: #3C51C4; padding: 6px 0; min-height: 44px; cursor: pointer">{{l.t}}</button></sc-for></div></sc-if>
+<sc-if value="{{editing}}" hint-placeholder-val="{{ false }}">
+<div style="border: 1px solid #CED6E6; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Day<select style="font-family: inherit; font-size: 16px; padding: 12px; border: 1px solid #CED6E6; border-radius: 12px; background: #FFFFFF; color: #22376B"><option>Thu 26 Nov</option><option>Fri 27 Nov</option><option>Mon 30 Nov</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Arrival<select style="font-family: inherit; font-size: 16px; padding: 12px; border: 1px solid #CED6E6; border-radius: 12px; background: #FFFFFF; color: #22376B"><option>8:00am</option><option>9:00am</option><option>10:00am</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">How long<select style="font-family: inherit; font-size: 16px; padding: 12px; border: 1px solid #CED6E6; border-radius: 12px; background: #FFFFFF; color: #22376B"><option>Full day</option><option>Half day</option><option>2 hours</option><option>1 hour</option><option>2 days</option></select></label>
+<button type="button" onClick="{{saveEdit}}" style="min-height: 50px; background: #07BF61; color: #FFFFFF; border: 0; border-radius: 12px; font-family: inherit; font-weight: 800; font-size: 16px; cursor: pointer">Save changes</button>
+</div>
+</sc-if>
+<sc-if value="{{savedNote}}" hint-placeholder-val="{{ false }}"><div style="padding: 10px 12px; border-radius: 10px; background: #E7F8EF; color: #067A40; font-size: 14px; font-weight: 700">{{savedNote}}</div></sc-if>
 <sc-if value="{{s.waiting}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{next}}" style="width: 100%; min-height: 44px; background: #FFFFFF; color: #5B6785; font-family: inherit; font-weight: 600; font-size: 14px; border: 1px dashed #CED6E6; border-radius: 12px; cursor: pointer">Prototype: skip to the next step</button></sc-if>
 </div>
 </div>
@@ -102,7 +118,7 @@ a{color:#3C51C4}a:hover{color:#22376B}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
 class Component extends DCLogic {
-  constructor(props) { super(props); this.state = { kind: 'own', i: 0, tab: 'details', m: 'Aerial photo', up: false, prob: '' }; }
+  constructor(props) { super(props); this.state = { kind: 'own', i: 0, tab: 'details', m: 'Aerial photo', up: false, prob: '', cal: 'Yes', editing: false, saved: '' }; }
   renderVals() {
 
     const st = this.state;
@@ -120,10 +136,10 @@ class Component extends DCLogic {
          { dot: 1, you: false, title: 'Quote being prepared', text: "We're sending it to Helen. You'll get an email when it goes." },
          { dot: 1, you: false, title: 'Quote with Helen', text: "Sent Fri 6 Nov · valid until Sun 6 Dec. You'll hear from us the moment Helen says yes or no." }];
     const mid = [
-      { dot: 2, you: true, title: O + ' said yes. Book the PIESA.', text: 'Call ' + O + ', agree a day and time, and book it here. The PIESA fee is paid.', fields: [sel('Electrician', ['James Spark (Main)', 'Peter Orlando']), sel('Day', ['Thu 12 Nov', 'Fri 13 Nov', 'Mon 16 Nov']), sel('Arrival', ['9:00am', '10:00am', '1:00pm'])], button: 'Book', more: O + ' gets a confirmation. James does the PIESA in Mitti and you both get the result. Any electrical upgrades you quote and invoice to the owner directly.' },
+      { dot: 2, you: true, title: O + ' said yes. Book the PIESA.', text: 'Call ' + O + ', agree a day and time, and book it here. The PIESA fee is paid.', fields: [sel('Electrician', ['James Spark (Main)', 'Peter Orlando']), sel('Day', ['Thu 12 Nov', 'Fri 13 Nov', 'Mon 16 Nov']), sel('Arrival', ['9:00am', '10:00am', '1:00pm'])], cal: true, button: 'Book', more: O + ' gets a confirmation. James does the PIESA in Mitti and you both get the result. Any electrical upgrades you quote and invoice to the owner directly.' },
       { dot: 2, you: false, title: 'PIESA booked', text: 'Thu 12 Nov, 9:00am · James Spark. ' + O + ' has been told.', links: ['Change time', 'Change electrician'] },
       { dot: 3, you: false, title: "PIESA done. We're collecting the deposit.", text: "All clear. We've asked " + O + " to pay the deposit. We'll email you the moment it's in.", chips: [chip('PIESA passed', 'ok')] },
-      { dot: 4, you: true, title: O + "'s deposit is in. Book the install by Sat 12 Dec.", text: 'Call ' + O + ", agree a day and time, and book it here. You pick who's going later.", chips: [chip('Deposit paid', 'ok'), chip('Certificate not uploaded yet', 'warn')], fields: [sel('Day', ['Wed 25 Nov', 'Thu 26 Nov', 'Fri 27 Nov']), sel('Arrival', ['8:00am', '9:00am'])], button: 'Book the install', more: "2 days before, the day and your Lead lock and we tell ESC. Days after Sat 12 Dec can't be picked." },
+      { dot: 4, you: true, title: O + "'s deposit is in. Book the install by Sat 12 Dec.", text: 'Call ' + O + ", agree a day and time, and book it here. You pick who's going later.", chips: [chip('Deposit paid', 'ok'), chip('Certificate not uploaded yet', 'warn')], fields: [sel('Day', ['Wed 25 Nov', 'Thu 26 Nov', 'Fri 27 Nov']), sel('Arrival', ['8:00am', '9:00am'])], cal: true, button: 'Book the install', more: "2 days before, the day and your Lead lock and we tell ESC. Days after Sat 12 Dec can't be picked." },
       { dot: 4, you: true, title: 'Pick the Lead and crew by Mon 23 Nov', text: 'Install booked for Wed 25 Nov, 8:00am.', fields: [sel('Lead Installer', ['Deep Singh', 'Tom Lowe'])], ticks: [{ name: 'Raj Kumar', on: true }, { name: 'Wayne Fletcher', on: true }, { name: 'Tom Lowe', on: false }], button: "Save who's going", links: ['Change the day'], more: 'Each person gets their safety plan to sign by text when you save. Your Lead also gets the Mitti install form.' },
       { dot: 4, you: false, title: 'Install booked', text: 'Wed 25 Nov, 8:00am · Lead: Deep · Crew: Raj, Wayne.', chips: [chip('Safety plan: Deep ✓', 'ok'), chip('Safety plan: Raj ✓', 'ok'), chip('Safety plan: Wayne not signed · Remind', 'warn')], links: ['Change the day', "Change who's going", "Couldn't get in"], more: "The afternoon before you get a GO or DON'T START email. Your Lead still does the PIISA onsite before starting." }
     ];
@@ -139,8 +155,8 @@ class Component extends DCLogic {
       expired: { dot: 1, closed: true, title: 'Quote expired', text: "We've asked " + O + " if they'd like a new one. Nothing for you to do." },
       cancelled: { dot: S[i].dot, closed: true, cancel: true, title: "This job's been cancelled", text: 'Owner changed their mind. We\'ve told ' + O + '. Please cancel anything you\'ve booked on your end, like your electrician and crew.' },
       hold: { dot: S[i].dot, closed: true, title: 'On hold', text: "Waiting on the owner's landlord. We'll let you know the moment it's back on. Nothing for you to do." },
-      noaccess: { dot: 4, you: true, title: "Couldn't get in on Wed 25 Nov", text: 'Call ' + O + ', agree a new day and book it here. Install by Sat 12 Dec.', fields: [sel('Day', ['Mon 30 Nov', 'Tue 1 Dec', 'Wed 2 Dec']), sel('Arrival', ['8:00am', '9:00am'])], button: 'Book', more: 'Our office has been told.' },
-      part: { dot: 4, you: true, title: 'Part installed', text: "Tell us what's left and book a day to finish it.", fields: [inp("What's left", 'Back bedroom, 18 m²'), sel('Day', ['Mon 30 Nov', 'Tue 1 Dec']), sel('Arrival', ['8:00am', '9:00am'])], button: 'Book', more: "Our office has been told. No paperwork approval or pay until it's finished." },
+      noaccess: { dot: 4, you: true, title: "Couldn't get in on Wed 25 Nov", text: 'Call ' + O + ', agree a new day and book it here. Install by Sat 12 Dec.', fields: [sel('Day', ['Mon 30 Nov', 'Tue 1 Dec', 'Wed 2 Dec']), sel('Arrival', ['8:00am', '9:00am'])], cal: true, button: 'Book', more: 'Our office has been told.' },
+      part: { dot: 4, you: true, title: 'Part installed', text: "Tell us what's left and book a day to finish it.", fields: [inp("What's left", 'Back bedroom, 18 m²'), sel('Day', ['Mon 30 Nov', 'Tue 1 Dec']), sel('Arrival', ['8:00am', '9:00am'])], cal: true, button: 'Book', more: "Our office has been told. No paperwork approval or pay until it's finished." },
       elec: { dot: 4, you: true, stop: true, title: 'Electrician needed on install day', text: 'The PIESA says an electrician must be there. Book them for Wed 25 Nov, 8:00am.', fields: [sel('Electrician', ['James Spark (Main)', 'Peter Orlando'])], button: 'Book electrician', more: "Until they're booked, you get a DON'T START email the afternoon before." }
     };
     const pb = PB[st.prob];
@@ -193,6 +209,12 @@ class Component extends DCLogic {
       style: 'font-family: inherit; font-size: 14px; font-weight: 700; min-height: 44px; padding: 8px 14px; border-radius: 10px; cursor: pointer; ' + (m === label ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6') }));
     const blocked = !pb && s.measure && needsUpload && !st.up;
     return {
+      linkObjs: (s.links || []).map(t => ({ t, go: /^Change (the day|time)$/.test(t) ? () => this.setState({ editing: true, saved: '' }) : () => {} })),
+      editing: !!st.editing, savedNote: st.saved,
+      saveEdit: () => this.setState({ editing: false, saved: 'Saved. The calendar, the owner and ESC (if needed) are updated.' }),
+      calYes: st.cal === 'Yes',
+      calBtns: ['Yes', 'No'].map(label => ({ label, on: st.cal === label ? 'true' : 'false', pick: () => this.setState({ cal: label }),
+        style: 'flex: 1; min-height: 48px; font-family: inherit; font-size: 15px; font-weight: 700; border-radius: 12px; cursor: pointer; ' + (st.cal === label ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6') })),
       methods, needsUpload, upload: () => this.setState({ up: true }),
       uploadLabel: st.up ? '✓ ' + upName + ' uploaded' : 'Upload the ' + upName + ' (needed)',
       uploadStyle: 'width: 100%; min-height: 50px; border-radius: 12px; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; ' + (st.up ? 'background: #E7F8EF; color: #067A40; border: 1px solid #BFE9D2' : 'background: #FFFFFF; color: #3C51C4; border: 2px dashed #9FB0E8'),
@@ -205,7 +227,7 @@ class Component extends DCLogic {
       srcStyle: 'font-size: 13px; font-weight: 800; border-radius: 999px; padding: 5px 11px; ' + (own ? 'background: #EAEEFB; color: #3C51C4' : 'background: #E7F8EF; color: #067A40'),
       hv: own ? 'HV-3821' : 'HV-3300', addr: own ? '12 Example Street, Melton' : '24 Demo Road, Point Cook',
       owner: own ? 'Jo Lowe' : 'Helen Journey', phone: own ? '0477 511 901' : '0411 220 334',
-      next: () => this.setState({ i: Math.min(S.length - 1, i + 1) }), restart: () => this.setState({ i: 0, up: false })
+      next: () => this.setState({ i: Math.min(S.length - 1, i + 1), editing: false, saved: '' }), restart: () => this.setState({ i: 0, up: false })
     };
   }
 }

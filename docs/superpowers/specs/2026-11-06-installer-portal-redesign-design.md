@@ -116,6 +116,21 @@ Every ESC-approved product for new jobs (Bradford Gold, Earthwool, Pink Batts; n
 - Shows the bank line with a link to change it.
 - Visible to the boss, and to office staff only if the boss turns it on (2 Nov rule).
 
+### 4.11 Pages added after review (canvas, 6 Nov; awaiting Jo's OK)
+- **Electrician's job link** (no login, phone, one link per job): for {electrician} · {business}; address, owner, Call, Directions. Shows only the next step: Book the PIESA (when the electrician books) → PIESA booked (Open the Mitti form; Change time · Can't do this one) → Pick the upgrades day (if upgrades are on another day; they quote and invoice the owner directly) → Upload the Certificate of Electrical Safety (install can be booked, can't start until it's in) → All done. Footer: the installer office's phone.
+- **Safety plan signing** (no login, text link): for {person} · {business} crew; address and install day; **This house** (auto-filled from the Ready Check and PIESA); **Every job** (the approved SWMS wording, unchanged, "Read the full safety plan"); tick "I've read the safety plan and will follow it" → Sign (greyed until ticked) → "Signed. Thanks, {name}. {Lead} can see you've signed." Lead view: who's signed, with "Sign on my phone" for a crew member whose phone is dead.
+- **Today's job** (boss/office, install day): GO or DON'T START banner (time checked, and the PIISA line); address, time, Call, Directions; who's going with safety plan status; job details (install m² and spaces, product, removal, watch-outs); **Open the Mitti install form**; "Something not right?" → Couldn't get in · Only part done today; balance due today.
+- **Sign in and setup:** email → "Email me a sign-in link" (no password; stays signed in on that phone). First time: "Welcome, {name}. {n} things to set up before your first job" (Business details, Documents, Team, Bank, Products, each ticked when done; "I'll finish later"). Empty home: "No jobs yet. Add your own customer, or we'll email you when we give you one of our leads." + Add a job, and "{n} setup steps left".
+- **Uploads** (photos, plans, aerials, certificates, insurance): Take a photo / Choose files; each file shows progress; uploads keep going if they leave the page; with no signal: "Your photos are saved on this phone and will upload when you're back online. Nothing is lost." Failed files show "Didn't upload" + Retry.
+- **Team › Office staff:** a fourth group. An office person signs in with their email. **Can see Money** On/Off (only the boss can change it; default Off).
+
+### 4.12 Office screens (Home Insulation Victoria side)
+The office job page and To do list must show the new installer states and flags: on hold (reason), couldn't get in, part installed (what's left), measurements don't match (portal vs Mitti, newest shown, both viewable), electrician needed on install day, can't quote / can't do this one (reason, job back to the office to give to someone else), bank change to approve (approve / reject, with old and new last 4 digits), and diary-only Ready Checks (shown, no owner message). Office pages are otherwise unchanged.
+
+### 4.13 Owner pages and messages
+- Owner "You're booked" and the new "Your booking has moved" / "New install day" messages (§5 #1–4), each drafted and shown to Jo one at a time.
+- Owner quote page and email: removal line, difficult access fee line, per-product price; installer logo only for their own customers; "Your quote is valid for 30 days, until {date}"; never "about"; never reveal that our leads are priced differently.
+
 ## 5. Messages, templates and touchpoints
 Every new or changed message is drafted, shown to Jo **one at a time**, and approved before it's built (her rule). Each one sounds like Home Insulation Victoria: informative, clear, plain, using the installer office's phone and email and never a worker's. Messages to installer offices go by email only (never text). Automatic messages keep the 8pm–7am hold.
 
@@ -199,8 +214,10 @@ Each step is its own pull request, merged by Jo:
 6. Jobs.
 7. Add a job, including drafts, products, favourites and per-product pricing.
 8. Our-lead first steps (photo quote with measurement and upload; Ready Check).
-9. My business: Team, Business details, Rates, Products, Documents, Bank (with office approval).
+9. My business: Team (incl. office staff + Can see Money), Business details, Rates, Products, Documents, Bank (with office approval).
 10. Money.
+10a. No-login pages: electrician job link, safety plan signing. Today's job. Sign in + setup + empty states. Uploads (offline-safe).
+10b. Office screens: new states and flags (§4.12). Owner pages and messages (§4.13), each message approved by Jo first.
 11. Speed pass and reliability pass (§8), then the full nightly journey green.
 
 **Go-live:** first Tom's test businesses. Then, when Jo says go, real installers (she'll pick who goes first).

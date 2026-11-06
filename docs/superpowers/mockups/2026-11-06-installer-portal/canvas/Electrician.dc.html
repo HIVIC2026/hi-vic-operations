@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Electrician job link</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F7FB}
+a{color:#3C51C4}a:hover{color:#22376B}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 844px; position: relative; font-family: 'Open Sans', Arial, sans-serif; color: #22376B; background: #F5F7FB">
+<header style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: #FFFFFF; border-bottom: 1px solid #E3E8F2"><img src="/_blob/3bbf4febd79e89c461ef7e11e5cfb335" alt="Home Insulation Victoria" style="width: 92px; height: auto"></header>
+<main style="padding: 20px 16px 32px">
+<div role="group" aria-label="Prototype" style="display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px; border: 1px dashed #CED6E6; border-radius: 12px; margin-bottom: 18px; font-size: 12px; color: #5B6785; align-items: center"><b>Prototype:</b><sc-for list="{{steps}}" as="t"><button type="button" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button></sc-for></div><div style="font-size: 13px; font-weight: 700; color: #5B6785">For James Spark · Orlando Powered</div>
+<h1 style="margin: 4px 0 0; font-size: 24px; font-weight: 800">8 Example Court, Tarneit</h1>
+<div style="font-size: 15px; color: #5B6785; margin-top: 2px">Sam Patel · 0412 777 210 · HV-3117</div>
+<div style="display: flex; gap: 8px; margin-top: 12px"><a href="#" style="display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; min-height: 54px; border: 0; border-radius: 12px; font-family: inherit; font-weight: 800; font-size: 17px; text-decoration: none; cursor: pointer; background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6; font-weight: 700; font-size: 16px; min-height: 50px; flex: 1">Call Sam</a><a href="#" style="display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; min-height: 54px; border: 0; border-radius: 12px; font-family: inherit; font-weight: 800; font-size: 17px; text-decoration: none; cursor: pointer; background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6; font-weight: 700; font-size: 16px; min-height: 50px; flex: 1">Directions</a></div>
+<section style="background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 16px; padding: 18px; margin-top: 18px; border: 2px solid #07BF61">
+<span style="font-size: 13px; font-weight: 800; border-radius: 999px; padding: 6px 12px; background: #E7F8EF; color: #067A40">{{tag}}</span>
+<h2 style="margin: 12px 0 0; font-size: 22px; font-weight: 800">{{title}}</h2>
+<p style="margin: 8px 0 0; font-size: 16px; color: #5B6785; line-height: 1.5">{{text}}</p>
+<sc-if value="{{book}}" hint-placeholder-val="{{ false }}"><div style="display: flex; flex-direction: column; gap: 10px; margin-top: 14px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Day<select style="font-family: inherit; font-size: 16px; padding: 13px; border: 1px solid #CED6E6; border-radius: 12px; background: #FFFFFF; color: #22376B"><option>Thu 12 Nov</option><option>Fri 13 Nov</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Arrival<select style="font-family: inherit; font-size: 16px; padding: 13px; border: 1px solid #CED6E6; border-radius: 12px; background: #FFFFFF; color: #22376B"><option>9:00am</option><option>10:00am</option></select></label></div></sc-if>
+<sc-if value="{{upDay}}" hint-placeholder-val="{{ false }}"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; margin-top: 14px">Upgrades day<select style="font-family: inherit; font-size: 16px; padding: 13px; border: 1px solid #CED6E6; border-radius: 12px; background: #FFFFFF; color: #22376B"><option>Mon 16 Nov</option><option>Tue 17 Nov</option></select></label></sc-if>
+<button type="button" onClick="{{next}}" style="display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; min-height: 54px; border: 0; border-radius: 12px; font-family: inherit; font-weight: 800; font-size: 17px; text-decoration: none; cursor: pointer; background: #07BF61; color: #FFFFFF; margin-top: 16px">{{btn}}</button>
+<sc-if value="{{links}}" hint-placeholder-val="{{ false }}"><div style="display: flex; justify-content: center; gap: 20px; margin-top: 10px"><a href="#" style="font-size: 15px; font-weight: 700; padding: 8px 0">Change time</a><a href="#" style="font-size: 15px; font-weight: 700; padding: 8px 0">Can't do this one</a></div></sc-if>
+</section>
+<p style="margin: 18px 0 0; font-size: 13px; color: #5B6785; line-height: 1.5">This link is just for this job. Questions? Call Reinsulate on 03 9000 1234.</p>
+</main>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { i: 0 }; }
+  renderVals() {
+    const st = this.state;
+    const steps = ['Book', 'Booked', 'Upgrades day', 'Certificate', 'Done'].map((label, n) => ({ label, pick: () => this.setState({ i: n }), style: 'font-family: inherit; font-size: 12px; font-weight: 700; min-height: 32px; padding: 0 10px; border-radius: 999px; cursor: pointer; ' + (st.i === n ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6') }));
+    const S = [
+      { tag: 'Your turn', title: 'Book the PIESA', text: 'Call Sam, agree a day and time, and book it here. Sam gets a confirmation.', btn: 'Book', book: true },
+      { tag: 'Booked', title: 'PIESA · Thu 12 Nov, 9:00am', text: 'Do the safety check in Mitti on the day. The form is ready under HV-3117.', btn: 'Open the Mitti form', links: true },
+      { tag: 'Your turn', title: 'Pick the upgrades day', text: "You said the upgrades are on another day. Quote and invoice Sam directly, then set the day here so the install can be planned.", btn: 'Save', upDay: true },
+      { tag: 'Your turn', title: 'Upload the Certificate of Electrical Safety', text: "Take a photo of it once the upgrades are done. The install can be booked, but can't start until it's in.", btn: 'Upload certificate' },
+      { tag: 'Done', title: 'All done. Thanks, James.', text: 'Nothing else for you on this job.', btn: 'Close' }
+    ];
+    const s = S[st.i];
+    return Object.assign({ steps, book: false, upDay: false, links: false, next: () => this.setState({ i: Math.min(4, st.i + 1) }) }, s);
+  }
+}
+</script>
+</body>
+</html>

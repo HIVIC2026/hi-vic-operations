@@ -79,6 +79,9 @@ a{color:#3C51C4}a:hover{color:#22376B}
 <div role="radiogroup" aria-label="Goes to jobs as" style="display: flex; gap: 8px; margin-top: 8px"><sc-for list="{{roleBtns}}" as="r"><button type="button" role="radio" aria-checked="{{r.on}}" onClick="{{r.pick}}" style="{{r.style}}">{{r.label}}</button></sc-for></div>
 <p style="margin: 8px 0 0; font-size: 13px; color: #5B6785; line-height: 1.5">{{sel.roleNote}}</p>
 </sc-if>
+<sc-if value="{{sel.isOffice}}" hint-placeholder-val="{{ false }}">
+<div style="margin-top: 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid #E3E8F2; border-radius: 12px; font-size: 15px"><span><b>Can see Money</b><br><span style="font-size: 13px; color: #5B6785">What you're owed and paid. Only the boss can change this.</span></span><button type="button" role="switch" aria-checked="{{moneyLabel}}" onClick="{{toggleMoney}}" style="{{moneyStyle}}">{{moneyLabel}}</button></div>
+</sc-if>
 <sc-if value="{{sel.isElec}}" hint-placeholder-val="{{ false }}">
 <div style="margin-top: 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid #E3E8F2; border-radius: 12px; font-size: 15px"><span><b>Main electrician</b><br><span style="font-size: 13px; color: #5B6785">Picked first when you book a PIESA</span></span><button type="button" onClick="{{makeMain}}" style="{{mainStyle}}">{{mainLabel}}</button></div>
 </sc-if>
@@ -98,7 +101,7 @@ a{color:#3C51C4}a:hover{color:#22376B}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
 class Component extends DCLogic {
-  constructor(props) { super(props); this.state = { sel: 'wayne', main: 'james', newRole: 'Crew', roles: { tom: 'Lead', deep: 'Lead', raj: 'Crew', wayne: 'Crew' } }; }
+  constructor(props) { super(props); this.state = { sel: 'wayne', main: 'james', money: false, newRole: 'Crew', roles: { tom: 'Lead', deep: 'Lead', raj: 'Crew', wayne: 'Crew' } }; }
   renderVals() {
 
     const st = this.state, OK = '#067A40', WARN = '#8A4B00', INK = '#22376B';
@@ -107,18 +110,19 @@ class Component extends DCLogic {
       { id: 'deep', name: 'Deep Singh', kind: 'inst', mobile: '0412 300 118', cii: 'Expires 2 Mar 2027', missing: [] },
       { id: 'raj', name: 'Raj Kumar', kind: 'inst', mobile: '', cii: 'Expires 9 Jun 2027', missing: [{ t: 'Mobile number', btn: 'Add' }] },
       { id: 'wayne', name: 'Wayne Fletcher', kind: 'inst', mobile: '0433 220 914', cii: 'Expires Wed 11 Nov', missing: [{ t: 'New CII (expires in 5 days)', btn: 'Upload' }] },
+      { id: 'priya', name: 'Priya Nair', kind: 'office', mobile: '0400 555 220', email: 'priya@reinsulate.com.au', missing: [] },
       { id: 'james', name: 'James Spark', kind: 'elec', mobile: '0400 118 552', licence: 'Expires 4 Aug 2027', rec: 'REC 31244', ins: 'Expires 30 Jun 2027', missing: [] },
       { id: 'peter', name: 'Peter Orlando', kind: 'elec', mobile: '0421 777 301', licence: 'Expires 1 Feb 2027', rec: 'REC 28810', ins: '', missing: [{ t: 'Public liability insurance', btn: 'Upload' }] }
     ];
     const roles = st.roles, main = st.main;
     const dec = p => {
-      const lead = roles[p.id] === 'Lead', elec = p.kind === 'elec';
+      const lead = roles[p.id] === 'Lead', elec = p.kind === 'elec', office = p.kind === 'office';
       const tags = [];
       if (p.boss) tags.push('Boss');
       if (elec && main === p.id) tags.push('Main');
       const chosen = st.sel === p.id;
       return Object.assign({}, p, {
-        lead, elec, tags, isElec: elec, installer: !elec,
+        lead, elec, office, tags, isElec: elec, isOffice: office, installer: !elec && !office,
         status: p.missing.length ? 'Missing: ' + p.missing.map(m => m.t.toLowerCase()).join(', ') : 'Approved ✓',
         ink: p.missing.length ? WARN : OK,
         missingList: p.missing, missing: p.missing.length > 0,
@@ -126,7 +130,9 @@ class Component extends DCLogic {
         roleNote: lead ? 'Runs install days and signs the install form. Needs ESC registration. Gets Mitti.' : 'Works on install days. Needs CII and a mobile. No Mitti.',
         pick: () => this.setState({ sel: p.id }),
         rowStyle: 'width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 22px; border: 0; border-top: 1px solid #E3E8F2; font-family: inherit; text-align: left; cursor: pointer; background: ' + (chosen ? '#F0F3FC' : '#FFFFFF'),
-        rows: elec ? [
+        rows: office ? [
+          { k: 'Email (signs in with)', v: p.email, ink: INK }, { k: 'Can see', v: 'Jobs, Calendar, Action items, My business' + (st.money ? ', Money' : ''), ink: INK }
+        ] : elec ? [
           { k: 'Electrical licence', v: p.licence, ink: INK }, { k: 'REC', v: p.rec, ink: INK }, { k: 'Public liability', v: p.ins || 'Missing', ink: p.ins ? INK : WARN }
         ] : [
           { k: 'CII', v: p.cii, ink: p.id === 'wayne' ? WARN : INK }, { k: 'ESC registered', v: lead ? 'Yes' : 'Not needed', ink: INK },
@@ -136,15 +142,16 @@ class Component extends DCLogic {
     };
     const all = ppl.map(dec);
     const groups = [
-      { title: 'Lead Installers', people: all.filter(p => !p.elec && p.lead) },
-      { title: 'Crew', people: all.filter(p => !p.elec && !p.lead) },
-      { title: 'Electricians', people: all.filter(p => p.elec) }
+      { title: 'Lead Installers', people: all.filter(p => p.installer && p.lead) },
+      { title: 'Crew', people: all.filter(p => p.installer && !p.lead) },
+      { title: 'Electricians', people: all.filter(p => p.elec) },
+      { title: 'Office staff', people: all.filter(p => p.office) }
     ].map(g => Object.assign(g, { count: String(g.people.length) }));
     const need = all.filter(p => p.missing).length;
     const sel = all.find(p => p.id === st.sel) || all[0];
     const seg = on => 'flex: 1; min-height: 48px; font-family: inherit; font-size: 15px; font-weight: 700; border-radius: 12px; cursor: pointer; padding: 0 12px; ' + (on ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6');
     const setRole = r => () => this.setState({ roles: Object.assign({}, roles, { [sel.id]: r }) });
-    const NEEDS = { 'Lead Installer': 'CII certificate · date of birth (for ESC) · email for Mitti', 'Crew': 'CII certificate', 'Electrician': 'Electrical licence · REC number · public liability insurance' };
+    const NEEDS = { 'Office staff': 'Their email, to sign in', 'Lead Installer': 'CII certificate · date of birth (for ESC) · email for Mitti', 'Crew': 'CII certificate', 'Electrician': 'Electrical licence · REC number · public liability insurance' };
     return {
       summary: all.length + ' people · ' + (need ? need + ' need something' : 'all approved'),
       groups, sel, isNew: st.sel === 'new', isPerson: st.sel !== 'new',
@@ -152,8 +159,10 @@ class Component extends DCLogic {
       mainLabel: main === sel.id ? '✓ Main' : 'Make main',
       mainStyle: 'min-height: 44px; padding: 0 14px; font-family: inherit; font-size: 14px; font-weight: 800; border-radius: 10px; cursor: pointer; ' + (main === sel.id ? 'background: #E7F8EF; color: #067A40; border: 1px solid #BFE9D2' : 'background: #FFFFFF; color: #3C51C4; border: 1px solid #CED6E6'),
       makeMain: () => this.setState({ main: sel.id }),
+      moneyLabel: st.money ? 'On' : 'Off', toggleMoney: () => this.setState({ money: !st.money }),
+      moneyStyle: 'min-height: 44px; min-width: 64px; padding: 0 14px; font-family: inherit; font-size: 14px; font-weight: 800; border-radius: 10px; cursor: pointer; ' + (st.money ? 'background: #E7F8EF; color: #067A40; border: 1px solid #BFE9D2' : 'background: #FFFFFF; color: #5B6785; border: 1px solid #CED6E6'),
       addNew: () => this.setState({ sel: 'new' }), closeNew: () => this.setState({ sel: 'tom' }),
-      newRoles: ['Lead Installer', 'Crew', 'Electrician'].map(label => ({ label, on: st.newRole === label ? 'true' : 'false', pick: () => this.setState({ newRole: label }), style: seg(st.newRole === label) })),
+      newRoles: ['Lead Installer', 'Crew', 'Electrician', 'Office staff'].map(label => ({ label, on: st.newRole === label ? 'true' : 'false', pick: () => this.setState({ newRole: label }), style: seg(st.newRole === label) })),
       newNeeds: NEEDS[st.newRole]
     };
   }

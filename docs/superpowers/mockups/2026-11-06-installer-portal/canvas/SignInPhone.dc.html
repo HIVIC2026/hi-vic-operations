@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign in and setup</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F7FB}
+a{color:#3C51C4}a:hover{color:#22376B}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 844px; position: relative; font-family: 'Open Sans', Arial, sans-serif; color: #22376B; background: #F5F7FB">
+<header style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: #FFFFFF; border-bottom: 1px solid #E3E8F2"><img src="/_blob/3bbf4febd79e89c461ef7e11e5cfb335" alt="Home Insulation Victoria" style="width: 92px; height: auto"></header>
+<main style="padding: 20px 16px 32px">
+<div role="group" aria-label="Prototype" style="display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px; border: 1px dashed #CED6E6; border-radius: 12px; margin-bottom: 18px; font-size: 12px; color: #5B6785; align-items: center"><b>Prototype:</b><sc-for list="{{steps}}" as="t"><button type="button" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button></sc-for></div><sc-if value="{{a}}" hint-placeholder-val="{{ true }}">
+<h1 style="margin: 24px 0 0; font-size: 28px; font-weight: 800">Sign in</h1>
+<p style="margin: 6px 0 0; font-size: 16px; color: #5B6785">Installer portal</p>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; margin-top: 24px">Email<input type="email" value="deep@reinsulate.com.au" style="font-family: inherit; font-size: 16px; padding: 14px; border: 1px solid #CED6E6; border-radius: 12px"></label>
+<button type="button" onClick="{{toB}}" style="display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; min-height: 54px; border: 0; border-radius: 12px; font-family: inherit; font-weight: 800; font-size: 17px; text-decoration: none; cursor: pointer; background: #07BF61; color: #FFFFFF; margin-top: 18px">Email me a sign-in link</button>
+<p style="margin: 14px 0 0; font-size: 14px; color: #5B6785; line-height: 1.5">No password needed. Stay signed in on this phone.</p>
+</sc-if>
+<sc-if value="{{b}}" hint-placeholder-val="{{ false }}">
+<h1 style="margin: 8px 0 0; font-size: 26px; font-weight: 800">Welcome, Deep</h1>
+<p style="margin: 6px 0 0; font-size: 16px; color: #5B6785">5 things to set up before your first job.</p>
+<div style="background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 16px; padding: 18px; margin-top: 18px; padding: 4px 18px">
+<sc-for list="{{setup}}" as="s"><a href="{{s.href}}" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 0; border-top: 1px solid #EEF1F7; text-decoration: none; color: #22376B"><span style="display: flex; gap: 12px; align-items: center"><span style="{{s.dot}}">{{s.mark}}</span><span><span style="display: block; font-size: 16px; font-weight: 800">{{s.t}}</span><span style="display: block; font-size: 13px; color: #5B6785">{{s.sub}}</span></span></span><span aria-hidden="true" style="color: #9AA5BE; font-size: 20px">›</span></a></sc-for>
+</div>
+<button type="button" onClick="{{toC}}" style="display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; min-height: 54px; border: 0; border-radius: 12px; font-family: inherit; font-weight: 800; font-size: 17px; text-decoration: none; cursor: pointer; background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6; font-weight: 700; font-size: 16px; min-height: 50px; margin-top: 16px">I'll finish later</button>
+</sc-if>
+<sc-if value="{{c}}" hint-placeholder-val="{{ false }}">
+<h1 style="margin: 8px 0 0; font-size: 26px; font-weight: 800">Good morning, Deep</h1>
+<div style="background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 16px; padding: 18px; margin-top: 18px; text-align: center; padding: 28px 20px"><h2 style="margin: 0; font-size: 19px; font-weight: 800">No jobs yet</h2><p style="margin: 8px 0 0; font-size: 15px; color: #5B6785; line-height: 1.5">Add your own customer, or we'll email you when we give you one of our leads.</p><a href="AddJobPhone.dc.html" style="display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; min-height: 54px; border: 0; border-radius: 12px; font-family: inherit; font-weight: 800; font-size: 17px; text-decoration: none; cursor: pointer; background: #07BF61; color: #FFFFFF; margin-top: 18px">+ Add a job</a></div>
+<a href="Business.dc.html" style="display: block; margin-top: 16px; background: #FEF3E2; border-radius: 12px; padding: 14px 16px; color: #8A4B00; font-size: 15px; font-weight: 700; text-decoration: none">2 setup steps left · Finish setting up ›</a>
+</sc-if>
+</main>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { i: 0 }; }
+  renderVals() {
+    const st = this.state;
+    const steps = ['Sign in', 'Setup', 'No jobs yet'].map((label, n) => ({ label, pick: () => this.setState({ i: n }), style: 'font-family: inherit; font-size: 12px; font-weight: 700; min-height: 32px; padding: 0 10px; border-radius: 999px; cursor: pointer; ' + (st.i === n ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6') }));
+    const D = (done) => 'width: 26px; height: 26px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; ' + (done ? 'background: #E7F8EF; color: #067A40' : 'background: #EEF1F7; color: #5B6785');
+    const setup = [['Business details', 'Office phone, email and logo', true, 'Details.dc.html'], ['Documents', 'Public liability ($5m or more)', true, 'Documents.dc.html'], ['Team', 'Your Lead Installers, crew and electricians', true, 'Team.dc.html'], ['Bank', 'Where we pay you', false, 'Bank.dc.html'], ['Products', 'Star the ones you use', false, 'Products.dc.html']]
+      .map(([t, sub, done, href], n) => ({ t, sub, href, mark: done ? '✓' : String(n + 1), dot: D(done) }));
+    return { steps, a: st.i === 0, b: st.i === 1, c: st.i === 2, setup, toB: () => this.setState({ i: 1 }), toC: () => this.setState({ i: 2 }) };
+  }
+}
+</script>
+</body>
+</html>

@@ -36,6 +36,7 @@ a{color:#3C51C4}a:hover{color:#22376B}
 <button type="button" aria-label="Last week" style="width: 44px; height: 44px; border: 1px solid #E3E8F2; background: #FFFFFF; border-radius: 10px; font-size: 18px; color: #22376B; cursor: pointer">‹</button>
 <div style="font-size: 17px; font-weight: 700; padding: 0 8px">9 – 13 Nov</div>
 <button type="button" aria-label="Next week" style="width: 44px; height: 44px; border: 1px solid #E3E8F2; background: #FFFFFF; border-radius: 10px; font-size: 18px; color: #22376B; cursor: pointer">›</button>
+<button type="button" style="margin-left: 8px; min-height: 44px; padding: 0 16px; background: #FFFFFF; color: #3C51C4; border: 1px solid #CED6E6; border-radius: 10px; font-family: inherit; font-weight: 700; font-size: 14px; cursor: pointer">+ Add a Ready Check</button>
 </div>
 </div>
 
@@ -80,7 +81,7 @@ a{color:#3C51C4}a:hover{color:#22376B}
 <div style="font-size: 14px; color: #5B6785; margin-top: 2px">PIESA · Sam said yes</div>
 <a href="Job.dc.html" style="display: block; margin-top: 12px; text-align: center; background: #07BF61; color: #FFFFFF; font-weight: 700; font-size: 15px; padding: 12px; border-radius: 10px; text-decoration: none">Book PIESA</a>
 </div>
-<p style="margin: 20px 0 0; font-size: 14px; color: #5B6785; line-height: 1.5">Tap a booking to move it.</p>
+<p style="margin: 20px 0 0; font-size: 14px; color: #5B6785; line-height: 1.5">Tap a booking to change its day, time or how long.</p>
 </sc-if>
 <sc-if value="{{sel}}" hint-placeholder-val="{{ false }}">
 <div style="font-size: 13px; font-weight: 700; color: {{sel.ink}}">{{sel.kind}}</div>
@@ -89,16 +90,19 @@ a{color:#3C51C4}a:hover{color:#22376B}
 <sc-if value="{{sel.flag}}" hint-placeholder-val="{{ false }}"><div style="margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 14px; font-weight: 600; background: {{sel.flagBg}}; color: {{sel.flagInk}}">{{sel.flag}}</div></sc-if>
 <div style="display: flex; gap: 10px; margin-top: 18px">
 <label style="flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Day
-<select style="font-family: inherit; font-size: 15px; padding: 11px 10px; border: 1px solid #CED6E6; border-radius: 10px; color: #22376B; background: #FFFFFF">
-<option>Mon 9 Nov</option><option>Tue 10 Nov</option><option>Wed 11 Nov</option><option>Thu 12 Nov</option><option>Fri 13 Nov</option>
+<select value="{{draftDay}}" onChange="{{setDay}}" style="font-family: inherit; font-size: 15px; padding: 11px 10px; border: 1px solid #CED6E6; border-radius: 10px; color: #22376B; background: #FFFFFF">
+<option value="0">Mon 9 Nov</option><option value="1">Tue 10 Nov</option><option value="2">Wed 11 Nov</option><option value="3">Thu 12 Nov</option><option value="4">Fri 13 Nov</option>
 </select></label>
 <label style="flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700">Arrival
-<select style="font-family: inherit; font-size: 15px; padding: 11px 10px; border: 1px solid #CED6E6; border-radius: 10px; color: #22376B; background: #FFFFFF">
-<option>8:00am</option><option>9:00am</option><option>10:00am</option><option>11:00am</option><option>12:00pm</option>
+<select value="{{draftStart}}" onChange="{{setStart}}" style="font-family: inherit; font-size: 15px; padding: 11px 10px; border: 1px solid #CED6E6; border-radius: 10px; color: #22376B; background: #FFFFFF">
+<option value="7">7:00am</option><option value="8">8:00am</option><option value="9">9:00am</option><option value="10">10:00am</option><option value="11">11:00am</option><option value="12">12:00pm</option><option value="13">1:00pm</option>
 </select></label>
 </div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; margin-top: 10px">How long
+<select value="{{draftLen}}" onChange="{{setLen}}" style="font-family: inherit; font-size: 15px; padding: 11px 10px; border: 1px solid #CED6E6; border-radius: 10px; color: #22376B; background: #FFFFFF"><option value="1">1 hour</option><option value="1.5">1.5 hours</option><option value="2">2 hours</option><option value="4">Half day</option><option value="5">Full day</option></select></label>
 <p style="margin: 12px 0 0; font-size: 13px; color: #5B6785; line-height: 1.5">{{sel.rule}}</p>
-<button type="button" style="width: 100%; margin-top: 16px; background: #07BF61; color: #FFFFFF; font-family: inherit; font-weight: 700; font-size: 15px; padding: 13px; border: 0; border-radius: 10px; cursor: pointer">Move it</button>
+<sc-if value="{{movedNote}}" hint-placeholder-val="{{ false }}"><div style="margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #E7F8EF; color: #067A40; font-size: 14px; font-weight: 700">{{movedNote}}</div></sc-if>
+<button type="button" onClick="{{move}}" style="width: 100%; margin-top: 16px; background: #07BF61; color: #FFFFFF; font-family: inherit; font-weight: 700; font-size: 15px; padding: 13px; border: 0; border-radius: 10px; cursor: pointer">Save changes</button>
 <div style="display: flex; justify-content: space-between; margin-top: 12px">
 <a href="Job.dc.html" style="font-size: 14px; font-weight: 600">Open the job</a>
 <button type="button" onClick="{{close}}" style="background: none; border: 0; font-family: inherit; font-size: 14px; font-weight: 600; color: #5B6785; cursor: pointer; padding: 0">Close</button>
@@ -117,7 +121,7 @@ a{color:#3C51C4}a:hover{color:#22376B}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":860}}'>
 class Component extends DCLogic {
-  constructor(props) { super(props); this.state = { who: 'Everyone', sel: null }; }
+  constructor(props) { super(props); this.state = { who: 'Everyone', sel: null, moved: {}, draft: null, note: '' }; }
   renderVals() {
     const KIND = {
       Install: { bg: '#E7F8EF', ink: '#067A40', bar: '#07BF61' },
@@ -125,13 +129,15 @@ class Component extends DCLogic {
       'Ready Check': { bg: '#FEF3E2', ink: '#9A4B00', bar: '#D97706' }
     };
     const all = [
-      { id: 1, day: 0, start: 8, len: 4, kind: 'Install', time: '8:00am', place: 'Melton', who: 'Deep, Raj', people: ['Deep', 'Raj'], flag: 'Raj to sign safety plan', bad: false },
-      { id: 2, day: 1, start: 9, len: 2, kind: 'PIESA', time: '9:00am', place: 'Point Cook', who: 'James', people: ['James'], flag: '', bad: false },
-      { id: 3, day: 2, start: 8, len: 5, kind: 'Install', time: '8:00am', place: 'Werribee', who: 'Deep, Wayne', people: ['Deep', 'Wayne'], flag: "Don't start: no electrician", bad: true },
-      { id: 4, day: 3, start: 10, len: 1.5, kind: 'Ready Check', time: '10:00am', place: 'Tarneit', who: 'Deep', people: ['Deep'], flag: '', bad: false },
-      { id: 5, day: 4, start: 9, len: 4, kind: 'Install', time: '9:00am', place: 'Sunbury', who: 'Crew not picked', people: [], flag: 'Pick Lead and crew', bad: false }
+      { id: 1, day: 0, start: 8, len: 4, kind: 'Install', time: '8:00am – 12:00pm', place: 'Melton', who: 'Deep, Raj', people: ['Deep', 'Raj'], flag: 'Raj to sign safety plan', bad: false },
+      { id: 2, day: 1, start: 9, len: 2, kind: 'PIESA', time: '9:00 – 11:00am', place: 'Point Cook', who: 'James', people: ['James'], flag: '', bad: false },
+      { id: 3, day: 2, start: 8, len: 5, kind: 'Install', time: '8:00am – 1:00pm', place: 'Werribee', who: 'Deep, Wayne', people: ['Deep', 'Wayne'], flag: "Don't start: no electrician", bad: true },
+      { id: 4, day: 3, start: 10, len: 1.5, kind: 'Ready Check', time: '10:00 – 11:30am', place: 'Tarneit', who: 'Deep', people: ['Deep'], flag: '', bad: false },
+      { id: 5, day: 4, start: 9, len: 4, kind: 'Install', time: '9:00am – 1:00pm', place: 'Sunbury', who: 'Crew not picked', people: [], flag: 'Pick Lead and crew', bad: false }
     ];
     const longDays = ['Mon 9 Nov', 'Tue 10 Nov', 'Wed 11 Nov', 'Thu 12 Nov', 'Fri 13 Nov'];
+    const hr = h => { const H = Math.floor(h), m = h % 1 ? ':30' : ':00'; return (H > 12 ? H - 12 : H) + m + (H >= 12 ? 'pm' : 'am'); };
+    all.forEach(e => { const mv = this.state.moved[e.id]; if (mv) { e.day = mv.day; e.start = mv.start; e.len = mv.len; e.time = hr(e.start) + ' – ' + hr(e.start + e.len); } });
     const who = this.state.who;
     const shown = all.filter(e => who === 'Everyone' || e.people.indexOf(who) >= 0);
     const dec = e => {
@@ -141,9 +147,9 @@ class Component extends DCLogic {
         ink: k.ink,
         flagInk: e.bad ? '#B42318' : '#8A4B00',
         flagBg: e.bad ? '#FDECEA' : '#FEF3E2',
-        dayLong: longDays[e.day],
-        rule: e.kind === 'Install' ? 'Must happen by Sat 12 Dec. We tell ESC and the owner about any change.' : 'The owner gets a new booking text and email.',
-        pick: () => this.setState({ sel: e.id }),
+        dayLong: longDays[e.day], lenText: e.len >= 5 ? 'Full day' : e.len >= 4 ? 'Half day' : e.len >= 2 ? '2 hours' : '1.5 hours',
+        rule: e.kind === 'Install' ? 'Must happen by Sat 12 Dec. We tell ESC and the owner about any change.' : e.kind === 'Ready Check' ? 'Just for your diary. The owner isn\'t messaged.' : 'The owner gets a new booking text and email.',
+        pick: () => this.setState({ sel: e.id, draft: { day: e.day, start: e.start, len: e.len }, note: '' }),
         style: 'position: absolute; left: 6px; right: 6px; top: ' + ((e.start - 7) * 56 + 3) + 'px; height: ' + (e.len * 56 - 6) + 'px; box-sizing: border-box; text-align: left; font-family: inherit; padding: 8px 10px; border-radius: 8px; cursor: pointer; overflow: hidden; background: ' + k.bg + '; border: ' + (chosen ? '2px solid #22376B' : '1px solid ' + k.bar)
       });
     };
@@ -157,7 +163,12 @@ class Component extends DCLogic {
     }));
     const selE = all.find(e => e.id === this.state.sel);
     const sel = selE ? dec(selE) : null;
-    return { days, hours, people, sel, noSel: !sel, close: () => this.setState({ sel: null }) };
+    const d = this.state.draft || { day: 0, start: 8, len: 4 };
+    const setD = k => ev => this.setState({ draft: Object.assign({}, d, { [k]: parseFloat(ev.target.value) }), note: '' });
+    return { days, hours, people, sel, noSel: !sel, close: () => this.setState({ sel: null }),
+      draftDay: String(d.day), draftStart: String(d.start), draftLen: String(d.len), setDay: setD('day'), setStart: setD('start'), setLen: setD('len'),
+      movedNote: this.state.note,
+      move: () => { if (!sel) return; this.setState({ moved: Object.assign({}, this.state.moved, { [sel.id]: d }), note: 'Saved: ' + longDays[d.day] + ', ' + hr(d.start) + ' – ' + hr(d.start + d.len) + '. The job and the owner are updated.' }); } };
   }
 }
 </script>

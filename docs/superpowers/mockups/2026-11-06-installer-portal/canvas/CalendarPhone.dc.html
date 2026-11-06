@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Calendar (phone)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F7FB}
+a{color:#3C51C4}a:hover{color:#22376B}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 844px; position: relative; font-family: 'Open Sans', Arial, sans-serif; color: #22376B; background: #F5F7FB">
+<header style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: #FFFFFF; border-bottom: 1px solid #E3E8F2"><img src="/_blob/3bbf4febd79e89c461ef7e11e5cfb335" alt="Home Insulation Victoria" style="width: 92px; height: auto"><a href="AddJobPhone.dc.html" style="background: #3C51C4; color: #FFFFFF; font-size: 14px; font-weight: 700; padding: 10px 14px; border-radius: 10px; text-decoration: none">+ Add a job</a></header>
+<main style="padding: 18px 16px 96px">
+<h1 style="margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px">Calendar</h1>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px">
+<button type="button" aria-label="Last week" style="width: 44px; height: 44px; border: 1px solid #E3E8F2; background: #FFFFFF; border-radius: 10px; font-size: 18px; color: #22376B">‹</button>
+<span style="font-size: 17px; font-weight: 800">9 – 13 Nov</span>
+<button type="button" aria-label="Next week" style="width: 44px; height: 44px; border: 1px solid #E3E8F2; background: #FFFFFF; border-radius: 10px; font-size: 18px; color: #22376B">›</button>
+</div>
+<div role="group" aria-label="Show" style="display: flex; gap: 8px; overflow-x: auto; margin: 14px 0 4px; padding-bottom: 4px">
+<sc-for list="{{people}}" as="p"><button type="button" onClick="{{p.pick}}" style="{{p.style}}">{{p.label}}</button></sc-for>
+</div>
+<sc-for list="{{days}}" as="d" hint-placeholder-count="5">
+<h2 style="margin: 18px 0 8px; font-size: 14px; font-weight: 800; color: {{d.ink}}">{{d.label}}</h2>
+<sc-if value="{{d.none}}" hint-placeholder-val="{{ false }}"><p style="margin: 0; font-size: 14px; color: #5B6785">Nothing booked</p></sc-if>
+<sc-for list="{{d.events}}" as="e">
+<button type="button" onClick="{{e.pick}}" style="{{e.style}}">
+<span style="display: block; font-size: 13px; font-weight: 800; color: {{e.ink}}">{{e.kind}} · {{e.time}}</span>
+<span style="display: block; font-size: 16px; font-weight: 800; color: #22376B; margin-top: 2px">{{e.place}}</span>
+<span style="display: block; font-size: 14px; color: #5B6785">{{e.who}}</span>
+<sc-if value="{{e.flag}}" hint-placeholder-val="{{ false }}"><span style="display: block; font-size: 13px; font-weight: 800; margin-top: 4px; color: {{e.flagInk}}">{{e.flag}}</span></sc-if>
+</button>
+<sc-if value="{{e.open}}" hint-placeholder-val="{{ false }}">
+<div style="background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 0 0 12px 12px; margin-top: -6px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Day<select value="{{draftDay}}" onChange="{{setDay}}" style="font-family: inherit; font-size: 16px; padding: 12px; border: 1px solid #CED6E6; border-radius: 12px; background: #FFFFFF; color: #22376B"><option value="0">Mon 9 Nov</option><option value="1">Tue 10 Nov</option><option value="2">Wed 11 Nov</option><option value="3">Thu 12 Nov</option><option value="4">Fri 13 Nov</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">Arrival<select value="{{draftStart}}" onChange="{{setStart}}" style="font-family: inherit; font-size: 16px; padding: 12px; border: 1px solid #CED6E6; border-radius: 12px; background: #FFFFFF; color: #22376B"><option value="7">7:00am</option><option value="8">8:00am</option><option value="9">9:00am</option><option value="10">10:00am</option><option value="11">11:00am</option><option value="12">12:00pm</option><option value="13">1:00pm</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700">How long<select value="{{draftLen}}" onChange="{{setLen}}" style="font-family: inherit; font-size: 16px; padding: 12px; border: 1px solid #CED6E6; border-radius: 12px; background: #FFFFFF; color: #22376B"><option value="1">1 hour</option><option value="1.5">1.5 hours</option><option value="2">2 hours</option><option value="4">Half day</option><option value="5">Full day</option></select></label>
+<p style="margin: 0; font-size: 13px; color: #5B6785">{{e.rule}}</p>
+<sc-if value="{{movedNote}}" hint-placeholder-val="{{ false }}"><div style="padding: 10px 12px; border-radius: 10px; background: #E7F8EF; color: #067A40; font-size: 14px; font-weight: 700">{{movedNote}}</div></sc-if>
+<button type="button" onClick="{{move}}" style="min-height: 50px; background: #07BF61; color: #FFFFFF; border: 0; border-radius: 12px; font-family: inherit; font-weight: 800; font-size: 16px">Save changes</button>
+<a href="JobPhone.dc.html" style="text-align: center; font-size: 15px; font-weight: 700; padding: 6px">Open the job</a>
+</div>
+</sc-if>
+</sc-for>
+</sc-for>
+<h2 style="margin: 24px 0 8px; font-size: 14px; font-weight: 800; color: #5B6785">Still to book</h2>
+<a href="JobPhone.dc.html" style="display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #FFFFFF; border: 1px solid #E3E8F2; border-radius: 12px; padding: 14px 16px; text-decoration: none; color: #22376B"><span><span style="display: block; font-size: 15px; font-weight: 800">8 Example Court, Tarneit</span><span style="display: block; font-size: 13px; color: #5B6785">PIESA · Sam said yes</span></span><span style="background: #07BF61; color: #FFFFFF; font-weight: 700; font-size: 14px; padding: 10px 14px; border-radius: 10px">Book</span></a>
+<button type="button" style="margin-top: 16px; width: 100%; min-height: 48px; background: #FFFFFF; color: #3C51C4; border: 1px solid #CED6E6; border-radius: 12px; font-family: inherit; font-weight: 700; font-size: 15px">+ Add a Ready Check</button>
+</main>
+<nav aria-label="Main" style="position: absolute; left: 0; right: 0; bottom: 0; display: flex; background: #FFFFFF; border-top: 1px solid #E3E8F2; padding: 6px 4px 18px"><a href="Main.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #5B6785; text-decoration: none">Action items</a><a href="Calendar.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #3C51C4; text-decoration: none">Calendar</a><a href="Jobs.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #5B6785; text-decoration: none">Jobs</a><a href="Money.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #5B6785; text-decoration: none">Money</a><a href="Business.dc.html" style="flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: 700; color: #5B6785; text-decoration: none">My business</a></nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { who: 'Everyone', sel: null, moved: {}, draft: null, note: '' }; }
+  renderVals() {
+
+    const KIND = { Install: { bg: '#E7F8EF', ink: '#067A40', bar: '#07BF61' }, PIESA: { bg: '#ECEFFC', ink: '#3C51C4', bar: '#3C51C4' }, 'Ready Check': { bg: '#FEF3E2', ink: '#9A4B00', bar: '#D97706' } };
+    const all = [
+      { id: 1, day: 0, start: 8, len: 4, kind: 'Install', time: '8:00am – 12:00pm', place: '12 Example Street, Melton', who: 'Deep, Raj', people: ['Deep', 'Raj'], flag: 'Raj to sign safety plan', bad: false },
+      { id: 2, day: 1, start: 9, len: 2, kind: 'PIESA', time: '9:00 – 11:00am', place: '24 Demo Road, Point Cook', who: 'James', people: ['James'], flag: '', bad: false },
+      { id: 3, day: 2, start: 8, len: 5, kind: 'Install', time: '8:00am – 1:00pm', place: '6 Sample Avenue, Werribee', who: 'Deep, Wayne', people: ['Deep', 'Wayne'], flag: "Don't start: no electrician", bad: true },
+      { id: 4, day: 3, start: 10, len: 1.5, kind: 'Ready Check', time: '10:00 – 11:30am', place: '9 Sample Crescent, Tarneit', who: 'Deep', people: ['Deep'], flag: '', bad: false },
+      { id: 5, day: 4, start: 9, len: 4, kind: 'Install', time: '9:00am – 1:00pm', place: '14 Hill Street, Sunbury', who: 'Crew not picked', people: [], flag: 'Pick Lead and crew', bad: false }
+    ];
+    const longDays = ['Mon 9 Nov', 'Tue 10 Nov', 'Wed 11 Nov', 'Thu 12 Nov', 'Fri 13 Nov'];
+    const hr = h => { const H = Math.floor(h), m = h % 1 ? ':30' : ':00'; return (H > 12 ? H - 12 : H) + m + (H >= 12 ? 'pm' : 'am'); };
+    all.forEach(e => { const mv = this.state.moved[e.id]; if (mv) { e.day = mv.day; e.start = mv.start; e.len = mv.len; e.time = hr(e.start) + ' – ' + hr(e.start + e.len); } });
+    const who = this.state.who, sel = this.state.sel;
+    const shown = all.filter(e => who === 'Everyone' || e.people.indexOf(who) >= 0);
+    const days = longDays.map((label, i) => {
+      const events = shown.filter(e => e.day === i).map(e => {
+        const k = KIND[e.kind], open = sel === e.id;
+        return Object.assign({}, e, { ink: k.ink, open, flagInk: e.bad ? '#B42318' : '#8A4B00', dayLong: longDays[e.day],
+          rule: e.kind === 'Install' ? 'Must happen by Sat 12 Dec. We tell ESC and the owner about any change.' : e.kind === 'Ready Check' ? "Just for your diary. The owner isn't messaged." : 'The owner gets a new booking text and email.',
+          pick: () => this.setState({ sel: open ? null : e.id, draft: { day: e.day, start: e.start, len: e.len }, note: '' }),
+          style: 'width: 100%; display: block; text-align: left; font-family: inherit; padding: 12px 14px; margin-bottom: 8px; border-radius: 12px; cursor: pointer; background: ' + k.bg + '; border: 1px solid ' + k.bar + '; border-left-width: 6px' });
+      });
+      return { label: label + (i === 0 ? ' · today' : ''), ink: i === 0 ? '#3C51C4' : '#5B6785', events, none: events.length === 0 };
+    });
+    const people = ['Everyone', 'Deep', 'Raj', 'Wayne', 'James'].map(p => ({ label: p, pick: () => this.setState({ who: p, sel: null }),
+      style: 'flex: none; font-family: inherit; font-size: 14px; font-weight: 700; padding: 0 16px; min-height: 44px; border-radius: 999px; ' + (who === p ? 'background: #22376B; color: #FFFFFF; border: 1px solid #22376B' : 'background: #FFFFFF; color: #22376B; border: 1px solid #CED6E6') }));
+    const d = this.state.draft || { day: 0, start: 8, len: 4 };
+    const setD = k => ev => this.setState({ draft: Object.assign({}, d, { [k]: parseFloat(ev.target.value) }), note: '' });
+    return { days, people, draftDay: String(d.day), draftStart: String(d.start), draftLen: String(d.len), setDay: setD('day'), setStart: setD('start'), setLen: setD('len'),
+      movedNote: this.state.note,
+      move: () => { if (sel == null) return; this.setState({ moved: Object.assign({}, this.state.moved, { [sel]: d }), note: 'Saved: ' + longDays[d.day] + ', ' + hr(d.start) + ' – ' + hr(d.start + d.len) + '. The job and the owner are updated.' }); } };
+  }
+}
+</script>
+</body>
+</html>
