@@ -1359,6 +1359,13 @@
       "when": 1793879827517,
       "tag": "0193_team_certificate_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 194,
+      "version": "7",
+      "when": 1793938799807,
+      "tag": "0194_add_admin_config_events_bookings_indexes",
+      "breakpoints": true
     }
   ]
 }
