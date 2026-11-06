@@ -12,7 +12,7 @@ import { addressLine, estimateDollars, matchesColumnFilters, type ColumnFilters 
 import { savedPriceFromEstimate } from "./launch-campaign.core";
 import { CATEGORY_RANK, categoryCounts, enquiryCategory, inView, ownerWrote, type EnquiryCategory, type EnquiryView } from "./enquiry-categories.core";
 import { FIRST_RESPONSE_PURPOSES } from "./automatic-first-response.core";
-import { isFirmQuoteJob, FIRM_QUOTE_REQUESTED_EVENT, firmQuoteRequestDueBy } from "./firm-quote.core";
+import { isFirmQuoteJob, FIRM_QUOTE_REQUESTED_EVENT, firmQuoteHeldInEnquiries, firmQuoteRequestDueBy } from "./firm-quote.core";
 import { hasOwnerMedia } from "./photo-quote.core";
 import { readAutoOfferSwitches } from "./auto-offer.server";
 import type { OfficeStatus } from "./office-status.core";
@@ -134,6 +134,78 @@ async function estimateMap(ids: string[]) {
   return (id: string) => { const t = totals(id); return estimateDollars({ websiteTotal: t.estimateTotal, quoteTotal: t.quoteTotal }); };
 }
 
+/** Saved firm-quote requests that may still belong in Enquiries › With photos (same scope as the Enquiries list). */
+async function savedFirmEnquiries(liveAt: string | null, testJobIds: string[] | undefined, onlyIds?: string[]): Promise<Row[]> {
+  if (onlyIds && !onlyIds.length) return [];
+  if (testJobIds) {
+    const ids = onlyIds ? testJobIds.filter(id => onlyIds.includes(id)) : testJobIds;
+    return all("saved TEST firm enquiries", (a, b) => admin.from("jobs")
+      .select("id,job_number,created_at,source,channel,owners(full_name,email,phone)").eq("source", "qa_test").eq("channel", "hivic_sourced")
+      .in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]).eq("stage", "ready_check_ready_to_schedule")
+      .order("created_at", { ascending: false }).order("id").range(a, b))
+      .then(rows => rows.map(r => { const owner = r["owners"] as { full_name?: string; email?: string; phone?: string } | null; return { ...r, owner_name: owner?.full_name, owner_email: owner?.email, owner_phone: owner?.phone, enquiry_status: null, needs_first_response: false, latest_attempt_status: null, latest_attempt_at: null }; }));
+  }
+  if (liveAt === null) return [];
+  const read = (ids: string[] | null) => all("saved firm enquiries", (a, b) => {
+    let q = admin.from("office_enquiry_index")
+      .select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, latest_attempt_at, owner_name, owner_email, owner_phone")
+      .eq("office_bucket", "active").eq("channel", "hivic_sourced").eq("source", "base44")
+      .gte("created_at", liveAt).eq("spot_saved", true).eq("owner_progressed", false)
+      .in("stage", ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule"]);
+    if (ids) q = q.in("id", ids);
+    return q.order("created_at", { ascending: false }).order("id").range(a, b);
+  });
+  const only = onlyIds ?? null;
+  if (!only) return read(null);
+  const out: Row[] = [];
+  for (let i = 0; i < only.length; i += 150) out.push(...await read(only.slice(i, i + 150)));
+  return out;
+}
+
+/** Firm-quote facts for the Enquiries list: which rows are firm-quote jobs, their due dates, and the saved requests held
+ *  in Enquiries › With photos (firmQuoteHeldInEnquiries). Off (switch NULL, not the TEST office) = no reads. */
+async function firmEnquiryFacts(index: Row[], liveAt: string | null, testJobIds: string[] | undefined, onlyIds?: string[]) {
+  const firmIds = new Set<string>();
+  const firmDueBy = new Map<string, string | null>();
+  const held: Row[] = [];
+  if (liveAt === null && !testJobIds) return { firmIds, firmDueBy, held };
+  const saved = await savedFirmEnquiries(liveAt, testJobIds, onlyIds);
+  const candidates = [...new Map([...index, ...saved].filter(r => isFirmQuoteJob({
+    createdAt: String(r["created_at"]), source: s(r["source"]), liveAt, hasMedia: true, ownerEmail: s(r["owner_email"]),
+  })).map(r => [String(r["id"]), r])).values()];
+  const candidateIds = candidates.map(r => String(r["id"]));
+  const [media, requests, assignments, quotes] = await Promise.all([
+    byIds("firm enquiry media", candidateIds, (c, f, t) => admin.from("documents").select("job_id,kind,mime_type,storage_path").in("job_id", c).eq("kind", "intake_media").order("id").range(f, t)),
+    byIds("firm enquiry requests", candidateIds, (c, f, t) => admin.from("workflow_events").select("job_id,event_type,details").in("job_id", c).eq("event_type", FIRM_QUOTE_REQUESTED_EVENT).order("created_at").order("id").range(f, t)),
+    byIds("firm enquiry installers", candidateIds, (c, f, t) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).order("id").range(f, t)),
+    byIds("firm enquiry quotes", candidateIds, (c, f, t) => admin.from("quotes").select("job_id").in("job_id", c).order("id").range(f, t)),
+  ]);
+  const withInstaller = new Set(assignments.map(r => String(r["job_id"])));
+  const quoted = new Set(quotes.map(r => String(r["job_id"])));
+  const savedIds = new Set(saved.map(r => String(r["id"])));
+  for (const r of candidates) {
+    const id = String(r["id"]);
+    const docs = media.filter(d => d["job_id"] === id) as { kind: string; mime_type: string | null; storage_path: string | null }[];
+    if (!isFirmQuoteJob({ createdAt: String(r["created_at"]), source: s(r["source"]), liveAt, hasMedia: hasOwnerMedia(docs), ownerEmail: s(r["owner_email"]) })) continue;
+    firmIds.add(id);
+    const events = requests.filter(e => e["job_id"] === id) as { event_type: string; details: unknown }[];
+    firmDueBy.set(id, firmQuoteRequestDueBy(events));
+    if (savedIds.has(id) && firmQuoteHeldInEnquiries({ firmQuote: true, requested: events.length > 0, hasInstaller: withInstaller.has(id), hasQuote: quoted.has(id) })) held.push(r);
+  }
+  return { firmIds, firmDueBy, held };
+}
+
+/** Only our own saved spots waiting for an installer can be a held firm-quote request (no reads for anything else). */
+const isFirmEnquiryCandidate = (r: Row) => r["channel"] === "hivic_sourced" && r["stage"] === "ready_check_ready_to_schedule";
+
+/** Jo 7 Nov (one pile): ids of saved firm-quote requests shown in Enquiries › With photos, so no Jobs read lists them. */
+export async function firmEnquiryHeldIds(ids: string[], testJobIds?: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const liveAt = testJobIds ? null : await (await import("./firm-quote.server")).firmQuoteLiveAt();
+  const { held } = await firmEnquiryFacts([], liveAt, testJobIds, ids);
+  return new Set(held.map(r => String(r["id"])));
+}
+
 export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: string[]) {
   const now = Date.now();
   // Off means the exact existing scope, with no owner-media or request reads.
@@ -148,44 +220,13 @@ export async function loadEnquiriesList(p: EnquiryListParams, testJobIds?: strin
     q = q.in("source", ["base44", "portal", "email"]);
     return q.order("created_at", { ascending: false }).order("id").range(a, b);
   });
-  const firmIds = new Set<string>();
-  const firmDueBy = new Map<string, string | null>();
   // TEST office (testJobIds): the TEST-only exception applies (qa_test + TEST owner email) with the switch NULL.
-  if (liveAt !== null || testJobIds) {
-    // Proceed moves the saved response to the existing release queue. Keep only recorded firm requests
-    // there in Enquiries until ordinary allocation/quoting progression, never closed/duplicate rows.
-    const saved: Row[] = testJobIds ? await all("saved TEST firm enquiries", (a, b) => admin.from("jobs")
-      .select("id,job_number,created_at,source,channel,owners(full_name,email,phone)").eq("source", "qa_test").eq("channel", "hivic_sourced")
-      .in("id", testJobIds.length ? testJobIds : ["00000000-0000-0000-0000-000000000000"]).eq("stage", "ready_check_ready_to_schedule")
-      .order("created_at", { ascending: false }).order("id").range(a, b))
-      .then(rows => rows.map(r => { const owner = r["owners"] as { full_name?: string; email?: string; phone?: string } | null; return { ...r, owner_name: owner?.full_name, owner_email: owner?.email, owner_phone: owner?.phone, enquiry_status: null, needs_first_response: false, latest_attempt_status: null, latest_attempt_at: null }; }))
-    : await all("saved firm enquiries", (a, b) => admin.from("office_enquiry_index")
-      .select("id, job_number, created_at, source, channel, enquiry_status, needs_first_response, latest_attempt_status, latest_attempt_at, owner_name, owner_email, owner_phone")
-      .eq("office_bucket", "active").eq("channel", "hivic_sourced").eq("source", "base44")
-      .gte("created_at", liveAt!).eq("spot_saved", true).eq("owner_progressed", false)
-      .in("stage", ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule"])
-      .order("created_at", { ascending: false }).order("id").range(a, b));
-    const candidates = [...new Map([...index, ...saved].filter(r => isFirmQuoteJob({
-      createdAt: String(r["created_at"]), source: s(r["source"]), liveAt, hasMedia: true, ownerEmail: s(r["owner_email"]),
-    })).map(r => [String(r["id"]), r])).values()];
-    const candidateIds = candidates.map(r => String(r["id"]));
-    const [media, requests, assignments, quotes] = await Promise.all([
-      byIds("firm enquiry media", candidateIds, (c, f, t) => admin.from("documents").select("job_id,kind,mime_type,storage_path").in("job_id", c).eq("kind", "intake_media").order("id").range(f, t)),
-      byIds("firm enquiry requests", candidateIds, (c, f, t) => admin.from("workflow_events").select("job_id,event_type,details").in("job_id", c).eq("event_type", FIRM_QUOTE_REQUESTED_EVENT).order("created_at").order("id").range(f, t)),
-      byIds("firm enquiry installers", candidateIds, (c, f, t) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).order("id").range(f, t)),
-      byIds("firm enquiry quotes", candidateIds, (c, f, t) => admin.from("quotes").select("job_id").in("job_id", c).order("id").range(f, t)),
-    ]);
-    const progressed = new Set([...assignments, ...quotes].map(r => String(r["job_id"])));
+  // Proceed moves the saved response to the existing release queue. Keep only recorded firm requests
+  // there in Enquiries until ordinary allocation/quoting progression, never closed/duplicate rows.
+  const { firmIds, firmDueBy, held } = await firmEnquiryFacts(index, liveAt, testJobIds);
+  {
     const existing = new Set(index.map(r => String(r["id"])));
-    for (const r of candidates) {
-      const id = String(r["id"]);
-      const docs = media.filter(d => d["job_id"] === id) as { kind: string; mime_type: string | null; storage_path: string | null }[];
-      if (!isFirmQuoteJob({ createdAt: String(r["created_at"]), source: s(r["source"]), liveAt, hasMedia: hasOwnerMedia(docs), ownerEmail: s(r["owner_email"]) })) continue;
-      firmIds.add(id);
-      const events = requests.filter(e => e["job_id"] === id) as { event_type: string; details: unknown }[];
-      firmDueBy.set(id, firmQuoteRequestDueBy(events));
-      if (!existing.has(id) && events.length > 0 && !progressed.has(id)) { index.push(r); existing.add(id); }
-    }
+    for (const r of held) { const id = String(r["id"]); if (!existing.has(id)) { index.push(r); existing.add(id); } }
   }
   const ids = index.map((r) => String(r["id"]));
   const [jobs, heard, answered, covered, estimateOf, inbound, campaignOpt, emailOpt, bounced] = await Promise.all([
@@ -288,11 +329,15 @@ export async function loadJobsLaneCounts(testJobIds?: string[]): Promise<{ ours:
     // office_job_list is the shared office bucket view (not in the generated client types).
     : await all("active job lanes", (a, b) => (admin as unknown as { from: (t: string) => any }).from("office_job_list") // eslint-disable-line @typescript-eslint/no-explicit-any
       .select("id, stage, channel, installer_name, originating_business_name").eq("office_bucket", "active").or("source.is.null,source.neq.qa_test").order("id").range(a, b));
-  const extra = await byIds("job facts", base.map((r) => String(r["id"])), (c, f, t) => admin.from("jobs").select("id, prior_stage, deleted_at, qa_archived_at").in("id", c).range(f, t));
+  const [extra, heldInEnquiries] = await Promise.all([
+    byIds("job facts", base.map((r) => String(r["id"])), (c, f, t) => admin.from("jobs").select("id, prior_stage, deleted_at, qa_archived_at").in("id", c).range(f, t)),
+    // One pile (Jo 7 Nov): same rule as the list.
+    firmEnquiryHeldIds(base.filter(isFirmEnquiryCandidate).map((r) => String(r["id"])), testJobIds),
+  ]);
   const ex = new Map(extra.map((r) => [String(r["id"]), r]));
   return laneCounts(base.flatMap((r) => {
     const e = ex.get(String(r["id"]));
-    if (!e) return [];
+    if (!e || heldInEnquiries.has(String(r["id"]))) return [];
     return [{ channel: s(r["channel"]), stage: s(r["stage"]), priorStage: s(e["prior_stage"]), installerName: s(r["installer_name"]), originatingName: s(r["originating_business_name"]), deleted: !!(e["deleted_at"] || e["qa_archived_at"]) }];
   }));
 }
@@ -313,7 +358,10 @@ export async function loadActiveJobsList(p: JobsListParams, testJobIds?: string[
     return q.order("created_at", { ascending: false }).order("id").range(a, b);
   });
   // Lane first: everything below works on the one lane being shown (channel decides it, jobs-columns.core laneOf).
-  const inLane = base.filter((r) => laneOf(s(r["channel"])) === p.lane);
+  const laneRows = base.filter((r) => laneOf(s(r["channel"])) === p.lane);
+  // One pile (Jo 7 Nov): a saved firm-quote request stays in Enquiries › With photos until given to an installer.
+  const heldInEnquiries = await firmEnquiryHeldIds(laneRows.filter(isFirmEnquiryCandidate).map((r) => String(r["id"])), testJobIds);
+  const inLane = laneRows.filter((r) => !heldInEnquiries.has(String(r["id"])));
   const ids = inLane.map((r) => String(r["id"]));
   const [extra, heard, measurements, totals, switches, bounced] = await Promise.all([
     byIds("job facts", ids, (c, f, t) => admin.from("jobs").select("id, prior_stage, deleted_at, qa_archived_at, created_at, estimated_area_m2, properties(suburb, postcode, answers:enrichment->base44->raw->answers)").in("id", c).range(f, t)),

@@ -14,6 +14,10 @@ export function firmQuoteRequestDueBy(events: readonly { event_type: string; det
   const date = (event?.details as { due_by?: unknown } | null)?.due_by;
   return typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) ? date : null;
 }
+/** Jo 7 Nov (one pile): a requested firm quote stays in Enquiries › With photos until it is given to an installer (or
+ *  quoted); while it is there it is in no Jobs list. */
+export const firmQuoteHeldInEnquiries = (f: { firmQuote: boolean; requested: boolean; hasInstaller: boolean; hasQuote: boolean }): boolean =>
+  f.firmQuote && f.requested && !f.hasInstaller && !f.hasQuote;
 export const firmQuoteRequestTag = (date: string | null | undefined): string | null => date ? `Asked for firm quote · due ${formatDueDate(date)}` : null;
 
 /** TEST-only exception (Jo, option A, 7 Nov 2026): while the switch is NULL, TEST jobs made from this moment with a TEST

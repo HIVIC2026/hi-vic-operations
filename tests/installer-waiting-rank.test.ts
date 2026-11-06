@@ -65,7 +65,7 @@ mock.module("../src/lib/readycheck-booking.server", () => ({
   }),
 }));
 mock.module("../src/lib/spot-release.server", () => ({ spotReleaseStates: async () => new Map() }));
-mock.module("../src/lib/firm-quote.server", () => ({ isFirmQuoteJobId: async (id: string) => id === "firm" }));
+mock.module("../src/lib/firm-quote.server", () => ({ isFirmQuoteJobId: async (id: string) => id === "firm", firmQuoteLiveAt: async () => null }));
 
 const { loadInstallerWaitingList } = await import("../src/lib/installer-waiting.server");
 const { readSpotFacts } = await import("../src/lib/saved-spot-facts.server");

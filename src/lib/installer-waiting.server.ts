@@ -150,8 +150,10 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }, t
       (async () => (await import("./spot-release.server")).spotReleaseStates(ids))(),
     ]);
   });
-  const [jobs, partners, installers, [assigned, offers, saved, measured, estimates, batchHistory, spotFacts, releases]] = await Promise.all([
-    jobsP, partnerFacts(testBusinessIds), installerFacts(testBusinessIds), perJobP,
+  // One pile (Jo 7 Nov): a saved firm-quote request stays in Enquiries › With photos until given to an installer.
+  const heldP = jobsP.then(async (jobs) => (await import("./office-lists.server")).firmEnquiryHeldIds(jobs.map((j) => String(j["id"])), testJobIds));
+  const [jobs, partners, installers, [assigned, offers, saved, measured, estimates, batchHistory, spotFacts, releases], heldInEnquiries] = await Promise.all([
+    jobsP, partnerFacts(testBusinessIds), installerFacts(testBusinessIds), perJobP, heldP,
   ]);
 
   const hasInstaller = new Set(assigned.map((a) => String(a["job_id"])));
@@ -173,7 +175,7 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }, t
   for (const j of jobs) {
     const id = String(j["id"]);
     const member = installerWaiting({ channel: s(j["channel"]), stage: String(j["stage"]), deleted: !!j["deleted_at"], archived: !!j["qa_archived_at"], hasInstaller: hasInstaller.has(id), offers: offersBy.get(id) ?? [] });
-    if (!member) continue;
+    if (!member || heldInEnquiries.has(id)) continue;
     const prop = (j["properties"] ?? null) as { suburb: string | null; postcode: string | null; answers: Record<string, unknown> | null } | null;
     const sv = savedBy.get(id);
     const spotSavedAt = s(sv?.["spot_saved_at"]);
