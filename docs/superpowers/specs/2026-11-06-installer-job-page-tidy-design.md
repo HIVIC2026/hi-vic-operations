@@ -101,6 +101,35 @@ goes back to Home Insulation Victoria. ("Can this home be quoted?" was removed; 
 ### Out of scope for Part A
 No change to pricing, payments, emails or texts to owners, the PIESA/install flows, or the office screens.
 
+## Part C: Jobs screen and job timeline (approved 6 Nov, new installer design)
+
+Wording style: friendly (e.g. "Sam's accepted! Give them a call to book the PIESA.").
+
+**One Jobs screen** replaces Action items and the old Jobs page. Bottom menu: Jobs · Calendar · Money · My business.
+- Greeting + "You've got {n} things to do. Most urgent first."
+- **Show** filter: All jobs / To quote / Quote with owner / PIESA / Deposit / Install / Payment, each with a count.
+- **To do:** every job waiting on the installer, most urgent first (red, then amber, then grey). Each row: what to
+  do in plain words, address, its clock (e.g. "Must be done by Sat 12 Dec · 2 days left"), one button.
+- **Waiting on someone else:** every other open job, saying what it's waiting on and since when
+  (e.g. "Tom hasn't paid the deposit · Asked 5 days ago · we're chasing him").
+- This is the only place anything needing the installer shows. Every open job stays listed until paid or closed;
+  jobs that stall turn amber then red and the office is flagged (2 Nov stalled-job rules).
+
+**Job page:**
+- **Install countdown** card: "Day {n} of 30", bar, "PIESA {date}" → "Install by {date}", the next step in friendly
+  words and its button. The 30 days run from the PIESA date. Amber at 7 days or fewer, red at 3 or fewer.
+- **Timeline** of every step: done (green tick + date), now (amber), to come (grey). Every gap has a
+  "Waiting on {who}" step showing when we asked, each reminder sent, the next reminder, and anything the owner has
+  done so far (e.g. "✓ ESC consent signed Sun 15 Nov"). Every owner message shows in the timeline.
+- Steps (own customer): job added · quote checked and sent · waiting on owner to accept · accepted + PIESA fee paid ·
+  PIESA booked · PIESA done (all clear / upgrades needed) · waiting on electrician for upgrades + certificate (only if
+  needed) · waiting on owner to sign ESC consent + pay 50% deposit · deposit paid · book the install · pick Lead
+  Installer and crew · crew sign safety plan · GO email · install day (owner signs rebate form, pays balance) · you get
+  paid. Home Insulation Victoria leads add "paperwork approved" before pay (paid 7 days later).
+
+**Calendar:** bookings warn on a clash with anything already booked. Installers can subscribe their Google, Apple or
+Outlook calendar once so every booking and change appears there automatically.
+
 ## Part B: new installer design only (added to the Design canvas and the redesign spec, not before Monday)
 
 - **Urgency on Action items:** Home Insulation Victoria leads show "{n} business days left" before they return to the
