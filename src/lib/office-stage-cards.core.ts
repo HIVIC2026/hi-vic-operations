@@ -13,6 +13,8 @@ export type StageCardFacts = {
   current: JobsStage | null;
   closed: "complete" | "cancelled" | null;
   ownJob: boolean;
+  /** Jo 7 Nov 2026 (option A): a firm-quote (desktop quote) photo job — words only; absent/false = the ordinary words. */
+  firmQuote?: boolean;
   enquiry: { receivedAt: string; source: string; estimateTotal: number | null; estimateRebate: number | null; linkSentAt: string | null; linkViewedAt: string | null; ownerSaid: string | null; eligibility: string | null; photos: number };
   readyCheck: { installer: string | null; chosenAt: string | null; acceptedAt: string | null; visitAt: string | null; mitti: string | null; measured: string | null; diagramAt: string | null };
   quote: { sentAt: string | null; held: string | null; subtotal: number | null; incentive: number | null; ownerPays: number | null; acceptedAt: string | null; signer: string | null; safetyPaidAt: string | null; declined: string | null; /** Decision 302: the quote's safety check amount in cents (null = $349 default). */ safetyCheckCents?: number | null };
@@ -27,6 +29,20 @@ const dayTime = (iso: string) => new Date(iso).toLocaleString("en-AU", { weekday
 const money = (n: number) => `$${n.toLocaleString("en-AU", { maximumFractionDigits: 0 })}`;
 const dash = "—";
 
+/** Jo 7 Nov 2026 (option A, all 7): office job page words on firm-quote (desktop quote) photo jobs. Words only. */
+export const FIRM_QUOTE_WORDS = {
+  stage: "Desktop assessment",
+  visit: "No home visit · the installer checks the photos from their desk",
+  quotePrepared: "Prepared when the installer finishes the desktop assessment",
+  asked: "Asked for firm quote",
+} as const;
+/** The status at the top of the job page: on a firm-quote job "Ready Check" reads "Desktop assessment" and "Spot saved"
+ *  reads "Asked for firm quote" (exact labels only); every other label, and every ordinary job, unchanged. */
+export function firmQuoteStatusPill(label: string | null, firmQuote: boolean): string | null {
+  if (!firmQuote || label == null) return label;
+  return label === "Ready Check" ? FIRM_QUOTE_WORDS.stage : label === "Spot saved" ? FIRM_QUOTE_WORDS.asked : label;
+}
+
 const STAGE_TO_CARD: Record<JobsStage, CardKey> = { choose_installer: "ready-check", ready_check: "ready-check", quote: "quote", piesa: "piesa", install: "install", final_check: "final-check" };
 const ORDER: CardKey[] = ["enquiry", "ready-check", "quote", "piesa", "install", "final-check"];
 
@@ -40,6 +56,7 @@ export function cardStates(current: JobsStage | null, closed: "complete" | "canc
 export function buildStageCards(f: StageCardFacts): StageCard[] {
   const st = cardStates(f.current, f.closed);
   const e = f.enquiry, r = f.readyCheck, q = f.quote, p = f.piesa, i = f.install, c = f.finalCheck;
+  const firm = f.firmQuote === true;
   const estimate = e.estimateTotal != null ? `${money(e.estimateTotal)} after the VEEC incentive${e.linkViewedAt ? ` · link opened ${day(e.linkViewedAt)}` : e.linkSentAt ? ` · link sent ${day(e.linkSentAt)}` : ""}` : e.linkSentAt ? `Link sent ${day(e.linkSentAt)}${e.linkViewedAt ? ` · opened ${day(e.linkViewedAt)}` : ""}` : dash;
   return [
     { key: "enquiry", n: 1, title: "Enquiry", state: st.enquiry, lines: [
@@ -50,15 +67,16 @@ export function buildStageCards(f: StageCardFacts): StageCard[] {
       { label: "Eligibility", value: e.eligibility ?? dash },
       { label: "Photos", value: e.photos ? `${e.photos} roof-space photo${e.photos === 1 ? "" : "s"}` : "None" },
     ] },
-    { key: "ready-check", n: 2, title: "Ready Check", state: st["ready-check"], lines: [
+    { key: "ready-check", n: 2, title: firm ? FIRM_QUOTE_WORDS.stage : "Ready Check", state: st["ready-check"], lines: [
       { label: "Installer", value: r.installer ? `${r.installer}${f.ownJob ? " · their own customer" : `${r.chosenAt ? ` · chosen ${day(r.chosenAt)}` : ""}${r.acceptedAt ? ` · accepted ${day(r.acceptedAt)}` : ""}`}` : "Not chosen yet" },
-      { label: "Visit", value: r.visitAt ? dayTime(r.visitAt) : f.ownJob ? "Installer arranges directly" : "Installer offers 3 times after accepting" },
-      { label: "Mitti form", value: r.mitti ?? dash },
+      { label: "Visit", value: r.visitAt ? dayTime(r.visitAt) : f.ownJob ? "Installer arranges directly" : firm ? FIRM_QUOTE_WORDS.visit : "Installer offers 3 times after accepting" },
+      // Firm-quote jobs: no Mitti form or area diagram applies, so no row.
+      ...(firm ? [] : [{ label: "Mitti form", value: r.mitti ?? dash }]),
       { label: "Measured", value: r.measured ?? dash },
-      { label: "Area diagram", value: r.diagramAt ? `Filed ${day(r.diagramAt)}` : dash },
+      ...(firm ? [] : [{ label: "Area diagram", value: r.diagramAt ? `Filed ${day(r.diagramAt)}` : dash }]),
     ] },
     { key: "quote", n: 3, title: "Quote", state: st.quote, lines: [
-      { label: "Sent", value: q.sentAt ? `${dayTime(q.sentAt)}` : q.held ? `Held · ${q.held}` : "Prepared when the Ready Check form is complete" },
+      { label: "Sent", value: q.sentAt ? `${dayTime(q.sentAt)}` : q.held ? `Held · ${q.held}` : firm ? FIRM_QUOTE_WORDS.quotePrepared : "Prepared when the Ready Check form is complete" },
       { label: "Amount", value: q.subtotal != null ? `${money(q.subtotal)} inc GST${q.incentive ? ` · VEEC incentive −${money(q.incentive)}` : ""}${q.ownerPays != null ? ` · owner pays ${money(q.ownerPays)}` : ""}` : dash },
       { label: "Accepted", value: q.acceptedAt ? `${dayTime(q.acceptedAt)}${q.signer ? ` · agreement signed by ${q.signer}` : ""}` : q.declined ? `Declined · ${q.declined}` : dash },
       // The amount was the label, so the card read "$349  —" with nothing saying what it was. Label it; amount in the value.
