@@ -14,6 +14,7 @@ const OWNER_BASE = "https://estimate.homeinsulationvictoria.com.au";
 
 /** The approved Spot saved text + email for this job, from the owner's saved estimate figures. */
 export async function buildSpotSavedMessages(jobId: string, token: string) {
+  if (await (await import("./firm-quote.server")).isFirmQuoteJobId(jobId)) return null;
   const [{ data: job }, { data: r }] = await Promise.all([
     admin.from("jobs").select("source, owners(full_name, phone, email), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("saved_estimate_id, saved_veu_discount, saved_gross_total, saved_total, saved_area_m2").eq("job_id", jobId).maybeSingle(),
@@ -49,6 +50,9 @@ export type SpotSavedSendResult = { jobId: string; email: { status: string; deta
 
 /** Send (or, with dry, only plan) the confirmation for one job. Never throws for an individual channel. */
 export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boolean; token?: string | undefined; emailOnly?: boolean } = {}): Promise<SpotSavedSendResult> {
+  if (await (await import("./firm-quote.server")).isFirmQuoteJobId(jobId)) return {
+    jobId, email: { status: "skipped", detail: "firm_quote_job" }, sms: { status: "skipped", detail: "firm_quote_job" },
+  };
   const [{ data: job }, { data: resp }, { data: ws }, { data: eopt }, { count: supp }] = await Promise.all([
     admin.from("jobs").select("source, stage, channel, deleted_at, qa_archived_at, owners(phone, email)").eq("id", jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at").eq("job_id", jobId).maybeSingle(),

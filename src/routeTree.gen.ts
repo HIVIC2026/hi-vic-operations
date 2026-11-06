@@ -78,6 +78,7 @@ import { Route as ApiPublicSaveSpotRemindersRouteImport } from './routes/api/pub
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
 import { Route as EstimateTokenCalculatorRouteImport } from './routes/estimate_.$token.calculator'
 import { Route as EstimateTokenCampaignRouteImport } from './routes/estimate_.$token.campaign'
+import { Route as EstimateTokenFirmQuoteRouteImport } from './routes/estimate_.$token.firm-quote'
 import { Route as EstimateTokenVideoRouteImport } from './routes/estimate_.$token.video'
 import { Route as TETokenRouteImport } from './routes/t.e.$token'
 import { Route as TOFileRouteImport } from './routes/t.o.$file'
@@ -489,6 +490,11 @@ const EstimateTokenCampaignRoute = EstimateTokenCampaignRouteImport.update({
   path: '/estimate/$token/campaign',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EstimateTokenFirmQuoteRoute = EstimateTokenFirmQuoteRouteImport.update({
+  id: '/estimate_/$token/firm-quote',
+  path: '/estimate/$token/firm-quote',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EstimateTokenVideoRoute = EstimateTokenVideoRouteImport.update({
   id: '/estimate_/$token/video',
   path: '/estimate/$token/video',
@@ -811,6 +817,7 @@ export interface FileRoutesByFullPath {
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/estimate/$token/calculator': typeof EstimateTokenCalculatorRoute
   '/estimate/$token/campaign': typeof EstimateTokenCampaignRoute
+  '/estimate/$token/firm-quote': typeof EstimateTokenFirmQuoteRoute
   '/estimate/$token/video': typeof EstimateTokenVideoRoute
   '/t/e/$token': typeof TETokenRoute
   '/t/o/$file': typeof TOFileRoute
@@ -921,6 +928,7 @@ export interface FileRoutesByTo {
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/estimate/$token/calculator': typeof EstimateTokenCalculatorRoute
   '/estimate/$token/campaign': typeof EstimateTokenCampaignRoute
+  '/estimate/$token/firm-quote': typeof EstimateTokenFirmQuoteRoute
   '/estimate/$token/video': typeof EstimateTokenVideoRoute
   '/t/e/$token': typeof TETokenRoute
   '/t/o/$file': typeof TOFileRoute
@@ -1037,6 +1045,7 @@ export interface FileRoutesById {
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/estimate_/$token/calculator': typeof EstimateTokenCalculatorRoute
   '/estimate_/$token/campaign': typeof EstimateTokenCampaignRoute
+  '/estimate_/$token/firm-quote': typeof EstimateTokenFirmQuoteRoute
   '/estimate_/$token/video': typeof EstimateTokenVideoRoute
   '/t/e/$token': typeof TETokenRoute
   '/t/o/$file': typeof TOFileRoute
@@ -1153,6 +1162,7 @@ export interface FileRouteTypes {
     | '/api/public/unsubscribe'
     | '/estimate/$token/calculator'
     | '/estimate/$token/campaign'
+    | '/estimate/$token/firm-quote'
     | '/estimate/$token/video'
     | '/t/e/$token'
     | '/t/o/$file'
@@ -1263,6 +1273,7 @@ export interface FileRouteTypes {
     | '/api/public/unsubscribe'
     | '/estimate/$token/calculator'
     | '/estimate/$token/campaign'
+    | '/estimate/$token/firm-quote'
     | '/estimate/$token/video'
     | '/t/e/$token'
     | '/t/o/$file'
@@ -1378,6 +1389,7 @@ export interface FileRouteTypes {
     | '/api/public/unsubscribe'
     | '/estimate_/$token/calculator'
     | '/estimate_/$token/campaign'
+    | '/estimate_/$token/firm-quote'
     | '/estimate_/$token/video'
     | '/t/e/$token'
     | '/t/o/$file'
@@ -1462,6 +1474,7 @@ export interface RootRouteChildren {
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
   EstimateTokenCalculatorRoute: typeof EstimateTokenCalculatorRoute
   EstimateTokenCampaignRoute: typeof EstimateTokenCampaignRoute
+  EstimateTokenFirmQuoteRoute: typeof EstimateTokenFirmQuoteRoute
   EstimateTokenVideoRoute: typeof EstimateTokenVideoRoute
   TETokenRoute: typeof TETokenRoute
   TOFileRoute: typeof TOFileRoute
@@ -1970,6 +1983,13 @@ declare module '@tanstack/react-router' {
       path: '/estimate/$token/campaign'
       fullPath: '/estimate/$token/campaign'
       preLoaderRoute: typeof EstimateTokenCampaignRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/estimate_/$token/firm-quote': {
+      id: '/estimate_/$token/firm-quote'
+      path: '/estimate/$token/firm-quote'
+      fullPath: '/estimate/$token/firm-quote'
+      preLoaderRoute: typeof EstimateTokenFirmQuoteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/estimate_/$token/video': {
@@ -2501,6 +2521,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,
   EstimateTokenCalculatorRoute: EstimateTokenCalculatorRoute,
   EstimateTokenCampaignRoute: EstimateTokenCampaignRoute,
+  EstimateTokenFirmQuoteRoute: EstimateTokenFirmQuoteRoute,
   EstimateTokenVideoRoute: EstimateTokenVideoRoute,
   TETokenRoute: TETokenRoute,
   TOFileRoute: TOFileRoute,

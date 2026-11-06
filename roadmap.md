@@ -1,3 +1,9 @@
+## Jo 6 Nov firm quote from photos — Task 5 only
+- [x] Test-first token request and saved due-date replay; mocked atomic event/save/queue contract and no-message tap. 14 new request tests failed before implementation and pass afterwards.
+- [x] Public estimate-look page; dedicated post-intake size-check dispatch without first-response delivery. Both saved-confirmation entry points skip firm jobs, including recovery from the saved response.
+- [x] 18 new + 68 existing checks pass individually (86 total, 0 failures); retired-terms scan exits 0 with 0 customer-visible failures; preview build OK. Off/unavailable page checked at 390 and 1280, no overflow or browser errors.
+- [ ] Atomic database proof and live request journey BLOCKED by Jo's no-SQL/no-live-writes restriction. Necessary SQL saved pending only, not executed even on practice DB; no sends, switches or publishing. Stop before Task 6. Report: docs/firm-quote-task5-report.md.
+
 ## Jo 6 Nov firm quote from photos — Tasks 3 and 4 only
 - [x] Task 3: exact pending-only SQL and fail-closed go-live/job readers; missing column returns null, other errors block. No SQL executed, including practice SQL for this pending file.
 - [x] Task 4: preliminary email/purpose at existing automatic and office sender boundaries with caller-owned removal pricing, unchanged null-switch email bytes/keys/purposes, normal contact/history guards, scoped automatic quiet-hours and final media/activation recheck; no spot-offered event/flag for firm jobs.
