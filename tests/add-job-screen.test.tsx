@@ -48,7 +48,6 @@ const fillAll = (r: ReturnType<typeof render>) => {
   fireEvent.change(r.getByLabelText(ADD_JOB_WORDS.name), { target: { value: "Sarah Brown" } });
   fireEvent.change(r.getByLabelText(ADD_JOB_WORDS.mobile), { target: { value: "0412 345 678" } });
   fireEvent.change(r.getByLabelText(ADD_JOB_WORDS.email), { target: { value: "sarah@example.com" } });
-  fireEvent.change(r.getByLabelText(ADD_JOB_WORDS.electrician), { target: { value: "e1" } });
   fireEvent.click(r.getByLabelText(addJobConsentLine("Rapid Insulation")));
 };
 
@@ -98,21 +97,16 @@ describe("Add a job screen", () => {
     for (const l of [ADD_JOB_WORDS.name, ADD_JOB_WORDS.mobile, ADD_JOB_WORDS.email]) expect(r.getByLabelText(l)).toBeTruthy();
     expect(r.getByText(ADD_JOB_WORDS.address)).toBeTruthy();
   });
-  test("a job whose electrician could not be put on it is still added, and the installer is told (DRAFT line) before going to the job", async () => {
-    const was = saveResult;
-    saveResult = { ...saveResult, electrician: "not_allocated" };
-    try {
-      const r = draw();
-      fillAll(r);
-      await typeAddress(r);
-      await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_WORDS.button })); });
-      expect(calls).toHaveLength(1);
-      expect((calls[0] as { data: { electricianWorkerId: string } }).data.electricianWorkerId).toBe("e1");
-      expect(r.getByText("The electrician couldn't be put on the job. Your choice is saved.")).toBeTruthy();
-      expect(navigated).toHaveLength(0);
-      await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_DRAFT_WORDS.goToJob })); });
-      expect(navigated).toEqual([{ to: "/field/$jobId", params: { jobId: "j-new" }, search: { added: true } }]);
-    } finally { saveResult = was; }
+  // Jo 6 Nov 2026: Add a job never asks for the electrician (they may not know who yet); it's picked on the job page before the PIESA.
+  test("no electrician question, and the save sends no electrician", async () => {
+    const r = draw();
+    expect(r.queryByLabelText(ADD_JOB_WORDS.electrician)).toBeNull();
+    expect(r.container.querySelector("[data-electrician-picker]")).toBeNull();
+    fillAll(r);
+    await typeAddress(r);
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_WORDS.button })); });
+    expect(calls).toHaveLength(1);
+    expect((calls[0] as { data: Record<string, unknown> }).data.electricianWorkerId).toBeUndefined();
   });
   test("an allocated electrician shows Added before loading the job page", async () => {
     const r = draw();

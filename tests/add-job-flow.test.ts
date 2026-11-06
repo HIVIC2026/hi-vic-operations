@@ -23,9 +23,10 @@ describe("Add job flow (Jo 8 Oct; basics only since decision 34, 24 Oct)", () =>
     expect(saveErrorMessage("This address already has an open job (HV-3201) — the office has been told. No new job was added; your details are kept.")).toContain("HV-3201");
     expect(readFileSync("src/lib/add-job-flow.core.ts", "utf8")).not.toContain("customer who isn't yours"); // decision-273 email passthrough is gone
   });
-  test("page: basics + the consent tick + the electrician for the PIESA; no mode choice, measurements, price, files or visit time (decision 34, Task 7)", () => {
+  test("page: basics + the consent tick (no electrician: Jo 6 Nov 2026, picked before the PIESA); no mode choice, measurements, price, files or visit time (decision 34, Task 7)", () => {
     const ui = readFileSync("src/components/trade/add-job-flow.tsx", "utf8");
-    for (const h of ["startOnsiteReadyCheck", "addJobConsentLine(", "data-electrician-picker", "ADD_JOB_WORDS.electrician", "electricianWorkerId: electrician"]) expect(ui).toContain(h);
+    for (const h of ["startOnsiteReadyCheck", "addJobConsentLine("]) expect(ui).toContain(h);
+    for (const gone2 of ["data-electrician-picker", "electricianWorkerId: electrician"]) expect(ui).not.toContain(gone2);
     for (const gone of ["AttachFiles", "ElectricianPicker", "confirmImport", "createImport", "datetime-local", "Ceiling area", "quoted price", 'mode === "onsite"', "I'm at the property now", "A job for later", "A different electrician", "VisitField", "Open Mitti form"]) expect(ui).not.toContain(gone);
     expect(readFileSync("src/routes/_authenticated/partner.import.tsx", "utf8")).toContain("<AddJobFlow businessId={start.businessId}");
   });

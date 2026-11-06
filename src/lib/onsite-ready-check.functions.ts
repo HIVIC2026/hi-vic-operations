@@ -11,8 +11,8 @@ export const startOnsiteReadyCheck = createServerFn({ method: "POST" }).middlewa
   .inputValidator((d) => z.object({
     businessId: uuid,
     owner: z.object({ full_name: z.string().max(200), address_line: z.string().max(300), suburb: z.string().max(100), postcode: z.string().max(10), phone: z.string().max(40), email: z.string().max(200), contact_permission: z.boolean(), consent_by: z.enum(["owner", "installer"]).nullable().optional(), address_verified: z.boolean().optional(), address_typed: z.boolean().optional() }),
-    /** Task 7: the business's Team electrician for the PIESA — required. */
-    electricianWorkerId: uuid,
+    /** Jo 6 Nov 2026: not asked on Add a job any more (picked on the job page before the PIESA); an older phone may still send one. */
+    electricianWorkerId: uuid.nullable().optional(),
     /** A1: how the installer got this customer. */
     leadOrigin: z.enum(["owner_contacted", "referral", "door_knock", "cold_call"]).nullable().optional(),
     /** A6: one key per phone draft, kept across retries and reloads, so "Try again" finishes the same job. */
@@ -22,7 +22,7 @@ export const startOnsiteReadyCheck = createServerFn({ method: "POST" }).middlewa
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { startOnsiteReadyCheckFor } = await import("./onsite-ready-check.server");
-    return startOnsiteReadyCheckFor(context.userId, data.businessId, data.owner, null, undefined, { electricianWorkerId: data.electricianWorkerId, leadOrigin: data.leadOrigin ?? null, requestKey: data.requestKey ?? null, photoQuote: data.photoQuote ?? null });
+    return startOnsiteReadyCheckFor(context.userId, data.businessId, data.owner, null, undefined, { electricianWorkerId: data.electricianWorkerId ?? null, leadOrigin: data.leadOrigin ?? null, requestKey: data.requestKey ?? null, photoQuote: data.photoQuote ?? null });
   });
 
 /** Photo-quote installers Part 2: the live quote under "Your price" on Add a job (same builder as the issued quote). */

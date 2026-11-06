@@ -62,14 +62,14 @@ describe("wiring (source facts)", () => {
   test("Add a job (Task 7 + join ruling 4 Nov 2026): the Team electrician picker replaces the HIV/usual question; the add_job choice event records that Team worker as the installer's own electrician, after every check", () => {
     const ui = read("src/components/trade/add-job-flow.tsx");
     expect(ui).not.toContain("data-electrician-choice");
-    expect(ui).toContain("data-electrician-picker");
+    expect(ui).not.toContain("data-electrician-picker"); // Jo 6 Nov 2026: no electrician on Add a job
     const fn = read("src/lib/onsite-ready-check.functions.ts");
-    expect(fn).toContain("electricianWorkerId: uuid");
+    expect(fn).toContain("electricianWorkerId: uuid.nullable().optional()");
     expect(fn).toContain("export const addJobOptions = createServerFn");
     expect(fn).not.toContain("@tanstack/react-start/server");
     const srv = read("src/lib/onsite-ready-check.server.ts");
     expect(srv).toContain('recordElectricianChoice(job.id, businessId, userId, "usual", "add_job", { teamWorker })');
-    expect(srv).toContain('teamElectricianChoiceRecord(teamWorker, "add_job")');
+    expect(srv).toContain('teamElectricianChoiceRecord(teamWorker, "add_job") : electricianChoiceRecord("usual", null, "add_job")');
     expect(srv).toContain("teamElectricianPlan(businessId, teamWorker.id)");
     expect(srv).not.toMatch(/mode: "hivic"/);
     expect(srv.indexOf("if (problems.length) throw")).toBeLessThan(srv.indexOf("findAddedJob("));

@@ -36,24 +36,26 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const businessName = c.biz.name;
   const problems = onsiteProblems(input, { businessName });
   const lop = (await import("./onsite-ready-check.core")).leadOriginProblem(opts.leadOrigin); if (lop) problems.push(lop);
+  // Jo 6 Nov 2026: Add a job does NOT ask for the electrician (they may not know who yet); they pick one on the job page
+  // before the PIESA. An older caller that still sends one gets it checked and put on the job as before.
   // Task 7: the electrician for the PIESA is one of the business's verified Team electricians, checked BEFORE anything is saved.
   // Join ruling (4 Nov 2026): that person IS the installer's own electrician — the plan is derived from the pick (a plan
   // passed in by an older caller is ignored; Home Insulation Victoria's electrician is never an option on an installer's job).
   const { electricianProblem, addJobConsentRecord, ELECTRICIAN_MISSING } = await import("./add-job-flow.core");
   const teamElectricians = opts.electricianWorkerId ? await (await import("./in-house-electrician.server")).teamElectricianChoices(businessId) : [];
   const teamWorker = teamElectricians.find((w) => w.id === opts.electricianWorkerId) ?? null;
-  const ecp = electricianProblem(opts.electricianWorkerId ?? null, teamElectricians) ?? (teamWorker ? null : ELECTRICIAN_MISSING); if (ecp) problems.push(ecp);
+  const ecp = opts.electricianWorkerId ? electricianProblem(opts.electricianWorkerId, teamElectricians) ?? (teamWorker ? null : ELECTRICIAN_MISSING) : null; if (ecp) problems.push(ecp);
   const { electricianPlanBlocker, teamElectricianPlan } = await import("./job-electrician.core");
   const electrician: ElectricianPlan | null = teamWorker ? teamElectricianPlan(businessId, teamWorker.id) : null;
-  const eb = electricianPlanBlocker(electrician); if (eb && !ecp) problems.push(eb);
+  const eb = electrician ? electricianPlanBlocker(electrician) : null; if (eb && !ecp) problems.push(eb);
   // Photo-quote installers Part 2 (Jo 5 Nov 2026): a From photos business adds the photo quote with the job; checked before any write.
   const ownPhoto = await import("./own-photo-quote.server");
   const quoteMethod = await ownPhoto.businessQuoteMethod(businessId);
   problems.push(...ownPhoto.ownPhotoQuoteGate(quoteMethod, opts.photoQuote));
   if (problems.length) throw new WorkflowError(problems.join(" • "));
-  if (!electrician || !teamWorker) throw new WorkflowError(ELECTRICIAN_MISSING);
-  const { teamElectricianChoiceRecord } = await import("./electrician-choice.core");
-  const electricianChoice = teamElectricianChoiceRecord(teamWorker, "add_job");
+  const { teamElectricianChoiceRecord, electricianChoiceRecord } = await import("./electrician-choice.core");
+  // No pick: the installer's own electrician, not named yet (chosen on the job page before the PIESA).
+  const electricianChoice = teamWorker ? teamElectricianChoiceRecord(teamWorker, "add_job") : electricianChoiceRecord("usual", null, "add_job");
 
   // A6: one request key per phone draft. A key an earlier tap already saved means the signal dropped after the save:
   // finish THAT job (electrician + form steps below) instead of checking the address or saving again.
@@ -112,9 +114,11 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
         if (je || !job) throw new WorkflowError(je?.message ?? "Job could not be saved.");
         await admin.from("job_assignments").insert({ job_id: job.id, user_id: userId, role: "installer", business_id: businessId, assigned_by: userId, first_response_at: new Date().toISOString() });
         // J3 (1): the Team worker was checked above, before any write — nothing is re-read or thrown once the job exists.
-        await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician, userId, { preValidated: true });
-        // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it) — the Team worker.
-        await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, "usual", "add_job", { teamWorker });
+        if (electrician && teamWorker) {
+          await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician, userId, { preValidated: true });
+          // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it) — the Team worker.
+          await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, "usual", "add_job", { teamWorker });
+        }
         if (flag) await logEvent(job.id, userId, DUPLICATE_ADDRESS_EVENT, flag.summary, flag.details, { internal: true });
         await logEvent(job.id, userId, "installer_job_added", "Installer added this customer (Add a job: name, address, mobile, email, contact permission); the Mitti Ready Check form is created next", { business_id: businessId, visit_requested: false, lead_origin: opts.leadOrigin });
         const nowIso = new Date().toISOString();
@@ -148,7 +152,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   // hand-over). The job is already saved; a refusal here is logged on the job and the installer can pick again on the job page.
   let electricianAllocated: "allocated" | "not_allocated" | "not_asked" = "not_asked";
   let electricianReason: string | null = null;
-  try { await (await import("./in-house-electrician.server")).allocateElectrician(job.id, userId, teamWorker.id, call); electricianAllocated = "allocated"; }
+  if (teamWorker) try { await (await import("./in-house-electrician.server")).allocateElectrician(job.id, userId, teamWorker.id, call); electricianAllocated = "allocated"; }
   catch (error) {
     electricianAllocated = "not_allocated";
     electricianReason = (await import('./electrician-allocation-message.core')).electricianAllocationMessage(error instanceof Error ? error.message : String(error), teamWorker.name);
