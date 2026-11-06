@@ -30,7 +30,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {
     if (opted) return { data: { ok: false, reason: "opted_out" }, error: null };
     if (quoted) return { data: { ok: false, reason: "quoted" }, error: null };
     const already = saved !== null;
-    if (!saved) { saved = String(input.p_due_by); events.push({ event_type: "firm_quote_requested", details: { due_by: saved, firm_quote: true } }); queue.push({ work_type: "firm_quote_size_check", reason: "firm quote requested" }); }
+    if (!saved) { saved = String(input.p_due_by); events.push({ event_type: "firm_quote_requested", details: { due_by: saved, firm_quote: true } }); }
     return { data: { ok: true, dueBy: saved, already }, error: null };
   },
 } }));
@@ -38,17 +38,17 @@ mock.module("../src/lib/sms.server", () => ({ sendRealSms: () => { sends++; thro
 mock.module("../src/lib/spot-saved-send.server", () => ({ sendSpotSavedConfirmation: () => { sends++; throw new Error("forbidden"); } }));
 const { requestFirmQuote, requestFirmQuoteToken, firmQuoteRequestPage } = await import("../src/lib/firm-quote.server");
 beforeEach(() => { live = "2026-11-06T06:00:00Z"; stage = "new_enquiry"; opted = quoted = rpcError = false; validToken = true; saved = null; events = []; queue = []; sends = rpcCalls = 0; });
-test("first tap records one request with seven-business-day due date and one queued size check", async () => {
+test("first tap records one request with seven-business-day due date and nothing queued", async () => {
   expect(await requestFirmQuote("job", "link", "2026-11-06T06:00:00Z")).toEqual({ ok: true, dueBy: "2026-11-17", already: false });
-  expect(events).toEqual([{ event_type: "firm_quote_requested", details: { due_by: "2026-11-17", firm_quote: true } }]); expect(queue).toHaveLength(1);
+  expect(events).toEqual([{ event_type: "firm_quote_requested", details: { due_by: "2026-11-17", firm_quote: true } }]); expect(queue).toHaveLength(0);
 });
 test("second tap keeps saved due date without another event or queue item", async () => {
   await requestFirmQuote("job", "link", "2026-11-06T06:00:00Z");
-  expect(await requestFirmQuote("job", "link", "2026-11-10T06:00:00Z")).toEqual({ ok: true, dueBy: "2026-11-17", already: true }); expect(events).toHaveLength(1); expect(queue).toHaveLength(1);
+  expect(await requestFirmQuote("job", "link", "2026-11-10T06:00:00Z")).toEqual({ ok: true, dueBy: "2026-11-17", already: true }); expect(events).toHaveLength(1); expect(queue).toHaveLength(0);
 });
 test("two devices use one atomic request, not application-level writes", async () => {
   const results = await Promise.all([requestFirmQuoteToken(token, false), requestFirmQuoteToken(token, false)]);
-  expect(results.filter(r => r.ok && !r.already)).toHaveLength(1); expect(events).toHaveLength(1); expect(queue).toHaveLength(1);
+  expect(results.filter(r => r.ok && !r.already)).toHaveLength(1); expect(events).toHaveLength(1); expect(queue).toHaveLength(0);
 });
 for (const closed of ["cancelled", "complete", "on_hold"]) test(`${closed} job records nothing`, async () => {
   stage = closed; expect(await requestFirmQuote("job", "link")).toEqual({ ok: false, reason: "closed" }); expect(events).toHaveLength(0); expect(queue).toHaveLength(0);

@@ -2309,7 +2309,5 @@ export async function photoQuoteMedia(jobId: string, userId: string) {
   const ps = await import("./photo-quote.server");
   const give = await ps.photoGiveFor(jobId);
   if (!give || give.businessId !== c.biz.id) throw new WorkflowError("This job isn't quoted from photos.");
-  // Firm quote Task 8: the read-only size check, only here (photo jobs given to this business). Never a price.
-  const [m, sizeCheck] = await Promise.all([ps.photoQuoteMediaFor(jobId), ps.photoSizeCheckFor(jobId).catch((e) => { console.error("Photo quote: size check skipped", e instanceof Error ? e.message : "error"); return null; })]);
-  return { ...m, sizeCheck };
+  return ps.photoQuoteMediaFor(jobId);
 }

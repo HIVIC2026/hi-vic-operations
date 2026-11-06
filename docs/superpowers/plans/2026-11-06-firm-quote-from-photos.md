@@ -45,8 +45,8 @@ Tests: subjects "Alex, your preliminary estimate: $2,940 after a $1,610 rebate",
 ### Task 5: Proceed to firm quote — route `/estimate/$token/firm-quote`, `requestFirmQuoteFn`, `requestFirmQuote(jobId)`: idempotent; sets spot_saved_at (joins Choose installer › To release now) with details.firm_quote = true; logs event with due_by; queues runPropertyIntelligence(jobId, null, "firm quote requested") on the post-intake queue. Closed/opted out/quoted → friendly page, nothing recorded.
 ### Task 6: No spot messages on firm-quote jobs — estimate follow-ups (day 2/7/21 + auto-close), spot_saved, spot_saved_email, save_spot_reminder, spot_released, quick_taps, "It's your turn" all skip with reason firm_quote_job; remove the calculator's "Spots are released…" line (register-interest.tsx).
 ### Task 7: Choose installer — firm-quote jobs show "Asked for firm quote · due {date}" and can only go to From photos installers; others greyed: "Firm quote jobs go to installers who quote from photos." No owner message when given.
-### Task 8: Size check on the Quote from photos box — "Owner said {m²} m² · Aerial {m²} m² · Floor plan (link)", "Not found" when missing.
+### Task 8: REMOVED (Jo 6 Nov) — no size check. The installer does the desktop assessment themselves; Home Insulation Victoria pulls nothing.
 ### Task 9: Firm quote always held for Jo ("Firm quote: you press Send"); notifyOwnerQuoteReady uses firmQuoteReadyEmail for firm-quote jobs (ownerM2 = intake estimate, confirmedM2 = photo quote install m², removalM2 = photo quote remove m²).
 ### Task 10: Day 4 email sweep `sweepFirmQuoteDay4(now)` from the post-intake tick; key `firm-quote-day4:v1:{jobId}`; normal guards + 8pm–7am hold.
 ### Task 11: Office "With photos" Enquiries tab (one pile per job; pre-live photo jobs keep today's category).
-### Task 12: Switch on with Jo — Pricefinder keys, TEST job end to end, migration, set live-at, publish portal then Base44 website.
+### Task 12: Switch on with Jo — TEST job end to end, migration, set live-at, publish portal then Base44 website.

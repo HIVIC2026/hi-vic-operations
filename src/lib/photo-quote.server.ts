@@ -197,22 +197,6 @@ export async function photoQuoteMediaFor(jobId: string, db: Db = admin as unknow
   return { media, ownerSaid };
 }
 
-/** Firm quote Task 8: the read-only size check for a photo job (owner's intake estimate, the CURRENT Google Solar footprint
- *  row, the newest stored floor plan). Callers only reach this for photo jobs. Never a price. */
-export async function photoSizeCheckFor(jobId: string, db: Db = admin as unknown as Db, sign?: (path: string) => Promise<string | null>): Promise<import("./photo-quote-size-check.core").SizeCheck> {
-  const signer = sign ?? (async (path: string) => (await (await import("./file-links.server")).signFile("job-files", path, 3600)).data?.signedUrl ?? null);
-  const { sizeCheckFrom, SOLAR_FOOTPRINT_METHOD } = await import("./photo-quote-size-check.core");
-  const [job, areas, plans] = await Promise.all([
-    db.from("jobs").select("estimated_area_m2").eq("id", jobId).maybeSingle(),
-    db.from("property_area_estimates").select("method, net_m2, is_current").eq("job_id", jobId).eq("is_current", true).eq("method", SOLAR_FOOTPRINT_METHOD),
-    db.from("property_floorplans").select("storage_path, storage_policy, retrieved_at").eq("job_id", jobId).order("retrieved_at", { ascending: false }),
-  ]);
-  const plan = ((plans.data ?? []) as { storage_path: string | null; storage_policy: string }[]).find((p) => p.storage_path && p.storage_policy === "store_permitted");
-  let floorplanUrl: string | null = null;
-  if (plan?.storage_path) { try { floorplanUrl = await signer(plan.storage_path); } catch { floorplanUrl = null; } }
-  return sizeCheckFrom({ ownerEstimate: (job.data as { estimated_area_m2?: unknown } | null)?.estimated_area_m2 ?? null, areaRows: (areas.data ?? []) as never, floorplanUrl });
-}
-
 /** A photo job, for owner wording: given From photos (`fromPhotos`, an HIV lead whose owner sent photos) or a From photos
  *  installer's OWN customer (the Add a job photo quote claim; `fromPhotos` false — that owner sent no photos). Null = a
  *  Ready Check job. `installer` = the name the owner sees. Throws on a failed read. */

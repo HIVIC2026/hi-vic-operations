@@ -1,10 +1,6 @@
 -- PENDING ONLY. Do not execute without Jo's approval.
 -- Depends on pending firm_quote_flow_live_at and applied 0171 campaign save.
 -- No sends, communication claims, pricing, quote writes or Gate 1 changes.
-ALTER TABLE public.post_intake_work DROP CONSTRAINT IF EXISTS post_intake_work_work_type_check;
-ALTER TABLE public.post_intake_work ADD CONSTRAINT post_intake_work_work_type_check
-  CHECK (work_type IN ('initial_gate1','firm_quote_size_check'));
-
 CREATE OR REPLACE FUNCTION public.request_firm_quote_atomic(p_job uuid,p_link uuid,p_due_by date)
 RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path=public,pg_temp AS $$
 DECLARE j public.jobs; live_at timestamptz; previous_due text;
@@ -51,8 +47,6 @@ BEGIN
   INSERT INTO public.workflow_events(job_id,event_type,summary,details,internal)
     VALUES(p_job,'firm_quote_requested','Owner requested a firm quote from photos',
       jsonb_build_object('firm_quote',true,'due_by',p_due_by),true);
-  INSERT INTO public.post_intake_work(job_id,work_type,facts_version,reason)
-    VALUES(p_job,'firm_quote_size_check','firm_quote_requested','firm quote requested');
   RETURN jsonb_build_object('ok',true,'dueBy',p_due_by,'already',false);
 END $$;
 REVOKE ALL ON FUNCTION public.request_firm_quote_atomic(uuid,uuid,date) FROM PUBLIC,anon,authenticated;
