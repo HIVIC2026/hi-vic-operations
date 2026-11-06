@@ -40,8 +40,8 @@ describe("the electrician screens are gone", () => {
   test("field.index.tsx: no electrician home (Needs me / Your move / Taking a while tiles); the installer home is untouched", () => {
     const page = read("src/routes/_authenticated/field.index.tsx");
     for (const gone of ["electricianYourJobs", "ELECTRICIAN_WORK_WORDS", '"Needs me"', "Your move", "data-work-tiles", "data-your-jobs"]) expect(page).not.toContain(gone);
-    // Join 4 Nov 2026: the installer home is Part 5's My work (JobCard / data-my-work), not the M1 groups.
-    for (const kept of ["JobCard", "data-my-work", 'data.kind === "installer"']) expect(page).toContain(kept);
+    // Installer redesign Phase 1 (6 Nov 2026): the installer home is Action items (data-action-items), not the M1 groups.
+    for (const kept of ["ActionRowView", "data-action-items", 'data.kind !== "installer"']) expect(page).toContain(kept);
     expect(page).toContain("NO_LOGIN_NEEDED");
   });
   test("field.guide.tsx: no electrician guide (Part 5 Task 11 retired the installer guide too: the route redirects to My work)", () => {
