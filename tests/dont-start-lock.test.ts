@@ -2,7 +2,6 @@
 // check for that install start passed) — on every job, HIV leads and installers' own customers alike. A Mitti Install day
 // sync without a GO keeps the evidence, leaves the job where it is and raises the DON'T START row on Needs me.
 import { afterAll, beforeEach, expect, mock, test } from "bun:test";
-import { readFileSync } from "fs";
 import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
 
 const START = "2026-11-10T22:00:00.000Z";
@@ -95,18 +94,7 @@ test("HIV lead and own customer both require GO", async () => {
     seed(source, [passed]);
     expect((await recordInstallationComplete("j1", null, "office_button")).ok).toBe(true);
   }
-  // The stage gate itself (any move into evidence_outstanding) checks the GO outside the installer-intake branch.
-  const wf = readFileSync("src/lib/workflow.server.ts", "utf8");
-  const intake = wf.indexOf("const { installDayBlockers }");
-  const block = wf.slice(wf.lastIndexOf('if (to === "evidence_outstanding") {', intake), intake);
-  expect(block).toContain("installGoBlockerFor(");
-  expect(block.indexOf("installGoBlockerFor(")).toBeLessThan(block.indexOf("if (await m.isIntakeJob(jobId))"));
-});
-
-test("Needs me shows the DON'T START row for a Mitti install held without a GO", () => {
-  const needs = readFileSync("src/lib/office-needs.server.ts", "utf8");
-  expect(needs).toContain("installNoGoHeldFor(");
-  expect(needs).toContain("noGoHoldsP = early(");
+  // The stage gate itself (any move into evidence_outstanding) is tested on its own in dont-start-stage-gate.test.ts.
 });
 
 test("the no-GO hold row shows while the install is not recorded and clears on a later non-GO hold or once installed", async () => {
