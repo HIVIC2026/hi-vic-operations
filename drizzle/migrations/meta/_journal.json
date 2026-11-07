@@ -1380,6 +1380,13 @@
       "when": 1793958340082,
       "tag": "0196_firm_quote_handover",
       "breakpoints": true
+    },
+    {
+      "idx": 197,
+      "version": "7",
+      "when": 1794001552693,
+      "tag": "0197_firm_quote_test_exception",
+      "breakpoints": true
     }
   ]
 }

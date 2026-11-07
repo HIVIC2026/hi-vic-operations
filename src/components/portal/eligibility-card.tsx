@@ -8,6 +8,7 @@ import { getVerifiedEligibility } from "@/lib/verified-eligibility.functions";
 import { readyCheckPresent, VERIFIED_LABEL, R_VALUE_LIMIT, type ReadyCheckEvidence, type VerifiedOutcome } from "@/lib/verified-eligibility.core";
 import { eligibilityLine, onsiteMarkFor, ownerAnswerForGate1, type CheckMark } from "@/lib/portal-presentation.core";
 import { Pill } from "./badges";
+import { PHOTOS_TO_BE_CHECKED } from "@/lib/job-wording";
 
 const CHECKS: [string, string][] = [
   ["location", "Victoria"], ["residential", "Home"], ["relevant_ceiling", "Ceiling under roof"],
@@ -33,7 +34,8 @@ export function EligibilityCard({ jobId, override, verifiedControls }: { jobId: 
   const review = !adminSet && (recorded.source === "system" ? recorded.reviewRequired : live.reviewRequired);
   const ev = ver.data && readyCheckPresent(ver.data.evidence) ? ver.data.evidence : null;
   const ls = live.rules.find((x) => x.key === "life_support")?.fact ?? "unknown";
-  const overall: [string, "good" | "bad" | "warn"] | null | undefined = review ? ["Office review", "warn"] : outcome ? OVERALL[outcome] : null;
+  const overall: [string, "good" | "bad" | "warn"] | null | undefined = review ? ["Office review", "warn"]
+    : outcome === "needs_onsite_confirmation" && gate.data.firmQuote ? [PHOTOS_TO_BE_CHECKED, "warn"] : outcome ? OVERALL[outcome] : null;
   return (
     <section id="target-gate1-evidence" tabIndex={-1} aria-label="Eligibility" className="mb-3 scroll-mt-4 rounded-md border bg-card outline-none" data-eligibility-card>
       <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">

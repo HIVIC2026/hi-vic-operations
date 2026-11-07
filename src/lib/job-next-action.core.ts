@@ -19,7 +19,11 @@ export type NextInput = {
   blockers?: string[];
   /** True only when an installation quote has actually been issued (sent_at set). false = held/not drafted; null/undefined = unknown (older callers keep the old wording). */
   quoteIssued?: boolean | null;
+  /** Jo 7 Nov 2026 (option A): a firm-quote (desktop quote) photo job — words only. */
+  firmQuote?: boolean;
 };
+
+const FIRM_QUOTE_CHOOSE_INSTALLER = "Choose the installer for the desktop assessment — the job goes to that installer only.";
 
 const SENTENCE: Partial<Record<string, (f: NeedsFacts) => string>> = {
   choose_again: (f) => `The ${f.offerLapsed?.role ?? "trade"} offer ${f.offerLapsed?.declined ? "was declined" : "lapsed after 24 hours"} — choose another ${f.offerLapsed?.role ?? "trade"}.`,
@@ -56,7 +60,7 @@ export function nextAction(i: NextInput, now: number): NextAction {
     const make = SENTENCE[top.kind];
     return {
       who: watch ? WHO_FROM_STATUS[i.status?.waitingOn ?? "Us"] ?? "us" : "us",
-      sentence: make ? make(i.facts) : top.line,
+      sentence: top.kind === "choose_installer" && i.firmQuote === true ? FIRM_QUOTE_CHOOSE_INSTALLER : make ? make(i.facts) : top.line,
       button: top.button.to === "job" && top.button.section ? { label: top.button.label, section: top.button.section } : null,
       blocked: i.blockers?.length ? i.blockers.join(" · ") : null,
     };

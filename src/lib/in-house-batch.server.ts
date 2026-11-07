@@ -25,7 +25,7 @@ export async function pullBackInHouseJob(input: { jobId: string; reason: string;
   }
 }
 type Property = { id: string; postcode: string | null; address_line: string; suburb: string | null };
-type Job = { owners?: { full_name: string | null; phone: string | null } | null; id: string; job_number: string; property_id: string; stage: string; source: string; channel: string; originating_installer_business_id: string | null; deleted_at: string | null; created_at: string };
+type Job = { owners?: { full_name: string | null; phone: string | null; email?: string | null } | null; id: string; job_number: string; property_id: string; stage: string; source: string; channel: string; originating_installer_business_id: string | null; deleted_at: string | null; created_at: string };
 type Assignment = { job_id: string; business_id: string | null; role: string };
 async function rows<T>(query: PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
   const result = await query;
@@ -58,7 +58,7 @@ async function loadInHouseScreen(opts: { now?: Date | undefined; jobIds?: string
   if (test && (!test.jobIds.length || !test.businessIds.length)) return { firmIds: new Set<string>(), jobs: [] as BatchJob[], partners: [] as InHousePartner[], suggestions: [] as { businessId: string; jobIds: string[] }[], blocked: {} as Record<string, { jobId: string; reason: string }[]>, waitingForCallConsent: [] as string[], mediaReadFailed: false };
   const scoped = (q: any) => { const s = opts.jobIds ? q.in("id", opts.jobIds) : q; return test ? s.eq("source", "qa_test").in("id", test.jobIds) : s.neq("source", "qa_test"); };
   const [jobs, businesses] = await Promise.all([
-    pagedRows<Job>((a,b) => scoped(db.from("jobs").select("id,job_number,property_id,owners(full_name,phone),stage,source,channel,originating_installer_business_id,deleted_at,created_at").is("deleted_at", null).not("stage", "in", "(complete,cancelled)")).order("id").range(a,b)),
+    pagedRows<Job>((a,b) => scoped(db.from("jobs").select("id,job_number,property_id,owners(full_name,phone,email),stage,source,channel,originating_installer_business_id,deleted_at,created_at").is("deleted_at", null).not("stage", "in", "(complete,cancelled)")).order("id").range(a,b)),
     test
       ? pagedRows<Omit<InHousePartner, "openJobs"> & { trading_name: string | null; email: string | null; onboarding_notes: string | null }>((a,b) => db.from("businesses").select("id,name,trading_name,email,onboarding_notes,in_house,is_active,service_postcodes,covers_all_victoria,coverage_lat,coverage_lng,coverage_radius_km").eq("in_house", true).eq("is_active", true).in("id", test.businessIds).order("id").range(a,b))
         .then(rows => rows.filter(isTestGiveBusiness).map(({ email: _e, onboarding_notes: _n, ...b }) => b))

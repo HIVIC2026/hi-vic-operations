@@ -9,8 +9,10 @@ export function officeDay(iso: string): string {
   const v = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T12:00:00+11:00` : iso;
   const t = Date.parse(v);
   if (!Number.isFinite(t)) return iso;
-  return new Date(t).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Melbourne" }).replace(",", "");
+  return OFFICE_DAY_FMT.format(new Date(t)).replace(",", "");
 }
+// Speed (7 Nov): one shared formatter, same text as toLocaleDateString.
+const OFFICE_DAY_FMT = new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Melbourne" });
 
 export type OfficeStage = "waiting_list" | "enquiry" | "ready_check" | "quote" | "safety" | "install" | "signoff" | "ended";
 export type WaitingOn = "Us" | "Owner" | "Installer" | "Electrician" | "Owner + Installer" | "Owner + Electrician" | "System" | "Nobody" | "Office / campaign";

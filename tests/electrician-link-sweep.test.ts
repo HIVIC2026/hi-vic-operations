@@ -18,7 +18,7 @@ mock.module("../src/lib/workflow.server", () => ({
 const server = await import("../src/lib/electrician-link.server");
 const calls: unknown[][] = [];
 let outcome: Awaited<ReturnType<typeof server.linkAfterAllocation>> = "held";
-const deps = () => ({ link: async (jobId: string, workerId: string) => { calls.push([jobId, workerId]); return outcome; } });
+const deps = () => ({ sends: true, link: async (jobId: string, workerId: string) => { calls.push([jobId, workerId]); return outcome; } });
 
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
@@ -26,8 +26,8 @@ function seed() {
   tables["jobs"] = [{ id: J, job_number: "HV-5001", source: "website", stage: "piesa_and_install_window_pending", deleted_at: null }, { id: J2, job_number: "HV-5002", source: "website", stage: "cancelled", deleted_at: null }];
   tables["businesses"] = [{ id: ELEC, name: "Spark Co", trading_name: null, piesa_booked_by: "electrician" }];
   tables["job_assignments"] = [
-    { id: "a2", job_id: J, business_id: ELEC, role: "electrician", active: true, user_id: null, created_at: "2026-11-06T00:00:00Z" },
-    { id: "a9", job_id: J2, business_id: ELEC, role: "electrician", active: true, user_id: null, created_at: "2026-11-06T00:00:00Z" },
+    { id: "a2", job_id: J, business_id: ELEC, role: "electrician", active: true, user_id: null, assigned_at: "2026-11-06T00:00:00Z" },
+    { id: "a9", job_id: J2, business_id: ELEC, role: "electrician", active: true, user_id: null, assigned_at: "2026-11-06T00:00:00Z" },
   ];
   tables["assessments"] = [{ id: "as1", job_id: J, external_mitti_id: "audit-a3", completed_at: null, piesa_outcome: "pending", mitti_raw_snapshot: null }];
   tables["bookings"] = []; tables["documents"] = [];
@@ -76,7 +76,7 @@ describe("sweepElectricianLinks", () => {
   test("R4: an old assignment (before ELECTRICIAN_LINK_SWEEP_FROM_ISO, no allocation event) is never texted at switch-on", async () => {
     tables["workflow_events"] = [];
     tables["job_assignments"]![0]!["user_id"] = "u-bea";
-    tables["job_assignments"]![0]!["created_at"] = "2026-10-01T00:00:00Z";
+    tables["job_assignments"]![0]!["assigned_at"] = "2026-10-01T00:00:00Z";
     expect(await server.sweepElectricianLinks(new Date(), deps())).toEqual({ checked: 0, sent: 0, held: 0 });
     expect(calls).toHaveLength(0);
     expect(server.ELECTRICIAN_LINK_SWEEP_FROM_ISO).toBe("2026-11-04T21:40:00Z"); // go-live publish instant
@@ -94,6 +94,18 @@ describe("sweepElectricianLinks", () => {
   test("a read failure logs and does nothing", async () => {
     delete tables["job_assignments"];
     expect(await server.sweepElectricianLinks(new Date(), deps())).toEqual({ checked: 0, sent: 0, held: 0 });
+  });
+  test("Jo 7 Nov: with sending off (the default) the sweep makes no link, sends nothing and records nothing", async () => {
+    expect(server.ELECTRICIAN_LINK_SWEEP_SENDS).toBe(false);
+    const before = tables["workflow_events"]!.length;
+    expect(await server.sweepElectricianLinks(new Date(), { link: deps().link })).toEqual({ checked: 0, sent: 0, held: 0, paused: 1 });
+    expect(calls).toHaveLength(0);
+    expect(tables["workflow_events"]!.length).toBe(before);
+  });
+  test("reads the assignment's real start column (assigned_at), never created_at", () => {
+    const src = readFileSync("src/lib/electrician-link.server.ts", "utf8");
+    expect(src).toContain('select("id, job_id, business_id, user_id, assigned_at")');
+    expect(src).not.toContain('user_id, created_at").eq("role", "electrician")');
   });
   test("wired into the tick in its own try/catch", () => {
     const tick = readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8");

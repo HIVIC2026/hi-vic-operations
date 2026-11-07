@@ -4,11 +4,11 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { gatherNeedsFacts } from "./office-needs.server";
 import { nextAction } from "./job-next-action.core";
 import { jobsStage, surnameOf } from "./office-jobs.core";
-import { buildStageCards, type StageCardFacts } from "./office-stage-cards.core";
+import { buildStageCards, firmQuoteStatusPill, type StageCardFacts } from "./office-stage-cards.core";
 import { mergeContactHistory, lastHeardFromUs, type CommRow, type EmailSendRow, type OwnerActionRow, type PortalMessageRow, type SmsRow } from "./contact-history.core";
 import { splitAddress } from "./name-address-tidy.core";
 import { displayName } from "./display-name.core";
-import { ELIGIBILITY_WORDS } from "./job-wording";
+import { eligibilityWords } from "./job-wording";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { installDaysLeft } from "./install-days.core";
 import { readJobAccess } from "./quick-taps-access.server";
@@ -48,6 +48,9 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const payP = early(import("./payments.server").then((m) => m.jobPaymentView(jobId)));
   const bouncedP = early(import("./office-lists.server").then((m) => m.emailBouncedSet([jobId])));
   const dncP = early(import("./do-not-contact.server").then((m) => m.readDoNotContact(jobId)));
+  // Jo 7 Nov 2026 (option A): firm-quote (desktop quote) photo jobs get their own words. Words only; a failed check keeps
+  // the ordinary words rather than failing the page.
+  const firmP = early(import("./firm-quote.server").then((m) => m.isFirmQuoteJobId(jobId)).catch(() => false));
   const allP = early(Promise.all([
     gatherNeedsFacts({ includeTest: true, onlyIds: [jobId], testOffice }),
     admin.from("owner_contact_consents").select("consent_status, consented_at, created_at").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -95,7 +98,9 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const closed = job.stage === "complete" ? "complete" as const : job.stage === "cancelled" ? "cancelled" as const : null;
   const stage = jobsStage({ stage: job.stage, priorStage: job.prior_stage, hasInstaller: !!installer });
   const instQ = (quotes.data ?? []).find((q) => q.kind === "installation") ?? null;
+  const firmQuote = !ownJob && await firmP;
   const next = nextAction({
+    firmQuote,
     facts, status: status ? { key: status.key, label: status.label, waitingOn: status.waitingOn, detail: status.detail, dueAt: status.dueAt } : null, stage,
     // "Quote sent" in the Next panel only when an installation quote was actually issued (Jo 27 Oct: a held or not-drafted quote must read as office work).
     quoteIssued: !!instQ && instQ.status === "issued" && !!instQ.sent_at,
@@ -114,9 +119,9 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const ownerSaid = (await import("./owner-said.core")).ownerSaidLine({ answers: b44, declared: ((prop?.enrichment?.["base44"] ?? {}) as { declared?: Record<string, unknown> }).declared ?? null, estimatedAreaM2: job.estimated_area_m2, occupancy: prop?.occupancy ?? null });
   const deposit = step("install_deposit");
   const cardFacts: StageCardFacts = {
-    current: stage, closed, ownJob,
+    current: stage, closed, ownJob, firmQuote,
     enquiry: { receivedAt: job.created_at, source: ownJob ? `added by ${installer ?? "the installer"}` : job.source === "base44" ? "website Save my spot" : job.source === "qa_test" ? "TEST" : "phone / office", estimateTotal: n(campaign.data?.saved_total), estimateRebate: n(campaign.data?.saved_veu_discount), linkSentAt: s(links.data?.created_at), linkViewedAt: s(links.data?.last_viewed_at), ownerSaid,
-      eligibility: job.eligibility_review_required ? "Needs review" : job.eligibility_outcome ? ELIGIBILITY_WORDS[job.eligibility_outcome as keyof typeof ELIGIBILITY_WORDS] ?? job.eligibility_outcome : null, photos: media.count ?? 0 },
+      eligibility: job.eligibility_review_required ? "Needs review" : job.eligibility_outcome ? eligibilityWords(job.eligibility_outcome, job.eligibility_outcome === "needs_onsite_confirmation" && await firmP) : null, photos: media.count ?? 0 },
     readyCheck: { installer, chosenAt: rcOffer ? s(rcOffer.offered_at) : null, acceptedAt: rcOffer?.status === "accepted" ? s(rcOffer.responded_at) : null, visitAt: book("ready_check"),
       mitti: meas.data ? `${meas.data.status === "complete" ? "Complete" : "Started"} ${day(String(meas.data.completed_at ?? meas.data.updated_at))}${meas.data.external_source === "mitti" ? " · synced" : ""}` : null,
       measured: meas.data?.measured_area_m2 ? `${Math.round(Number(meas.data.measured_area_m2))} m²` : null, diagramAt: s(diagram.data?.created_at) },
@@ -155,7 +160,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
       sourceLabel: ownJob ? `Installer's own customer · ${installer ?? "installer"}` : job.source === "base44" ? "Website enquiry" : job.source === "qa_test" ? "TEST job" : "Phone / office enquiry",
       receivedAt: job.created_at, permissionAt: consent.data?.consent_status === "granted" ? s(consent.data.consented_at ?? consent.data.created_at) : null, permissionState: consent.data?.consent_status ?? null,
       lastHeard: lastHeard ? { at: lastHeard.at, channel: lastHeard.channel } : null, lifeSupport: !!job.life_support,
-      statusPill: closed === "cancelled" ? "Cancelled" : closed === "complete" ? "Complete" : job.stage === "on_hold" ? "On hold" : status?.label ?? null,
+      statusPill: closed === "cancelled" ? "Cancelled" : closed === "complete" ? "Complete" : job.stage === "on_hold" ? "On hold" : firmQuoteStatusPill(status?.label ?? null, firmQuote),
       installBy: deadline && !job.installation_completed_at ? deadline : null, escDue: escNotice.data && !escNotice.data.sent_at ? escNotice.data.due_by : null,
       canDelete: job.source === "qa_test", canReopen: job.stage !== "complete" && (job.stage === "cancelled" || job.eligibility_outcome === "does_not_appear_eligible" || job.source === "qa_test"),
     },

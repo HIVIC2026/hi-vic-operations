@@ -4,7 +4,9 @@ import { existsSync, readFileSync } from "node:fs";
 import {
   PRODUCT_INSTRUCTIONS, INSTRUCTIONS_ON_FILE, decideInstructionsAttachment, instructionsForOption, instructionsHoldReason,
 } from "../src/lib/product-instructions.core";
-import { PRODUCT_INSTRUCTION_PDFS } from "../src/lib/product-instructions.data";
+import { createHash } from "node:crypto";
+import { PRODUCT_INSTRUCTION_FILES } from "../src/lib/product-instructions.data";
+import { productInstructionsFor } from "../src/lib/product-instructions.server";
 import { looksLikePdf } from "../src/lib/product-warranty.core";
 
 describe("product instructions map", () => {
@@ -25,14 +27,37 @@ describe("product instructions map", () => {
     expect(instructionsForOption("Mystery R4")).toBeNull();
     expect(instructionsForOption(null)).toBeNull();
   });
-  test("every bundled file is a real PDF matching the repo file", () => {
-    expect(Object.keys(PRODUCT_INSTRUCTION_PDFS).length).toBeGreaterThan(0);
-    for (const [path, uri] of Object.entries(PRODUCT_INSTRUCTION_PDFS)) {
-      const bytes = new Uint8Array(Buffer.from(uri.replace(/^data:application\/pdf;base64,/, ""), "base64"));
+  test("every stored copy is recorded with the repo PDF's exact SHA-256 and size", () => {
+    expect(Object.keys(PRODUCT_INSTRUCTION_FILES).length).toBeGreaterThan(0);
+    for (const [path, f] of Object.entries(PRODUCT_INSTRUCTION_FILES)) {
+      const bytes = new Uint8Array(readFileSync(path));
       expect(looksLikePdf(bytes), path).toBe(true);
-      expect(existsSync(path)).toBe(true);
-      expect(Buffer.compare(Buffer.from(bytes), readFileSync(path))).toBe(0);
+      expect(f.size).toBe(bytes.length);
+      expect(f.sha256).toBe(createHash("sha256").update(bytes).digest("hex"));
+      expect(f.url).toMatch(/^\/__l5e\/assets-v1\//);
     }
+  });
+});
+
+describe("stored instructions copy (speed, 7 Nov)", () => {
+  const repoFetch = (mutate?: (b: Uint8Array) => Uint8Array, status = 200) => (async (url: string) => {
+    const entry = Object.entries(PRODUCT_INSTRUCTION_FILES).find(([, f]) => url.endsWith(f.url))!;
+    const bytes = new Uint8Array(readFileSync(entry[0]));
+    return new Response(status === 200 ? (mutate ? mutate(bytes) : bytes) : "error", { status });
+  }) as unknown as typeof fetch;
+  test("attaches the exact repo PDF", async () => {
+    const a = await productInstructionsFor("Earthwool R5", repoFetch());
+    expect(a!.filename).toEndWith(".pdf");
+    expect(Buffer.compare(Buffer.from(a!.content, "base64"), readFileSync("docs/product-instructions/earthwool-ceiling-batts.pdf"))).toBe(0);
+  });
+  test("a changed copy is refused (throws, so the email waits instead of going without it)", async () => {
+    await expect(productInstructionsFor("Fletchers Pink Batts R5", repoFetch((b) => { const c = b.slice(); c[c.length - 1] ^= 1; return c; }))).rejects.toThrow("does not match");
+  });
+  test("an unreachable copy throws, never null", async () => {
+    await expect(productInstructionsFor("Bradford Gold R6", repoFetch(undefined, 503))).rejects.toThrow("could not be read");
+  });
+  test("an unknown product is still null (not on file)", async () => {
+    expect(await productInstructionsFor("Mystery R4", repoFetch())).toBeNull();
   });
 });
 
@@ -70,6 +95,8 @@ describe("embed script run", () => {
     mkdirSync(join(root, "docs/product-instructions"), { recursive: true });
     mkdirSync(join(root, "src/lib"), { recursive: true });
     const target = join(root, "docs/product-instructions/bradford-ceiling-batt-B0328-rev3.pdf");
+    mkdirSync(join(root, "src/lib/product-instructions-files"), { recursive: true });
+    copyFileSync("src/lib/product-instructions-files/bradford-ceiling-batt-B0328-rev3.pdf.asset.json", join(root, "src/lib/product-instructions-files/bradford-ceiling-batt-B0328-rev3.pdf.asset.json"));
     if (bradford === "valid") copyFileSync("docs/product-instructions/bradford-ceiling-batt-B0328-rev3.pdf", target);
     else writeFileSync(target, "<html>error page</html>");
     writeFileSync(join(root, "src/lib/product-instructions.data.ts"), "// untouched\n");

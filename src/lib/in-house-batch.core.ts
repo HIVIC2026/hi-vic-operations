@@ -39,6 +39,14 @@ export function saidYesLabel(job: Pick<BatchJob, "ownerName" | "quickTapsYes" | 
 }
 /** Job page: the owner said yes and the nominated installer is an active in-house partner covering the home. */
 export function jobGiveOffer(job: BatchJob | undefined, partners: InHousePartner[]): { businessId: string; partnerName: string; label: string; blocked: string | null } | null {
+  // Firm-quote request (Jo 7 Nov): no quick taps and no owner batch, so the job goes to an in-house "From photos"
+  // installer covering the home (fewest open jobs first). Same give step and checks as every other Give.
+  if (job?.firmQuote === true && !job.waitingBusinessId) {
+    const partner = partners.filter(p => isInHousePartner(p) && p.is_active && quoteMethodOf(p) === "photos" && batchPartnerCovers(job, p))
+      .sort((a, b) => a.openJobs - b.openJobs || a.id.localeCompare(b.id))[0];
+    if (!partner) return null;
+    return { businessId: partner.id, partnerName: partner.name, label: `${displayName(job.ownerName) || "Owner"} asked for a firm quote from photos. Give to ${partner.name}`, blocked: photoLeadBlocked(job, partner) };
+  }
   const said = job ? saidYesLabel(job) : null;
   if (!job || !said || !job.waitingBusinessId) return null;
   const partner = partners.find(p => p.id === job.waitingBusinessId && isInHousePartner(p) && p.is_active);

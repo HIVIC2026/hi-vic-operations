@@ -326,7 +326,7 @@ describe("owner pay card", () => {
     const o = await resolveOwnerJob(TOKEN);
     const steps = o!.payment!.steps;
     expect(steps.map((s) => [s.key, s.amount])).toEqual([
-      ["safety_check", 349], ["repeat_safety_check", 220], ["fixes", 550], ["install_deposit", 365.1], ["balance", 3285.9],
+      ["safety_check", 349], ["repeat_safety_check", 220], ["fixes", 550], ["install_deposit", 1825.5], ["balance", 1825.5], // Jo 7 Nov: 50% deposit of the install price, 50% balance
     ]);
     expect(o!.payment!.payNow.title).toContain("$220.00");
     expect(o!.payment!.payNow.lines).toContain("Reference: INV-REP");

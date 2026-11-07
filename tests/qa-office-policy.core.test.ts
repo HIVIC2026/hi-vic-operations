@@ -35,7 +35,13 @@ test("TEST office function allowlist is exactly this list", () => {
   "src/lib/portal.functions.ts": ["createTestEnquiry", "getQaJourneys"],
   "src/lib/test-centre-photo.functions.ts": ["testEnquiryPhotoUpload", "attachTestEnquiryPhoto"],
   "src/lib/in-house-batch.functions.ts": ["allocateInHouseBatch", "getInHouseGiveForJob"],
+  "src/lib/jobfile.functions.ts": ["getJobFile"],
  });
+});
+test("TEST office may read a TEST job's history for Choose installer, but never export the job pack (Jo 7 Nov)", () => {
+ expect(qaOfficeFunctionAllowed("src/lib/jobfile.functions.ts", "getJobFile")).toBe(true);
+ expect(qaOfficeFunctionAllowed("src/lib/jobfile.functions.ts", "exportJobPack")).toBe(false);
+ expect(qaOfficeFunctionAllowed("src/lib/jobfile.functions.ts", "getJobFileHeader")).toBe(false);
 });
 test("TEST office may use only the approved TEST photo upload actions", () => {
  for (const name of ["testEnquiryPhotoUpload", "attachTestEnquiryPhoto"]) {

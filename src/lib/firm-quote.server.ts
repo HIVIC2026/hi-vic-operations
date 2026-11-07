@@ -18,12 +18,14 @@ export async function firmQuoteLiveAt(): Promise<string | null> {
 
 export async function isFirmQuoteJobId(jobId: string): Promise<boolean> {
   const liveAt = await firmQuoteLiveAt();
-  if (liveAt === null) return false;
-  const { data: job, error } = await admin.from("jobs").select("source,created_at").eq("id", jobId).maybeSingle();
-  if (error) throw new Error("Could not verify firm-quote job facts.");
+  const { data: job, error } = await admin.from("jobs").select("source,created_at,owners(email)").eq("id", jobId).maybeSingle();
+  // Switch NULL: a failed read keeps the existing (non-firm) path exactly as before the TEST exception.
+  if (error) { if (liveAt === null) return false; throw new Error("Could not verify firm-quote job facts."); }
   if (!job) return false;
   // Website and TEST jobs share the same activation/media rules; retain source for guarded TEST-inbox delivery.
-  const facts = { source: job.source, createdAt: job.created_at, liveAt };
+  // Switch NULL: only the TEST exception (qa_test + TEST owner email) can qualify; real enquiries stop here.
+  const ownerEmail = (job.owners as { email?: string | null } | null)?.email ?? null;
+  const facts = { source: job.source, createdAt: job.created_at, liveAt, ownerEmail };
   if (!isFirmQuoteJob({ ...facts, hasMedia: true })) return false;
   const docs = await admin.from("documents").select("kind,mime_type,storage_path").eq("job_id", jobId).eq("kind", "intake_media");
   if (docs.error) throw new Error("Could not verify owner media for firm quote.");
@@ -31,18 +33,18 @@ export async function isFirmQuoteJobId(jobId: string): Promise<boolean> {
 }
 
 /** Batched isFirmQuoteJobId over job rows and owner media the caller already read: ONE activation read and no per-job
- *  queries (switch off = nothing else checked). Same rules; `media` null means the caller's media read failed, which
+ *  queries. Same rules (switch NULL: only the TEST exception); `media` null means the caller's media read failed, which
  *  throws (fail closed) only when a job could be a firm-quote job. */
 export async function firmQuoteJobIdsFrom(
-  jobs: readonly { id: string; source: string | null; created_at: string }[],
+  jobs: readonly { id: string; source: string | null; created_at: string; owners?: { email?: string | null } | null }[],
   media: readonly (OwnerMediaDoc & { job_id: string })[] | null,
   knownLiveAt?: string | null,
 ): Promise<Set<string>> {
   const out = new Set<string>();
   if (!jobs.length) return out;
   const liveAt = knownLiveAt !== undefined ? knownLiveAt : await firmQuoteLiveAt();
-  if (liveAt === null) return out;
-  const candidates = jobs.filter(j => isFirmQuoteJob({ source: j.source, createdAt: j.created_at, liveAt, hasMedia: true }));
+  // Switch NULL: only TEST-exception jobs (qa_test + TEST owner email) can qualify.
+  const candidates = jobs.filter(j => isFirmQuoteJob({ source: j.source, createdAt: j.created_at, liveAt, hasMedia: true, ownerEmail: j.owners?.email ?? null }));
   if (!candidates.length) return out;
   if (media === null) throw new Error("Could not verify owner media for firm quote.");
   const byJob = new Map<string, OwnerMediaDoc[]>();
@@ -55,8 +57,9 @@ export async function firmQuoteJobIdsFrom(
  *  media are read in paged id chunks and handed to firmQuoteJobIdsFrom. Any failed read throws (fail closed). */
 export async function firmQuoteJobIdsFor(jobIds: readonly string[]): Promise<Set<string>> {
   const ids = [...new Set(jobIds)];
-  const liveAt = ids.length ? await firmQuoteLiveAt() : null;
-  if (!ids.length || liveAt === null) return new Set();
+  if (!ids.length) return new Set();
+  // Switch NULL still reads jobs: TEST-exception jobs (qa_test + TEST owner email) can qualify (Jo 7 Nov).
+  const liveAt = await firmQuoteLiveAt();
   const paged = async <T>(read: (c: string[], a: number, b: number) => PromiseLike<{ data: unknown; error: unknown }>, c: string[]): Promise<T[]> => {
     const all: T[] = [];
     for (let a = 0; ; a += 200) {
@@ -67,11 +70,12 @@ export async function firmQuoteJobIdsFor(jobIds: readonly string[]): Promise<Set
       if (page.length < 200) return all;
     }
   };
-  const jobs: { id: string; source: string | null; created_at: string }[] = [];
+  type JobFacts = { id: string; source: string | null; created_at: string; owners: { email?: string | null } | null };
+  const jobs: JobFacts[] = [];
   const media: (OwnerMediaDoc & { job_id: string })[] = [];
   for (let i = 0; i < ids.length; i += 100) {
     const c = ids.slice(i, i + 100);
-    jobs.push(...await paged<{ id: string; source: string | null; created_at: string }>((cc, a, b) => admin.from("jobs").select("id,source,created_at").in("id", cc).order("id").range(a, b), c));
+    jobs.push(...await paged<JobFacts>((cc, a, b) => admin.from("jobs").select("id,source,created_at,owners(email)").in("id", cc).order("id").range(a, b), c));
     media.push(...await paged<OwnerMediaDoc & { job_id: string }>((cc, a, b) => admin.from("documents").select("job_id,kind,mime_type,storage_path").in("job_id", cc).eq("kind", "intake_media").order("id").range(a, b), c));
   }
   return firmQuoteJobIdsFrom(jobs, media, liveAt);
@@ -234,10 +238,11 @@ function realDay4Deps(): Day4Deps {
   };
 }
 
-/** Post-intake tick. Never throws per job; a switched-off flow reads nothing beyond the switch. */
+/** Post-intake tick. Never throws per job; with the switch NULL only TEST-exception jobs can qualify (deps.isFirm). */
 export async function sweepFirmQuoteDay4(now = new Date(), deps: Day4Deps = realDay4Deps()) {
   const out: { jobId: string; status: string }[] = [];
-  if (await deps.liveAt() === null) return { held: false, results: out };
+  // Switch NULL: still runs for recorded requests, but deps.isFirm only passes TEST-exception jobs.
+  await deps.liveAt();
   const { smsQuietReason } = await import("./quote-hold.core");
   if (smsQuietReason(now.toISOString())) return { held: true, results: out };
   if (!await deps.commsOn()) return { held: false, results: out };

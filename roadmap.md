@@ -1,3 +1,17 @@
+## Jo 7 Nov 08:58 Melb — portal is slow + full TEST-only browser check
+- [ ] Measure real-visitor page speed and database load; find the 5 slowest pages and why.
+- [ ] Browser check every page as TEST office (admin), TEST installer and TEST homeowner, desktop + phone; links, forms (validation), errors. TEST jobs only; no sends, payments, deletions — list skipped buttons.
+- [x] Speed fixes that don't change look or behaviour: paced office reads (database load ~4x lower, Needs me 6.3s → ~5.6s), shared date formatters (Enquiries 2.7–3.3s → 1.7–2.2s). Same results checked; Jobs unchanged ~1.5s.
+- [ ] Short report: broken / slow / skipped buttons / what changed.
+- [x] Jo 7 Nov 09:03: install deposit is 50% — already how the portal works since Jo's 5 Nov change; no change needed.
+- [ ] Jo 7 Nov 09:03: fix all issues found. Done: Choose installer box blank for TEST office. Waiting on Jo: anything that could send (email 1 auto-send, electrician-link sweep), TEST installer setup/coverage (changes TEST trade data), owner estimate wording after Proceed, moving big built-in documents out of the server (possible every-page speed win, touches official forms).
+- [x] Jo 7 Nov (a): instruction PDFs moved out of the server program (23MB from 29MB, SHA-checked); installer page reads measured fast (0.06–0.8s) — remaining wait is server start-up, needs publishing to help. Official forms/warranties left built in (compliance-checked, used without waiting).
+- [x] Jo 7 Nov (b): TEST Photos Insulation in-house + Richmond 3121 — TEST electrician (simulated Mitti), $349 PIESA price, Mitti invite, office checklist passed; new login sees only its own business.
+- [x] Jo 7 Nov (c): electrician-link sweep read fixed, sending kept OFF (ELECTRICIAN_LINK_SWEEP_SENDS=false); same missing-column bug fixed on owner My job installer name and TEST quote-expired. Email 1 for TEST jobs: Test Centre jobs skip the automatic steps by design; wiring it would send, so left until Jo says send.
+- [x] Jo 7 Nov (d): owner estimate link shows the approved firm-quote thank-you after Proceed (Jo approved).
+- [x] Jo 7 Nov: publish requested after a clean security check.
+- [ ] Earlier findings from tonight's firm-quote run (blank Choose installer box for TEST office etc.) — reported, not fixed (report-only).
+
 ## Jo 6 Nov 20:53 UTC — final email 1 + one-tap Proceed (switch stays OFF)
 - [x] Email 1 rebuilt on today's Save my spot O2 layout with Jo's exact changes; one version for every firm-quote job.
 - [x] Proceed page: no second button, existing tap guard, already-asked shows the same confirmation, Jo's thank-you wording in the website look.
@@ -1171,3 +1185,13 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 ## Jo 5 Nov — isolated Ready Check contradiction experiment
 - [x] Inspect existing parser/checks, add pure sample-only validator, run sample/related tests and report data/freshness limitations; no live calls or production screens/gates.
+- [x] Jo 7 Nov 10am: TEST office Choose installer — history read allowed, firm-quote jobs get Give for the covering photos installer, TEST Photos Lead + electrician Team access added. Browser check pending TEST sign-in approval.
+- [x] Jo 7 Nov 10am: photo (firm-quote) jobs show "Photos to be checked by installer" on the job page; no-photo jobs unchanged.
+- [ ] Jo 7 Nov 10am: carry on the TEST journey — BLOCKED: needs Jo's approval to sign in as the TEST logins (approval card unavailable this turn).
+
+## Jo 7 Nov ~9:50am answers (in order; switch NULL, TEST inbox only, no publish, no real records)
+- [x] 1. TEST office: see TEST job details in Choose installer + Give to TEST installers; TEST installer set up incl. coverage; test proving TEST office still can't see a real job (on-screen check BLOCKED: TEST sign-in approval unavailable)
+- [ ] 2. Carry on whole TEST job from handover — BLOCKED: TEST sign-in approval unavailable (needs Jo to approve signing in as the TEST logins)
+- [x] 3a. Owner estimate after Proceed: no Save my spot wording, show rebate (approved words only) — c3280e0d1
+- [x] 3b. One pile: photo enquiry only in Enquiries › With photos until given — 3a0ebf81c
+- [ ] 3c. Office job page Ready Check wording on firm-quote jobs: proposal sent, WAITING for Jo's OK

@@ -14,12 +14,30 @@ export function firmQuoteRequestDueBy(events: readonly { event_type: string; det
   const date = (event?.details as { due_by?: unknown } | null)?.due_by;
   return typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) ? date : null;
 }
+/** Jo 7 Nov (one pile): a requested firm quote stays in Enquiries › With photos until it is given to an installer (or
+ *  quoted); while it is there it is in no Jobs list. */
+export const firmQuoteHeldInEnquiries = (f: { firmQuote: boolean; requested: boolean; hasInstaller: boolean; hasQuote: boolean }): boolean =>
+  f.firmQuote && f.requested && !f.hasInstaller && !f.hasQuote;
 export const firmQuoteRequestTag = (date: string | null | undefined): string | null => date ? `Asked for firm quote · due ${formatDueDate(date)}` : null;
 
-export function isFirmQuoteJob(i: { createdAt: string; hasMedia: boolean; liveAt: string | null; source: string | null }): boolean {
-  if ((i.source !== "base44" && i.source !== "qa_test") || !i.hasMedia || i.liveAt === null) return false;
-  const created = Date.parse(i.createdAt), live = Date.parse(i.liveAt);
-  return Number.isFinite(created) && Number.isFinite(live) && created >= live;
+/** TEST-only exception (Jo, option A, 7 Nov 2026): while the switch is NULL, TEST jobs made from this moment with a TEST
+ *  owner email still run the firm-quote flow. Same values as the database's request_firm_quote_atomic. */
+export const FIRM_QUOTE_TEST_FROM = "2026-11-06T21:30:00Z";
+export function isTestFirmQuoteOwnerEmail(email: string | null | undefined): boolean {
+  const e = (email ?? "").trim().toLowerCase();
+  return /^[^@\s]+@hivic-test\.example$/.test(e) || e === "jolowexo@hotmail.com";
+}
+
+export function isFirmQuoteJob(i: { createdAt: string; hasMedia: boolean; liveAt: string | null; source: string | null; ownerEmail?: string | null }): boolean {
+  if ((i.source !== "base44" && i.source !== "qa_test") || !i.hasMedia) return false;
+  const created = Date.parse(i.createdAt);
+  if (!Number.isFinite(created)) return false;
+  if (i.liveAt !== null) {
+    const live = Date.parse(i.liveAt);
+    if (Number.isFinite(live) && created >= live) return true;
+  }
+  // TEST exception: qa_test source AND a TEST owner email AND made after the exception started. Never real enquiries.
+  return i.source === "qa_test" && isTestFirmQuoteOwnerEmail(i.ownerEmail) && created >= Date.parse(FIRM_QUOTE_TEST_FROM);
 }
 
 export function firmQuoteDueBy(requestedAtIso: string): string {

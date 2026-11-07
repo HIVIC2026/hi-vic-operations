@@ -9,6 +9,8 @@ import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { Button } from "@/components/ui/button";
 import { getLaunchCampaignPage, saveMySpot, takeMeOffList } from "@/lib/launch-campaign.functions";
+import { getFirmQuoteRequestPageFn } from "@/lib/firm-quote.functions";
+import { FirmQuoteThanks } from "@/components/owner/FirmQuoteThanks";
 import type { InsulationDeclared } from "@/lib/estimate.core";
 import { EXISTING_PRELIMINARY, removalNote, type EstimateRemoval } from "@/lib/estimate-removal.core";
 import { REMOVAL_UPTO_NOTE, priceRangeLine, removalUpToLine } from "@/lib/estimate-removal-upto.core";
@@ -35,6 +37,11 @@ function CampaignPage() {
     const json = await getPage({ data: { token } });
     return json ? JSON.parse(json) as CampaignData : null;
   }, retry: false, refetchOnWindowFocus: false });
+  // Jo 7 Nov: once a firm quote is requested, reopening the estimate link shows the approved thank-you, not Save my spot.
+  // Read-only: it never records a request. A failed read keeps the existing page.
+  const readFirm = useServerFn(getFirmQuoteRequestPageFn);
+  const firm = useQuery({ queryKey: ["firm_quote_page", token], queryFn: () => readFirm({ data: { token } }), retry: false, refetchOnWindowFocus: false });
+  const firmThanks = firm.data?.available && firm.data.dueBy ? { firstName: firm.data.firstName, dueBy: firm.data.dueBy } : null;
   const [busy, setBusy] = useState<"save" | "optout" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const act = async (kind: "save" | "optout") => {
@@ -58,9 +65,10 @@ function CampaignPage() {
     for (const n of events) window.addEventListener(n, onInteract, { passive: true });
     return () => { for (const n of events) window.removeEventListener(n, onInteract); };
   }, [armed]);
-  return <div className="estimate-brand min-h-screen bg-estimate-canvas">
+  return <div className={`estimate-brand min-h-screen bg-estimate-canvas${firmThanks ? " firm-thanks text-estimate-navy" : ""}`}>
     <main className="pb-14">
-      {isLoading ? <p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your estimate…</p>
+      {firmThanks && !isLoading ? <div className="mx-auto max-w-[560px] px-4 pt-8 sm:px-8"><header className="flex justify-center"><img src={CUSTOMER_BRAND.logoUrl} alt="Home Insulation Victoria" className="h-16 w-auto" /></header><FirmQuoteThanks firstName={firmThanks.firstName} dueBy={firmThanks.dueBy} estimate={data?.pricing ? { rebate: data.pricing.discount, price: data.pricing.total, fullPrice: data.pricing.gross, areaM2: data.pricing.areaM2 } : null} /></div>
+      : isLoading || firm.isLoading ? <p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your estimate…</p>
       : isError || !data ? <section className="estimate-offset rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">This link isn't available</h1><p className="mt-2 text-sm">Please contact Home Insulation Victoria and we'll help.</p></section>
       : data.response?.opted_out_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><section className="estimate-offset rounded-[22px] border border-estimate-blue-soft bg-white p-8 text-center"><h1 className="font-display text-3xl font-extrabold text-estimate-navy">You're off the list</h1><p className="mt-3 text-estimate-navy/75">We won't send any more campaign messages about this enquiry.</p></section></div>
       : data.response?.spot_saved_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><Result group={data.group} videoPriority={data.response.queue_priority === "video" || !!data.media?.excluded} token={token} rebate={data.response.saved_veu_discount ?? null} customer={data.response.saved_total ?? null} suburb={data.home?.suburb ?? null} home={data.home?.short ?? null} referralUrl={data.referralUrl ?? null} firstName={data.owner.firstName ?? null} basedOn={data.pricing && data.pricing.areaM2 > 0 ? spotSavedBasedOn({ areaM2: data.pricing.areaM2, insulation: data.pricing.insulation === "none" ? "no insulation" : data.pricing.insulation === "present" ? "some existing insulation" : "existing insulation not known yet" }) : null} /></div>

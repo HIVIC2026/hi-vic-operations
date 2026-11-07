@@ -7,6 +7,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { limits, officeStatus, type JobFacts, type OfficeStatus } from "./office-status.core";
 import { buildNeedsMe, type NeedsJob, type PartnerItem, type Snooze } from "./needs-me.core";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
+import { officeReadGate } from "./read-limiter.core";
 
 type Admin = SupabaseClient<Database>;
 type Row = Record<string, unknown>;
@@ -32,7 +33,8 @@ const chunksOf = (ids: string[]) => { const out: string[][] = []; for (let i = 0
 type Ranged = { range: (a: number, b: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }> };
 /** Every row of a per-job read for `ids`: one paged query per chunk of ids, all chunks in flight together. */
 const byChunks = (what: string, ids: string[], q: (chunk: string[]) => Ranged): Promise<Row[]> =>
-  ids.length ? Promise.all(chunksOf(ids).map((c) => all(what, (a, b) => q(c).range(a, b)))).then((r) => r.flat()) : Promise.resolve([]);
+  // Speed (7 Nov): each single request waits its turn at the shared office gate — same reads, never hundreds at once.
+  ids.length ? Promise.all(chunksOf(ids).map((c) => all(what, (a, b) => officeReadGate(() => q(c).range(a, b))))).then((r) => r.flat()) : Promise.resolve([]);
 
 export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; onlyIds?: string[]; openOnly?: boolean; statusOnly?: boolean } = {}) {
   const now = Date.now();

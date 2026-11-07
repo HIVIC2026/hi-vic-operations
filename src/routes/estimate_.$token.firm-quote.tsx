@@ -1,13 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import type React from "react";
-import { Check } from "lucide-react";
 import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { getFirmQuoteRequestPageFn, requestFirmQuoteFn } from "@/lib/firm-quote.functions";
-import { formatDueDate } from "@/lib/firm-quote.core";
-import { FIRM_PAGE_COPY } from "@/lib/firm-quote-page-copy.core";
+import { FirmQuoteThanks } from "@/components/owner/FirmQuoteThanks";
 
 // Un-nested from the legacy /estimate/$token redirect, like the campaign one-tap page.
 export const Route = createFileRoute("/estimate_/$token/firm-quote")({
@@ -61,15 +58,7 @@ function FirmQuoteRequestPage() {
       <header className="flex justify-center">
         <img src={CUSTOMER_BRAND.logoUrl} alt="Home Insulation Victoria" className="h-16 w-auto" />
       </header>
-      {saved ? <div role="status" className="mt-8">
-        <h1 className="text-center font-display text-[32px] font-extrabold leading-[1.15] sm:text-4xl">{FIRM_PAGE_COPY.thanks(first)}</h1>
-        <ul className="mt-6 space-y-4 rounded-[22px] border border-estimate-line bg-estimate-white p-5 text-[15px] leading-relaxed sm:p-6">
-          <Tick>{FIRM_PAGE_COPY.assessment}</Tick>
-          <Tick>{FIRM_PAGE_COPY.emailBy} <strong>{formatDueDate(dueBy!)}</strong>.</Tick>
-          <Tick>{FIRM_PAGE_COPY.nothingLocked}</Tick>
-        </ul>
-        <p className="mt-6 text-center text-xs text-estimate-navy/70">{FIRM_PAGE_COPY.footer}</p>
-      </div>
+      {saved ? <FirmQuoteThanks firstName={first} dueBy={dueBy!} />
       : <section className="estimate-offset mt-6 rounded-[22px] border border-estimate-blue-soft bg-white p-6 text-center shadow-[0_18px_50px_rgba(34,55,107,0.09)] sm:p-8">
         <OwnerHouse level={1} size="sm" className="mx-auto" />
         <h1 className="mt-4 font-display text-3xl font-extrabold">Your firm quote</h1>
@@ -79,11 +68,4 @@ function FirmQuoteRequestPage() {
       </section>}
     </main>
   </div>;
-}
-
-function Tick({ children }: { children: React.ReactNode }) {
-  return <li className="flex gap-3">
-    <Check aria-hidden className="mt-1 h-5 w-5 shrink-0 text-estimate-green" strokeWidth={3} />
-    <span>{children}</span>
-  </li>;
 }

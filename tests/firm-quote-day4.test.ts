@@ -40,7 +40,10 @@ test("held 8pm–7am Melbourne, goes at 7am if still due", async () => {
   expect(t.sends).toHaveLength(0);
   await sweepFirmQuoteDay4(new Date("2026-11-13T20:00:00Z"), t.d); expect(t.sends).toHaveLength(1); // 7am
 });
-test("non-firm-quote jobs never touched; switch null reads nothing", async () => {
+test("non-firm-quote jobs never touched; switch null: real enquiries never touched or sent", async () => {
   const a = deps({ firm: false }); await sweepFirmQuoteDay4(DAY4, a.d); expect(a.touched).toHaveLength(0); expect(a.sends).toHaveLength(0);
-  const b = deps({ live: null }); await sweepFirmQuoteDay4(DAY4, b.d); expect(b.touched).toHaveLength(0); expect(b.sends).toHaveLength(0);
+  const b = deps({ live: null, firm: false }); await sweepFirmQuoteDay4(DAY4, b.d); expect(b.touched).toHaveLength(0); expect(b.sends).toHaveLength(0);
+});
+test("switch null: a TEST-exception job (isFirm passes only for TEST) still gets its one day-4 email", async () => {
+  const t = deps({ live: null }); await sweepFirmQuoteDay4(DAY4, t.d); expect(t.sends).toHaveLength(1);
 });

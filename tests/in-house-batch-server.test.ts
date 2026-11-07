@@ -210,7 +210,7 @@ test("loader maps owner name and phone, selects owners(full_name,phone), and sho
   expect(result.jobs[0]).toMatchObject({ id: "j", ownerName: "WAYNE WILSON", ownerPhone: "0400 000 000", quickTapsYes: true });
   expect(result.suggestions).toEqual([{ businessId: "b", jobIds: ["j"] }]);
   const select = f.calls.find(c => c.table === "jobs")?.filters.find(([key]) => key === "select")?.[1] as string;
-  expect(select).toContain("owners(full_name,phone)");
+  expect(select).toContain("owners(full_name,phone,email)"); // email: TEST firm-quote exception only
 });
 
 function three(f: ReturnType<typeof fixture>) {
