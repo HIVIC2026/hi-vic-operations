@@ -38,10 +38,11 @@ export async function isFirmQuoteJobId(jobId: string): Promise<boolean> {
 export async function firmQuoteJobIdsFrom(
   jobs: readonly { id: string; source: string | null; created_at: string; owners?: { email?: string | null } | null }[],
   media: readonly (OwnerMediaDoc & { job_id: string })[] | null,
+  knownLiveAt?: string | null,
 ): Promise<Set<string>> {
   const out = new Set<string>();
   if (!jobs.length) return out;
-  const liveAt = await firmQuoteLiveAt();
+  const liveAt = knownLiveAt !== undefined ? knownLiveAt : await firmQuoteLiveAt();
   // Switch NULL: only TEST-exception jobs (qa_test + TEST owner email) can qualify.
   const candidates = jobs.filter(j => isFirmQuoteJob({ source: j.source, createdAt: j.created_at, liveAt, hasMedia: true, ownerEmail: j.owners?.email ?? null }));
   if (!candidates.length) return out;
@@ -50,6 +51,34 @@ export async function firmQuoteJobIdsFrom(
   for (const m of media) byJob.set(m.job_id, [...(byJob.get(m.job_id) ?? []), m]);
   for (const j of candidates) if (hasOwnerMedia(byJob.get(j.id) ?? [])) out.add(j.id);
   return out;
+}
+
+/** Batched check for callers that only have job ids: the switch is read once (off = no other read), then jobs and owner
+ *  media are read in paged id chunks and handed to firmQuoteJobIdsFrom. Any failed read throws (fail closed). */
+export async function firmQuoteJobIdsFor(jobIds: readonly string[]): Promise<Set<string>> {
+  const ids = [...new Set(jobIds)];
+  if (!ids.length) return new Set();
+  // Switch NULL still reads jobs: TEST-exception jobs (qa_test + TEST owner email) can qualify (Jo 7 Nov).
+  const liveAt = await firmQuoteLiveAt();
+  const paged = async <T>(read: (c: string[], a: number, b: number) => PromiseLike<{ data: unknown; error: unknown }>, c: string[]): Promise<T[]> => {
+    const all: T[] = [];
+    for (let a = 0; ; a += 200) {
+      const r = await read(c, a, a + 199);
+      if (r.error) throw new Error("Could not verify firm-quote job facts.");
+      const page = (r.data ?? []) as T[];
+      all.push(...page);
+      if (page.length < 200) return all;
+    }
+  };
+  type JobFacts = { id: string; source: string | null; created_at: string; owners: { email?: string | null } | null };
+  const jobs: JobFacts[] = [];
+  const media: (OwnerMediaDoc & { job_id: string })[] = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const c = ids.slice(i, i + 100);
+    jobs.push(...await paged<JobFacts>((cc, a, b) => admin.from("jobs").select("id,source,created_at,owners(email)").in("id", cc).order("id").range(a, b), c));
+    media.push(...await paged<OwnerMediaDoc & { job_id: string }>((cc, a, b) => admin.from("documents").select("job_id,kind,mime_type,storage_path").in("job_id", cc).eq("kind", "intake_media").order("id").range(a, b), c));
+  }
+  return firmQuoteJobIdsFrom(jobs, media, liveAt);
 }
 
 /** Shared fail-closed exclusion for spot messages; null preserves the existing delivery path. */

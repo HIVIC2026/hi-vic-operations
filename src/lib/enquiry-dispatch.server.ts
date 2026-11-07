@@ -46,12 +46,17 @@ export async function candidateJobIds(limit = DISPATCH_POOL): Promise<string[]> 
     .order("created_at", { ascending: true })
     .limit(Math.min(Math.max(limit, 1), DISPATCH_POOL * 2));
   if (error) fail("open enquiries");
-  return (data ?? [])
+  const withEmail = (data ?? [])
     .filter((j) => {
       const email = (j.owners as { email?: string | null } | null)?.email;
       return !!email && email.trim() !== "";
     })
     .map((j) => j.id);
+  // Firm-quote owners get email 1 (preliminary estimate), never this Save-my-spot backlog. One batched check; an
+  // unreadable check fails the whole read rather than letting a firm-quote owner look sendable.
+  let firm: Set<string>;
+  try { firm = await (await import("./firm-quote.server")).firmQuoteJobIdsFor(withEmail); } catch { fail("which enquiries are firm-quote"); }
+  return withEmail.filter((id) => !firm.has(id));
 }
 
 /** Filter candidates down to homes that have not been answered, are not in flight, are not suppressed,

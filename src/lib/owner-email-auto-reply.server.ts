@@ -30,7 +30,7 @@ import {
 } from "./owner-email-auto-reply.core";
 import type { BusinessContact } from "./owner-wording.core";
 
-export type AutoReplyDeps = { businessContact?: (jobId: string, role: "installer" | "electrician") => Promise<BusinessContact | null>; photoQuoteJob?: (jobId: string) => Promise<{ installer: string; fromPhotos: boolean } | null> };
+export type AutoReplyDeps = { businessContact?: (jobId: string, role: "installer" | "electrician") => Promise<BusinessContact | null>; photoQuoteJob?: (jobId: string) => Promise<{ installer: string; fromPhotos: boolean } | null>; isFirmQuote?: (jobId: string) => Promise<boolean> };
 
 const loose = admin as unknown as SupabaseClient;
 const lower = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
@@ -133,10 +133,12 @@ export async function autoReplyToOwner(p: { jobIds: string[]; message: MailMessa
     if (before === "sent") return { status: "already", detail: "already replied to this email", suppressDraft: true, officeRow: false };
     if (before === "held") return { status: "already", detail: "the automatic reply was held earlier", suppressDraft: false, officeRow: await raiseReplyNeededRow(jobId, m, "the automatic reply was held earlier") };
     const [isPartnerOrStaff, jobFacts] = await Promise.all([partnerOrStaff(from), ownerJobFacts(jobId, owner?.full_name ?? null, job.stage, now)]);
+    // Firm-quote owners are never answered by the AI (spot answers are wrong for them); an unreadable check counts as firm-quote (fails closed to the office draft).
+    const isFirmQuote = await (p.deps?.isFirmQuote ?? (async (id: string) => (await import("./firm-quote.server")).isFirmQuoteJobId(id)))(jobId).catch(() => true);
     const decision = decideOwnerAutoReply({
       subject: m.subject, body: m.body, fromName: m.fromName, hasAttachments: m.hasAttachments,
       attachments: (m.attachments ?? []).map((a) => ({ name: a.name, contentType: a.contentType, isInline: a.isInline })),
-      jobCount: p.jobIds.length, senderIsOwner, senderIsPartnerOrStaff: isPartnerOrStaff, job: jobFacts,
+      jobCount: p.jobIds.length, senderIsOwner, senderIsPartnerOrStaff: isPartnerOrStaff, job: jobFacts, isFirmQuote,
     });
     if (decision.kind === "skip") return skip(decision.reason);
     if (decision.kind === "none") return { status: "none", detail: decision.reason, suppressDraft: true, officeRow: false };
