@@ -165,8 +165,8 @@ export function NextStepBox({ jobId, box, ownerFirst, installBy, ownCustomer = f
         </div>
       )}
 
-      {(box.button === NEXT_STEP_WORDS.mittiButton || box.kind === "own_ready_check") && mittiAuditId && (
-        <MittiFormLink auditId={mittiAuditId} className={`${greenBtn} mt-4`}>{box.kind === "own_ready_check" ? "Do it in Mitti" : NEXT_STEP_WORDS.mittiButton}</MittiFormLink>
+      {box.button === NEXT_STEP_WORDS.mittiButton && mittiAuditId && (
+        <MittiFormLink auditId={mittiAuditId} className={`${greenBtn} mt-4`}>{NEXT_STEP_WORDS.mittiButton}</MittiFormLink>
       )}
       {children}
     </section>

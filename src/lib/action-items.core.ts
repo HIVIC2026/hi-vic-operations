@@ -27,7 +27,6 @@ const firstName = (full: string | null | undefined): string => { const f = (disp
 function ownTeamCard(r: ActionRow, address: string): ActionCard | null {
   const who = firstName(r.electricianName) || "your electrician";
   if (r.box.kind === "waiting_electrician_book") return { jobId: r.jobId, action: `Get ${who} to book the PIESA`, address, meta: metaFor(r), due: r.box.bookBy ? `By ${niceDate(r.box.bookBy)}` : null, button: "Open", stop: false, overdue: r.box.overdue && !!r.box.bookBy };
-  if (r.box.kind === "piesa_booked") return { jobId: r.jobId, action: `PIESA booked${r.piesaAt ? ` ${dayLabel(new Date(r.piesaAt))}` : ""} · ${who}`, address, meta: metaFor(r), due: null, button: null, stop: false, overdue: false };
   return null;
 }
 
@@ -38,6 +37,8 @@ export function actionItems(rows: ActionRow[]): { count: number; sub: string; fi
   for (const r of rows) {
     const address = cardAddress(r.street, r.suburb);
     if (r.stop) fix.push({ jobId: r.jobId, action: r.stop, address, meta: metaFor(r), due: r.installAt ? `Install ${dayLabel(new Date(r.installAt))}` : null, button: r.box.button ?? "Open", stop: true, overdue: false });
+    // Jo 7 Nov: PIESA booked is the electrician's step (nothing to tap), so it waits rather than sits under Your turn, and the count matches the list.
+    else if (r.box.kind === "piesa_booked") waiting.push({ jobId: r.jobId, address, status: `PIESA booked${r.piesaAt ? ` ${dayLabel(new Date(r.piesaAt))}` : ""}`, waitingOn: firstName(r.electricianName) || "your electrician" });
     else if (ownTeamCard(r, address)) turn.push(ownTeamCard(r, address)!);
     else if (r.box.yours) turn.push({ jobId: r.jobId, action: r.box.title, address, meta: metaFor(r), due: r.box.bookBy ? `By ${niceDate(r.box.bookBy)}` : null, button: r.box.button ?? "Open", stop: false, overdue: r.box.overdue && !!r.box.bookBy });
     else if (r.box.kind !== "closed") waiting.push({ jobId: r.jobId, address, status: r.box.title, waitingOn: r.waitingOn ?? "Home Insulation Victoria" });

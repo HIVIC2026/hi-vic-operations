@@ -5,12 +5,12 @@ import type { NextStepBox } from "../src/lib/next-step-box.core";
 const row = (kind: NextStepBox["kind"], extra: Partial<MyWorkRow> = {}): MyWorkRow => ({
   jobId: "test-own", jobNumber: "HV-TEST", owner: "TEST Owner", street: null, suburb: null,
   channel: "installer_sourced", reason: "",
-  box: { kind, title: kind === "waiting_quote" ? "Quote being prepared — Home Insulation Victoria will send it to the owner" : "Ready Check", sub: null, yours: true, bookBy: "2026-11-06", overdue: true, phone: null, button: "Book", lines: [], alsoBookInstall: null, pickPerson: null },
+  box: { kind, title: kind === "enter_price" ? "Enter your price" : kind === "waiting_quote" ? "Quote being prepared — Home Insulation Victoria will send it to the owner" : "Ready Check", sub: null, yours: true, bookBy: "2026-11-06", overdue: true, phone: null, button: "Book", lines: [], alsoBookInstall: null, pickPerson: null },
   ...extra,
 });
 
 test.each([false, true])("own incomplete form linked=%p has action but never booking deadline", (mittiLinked) => {
-  const result = myWorkCards([row("own_ready_check", { mittiLinked })]);
+  const result = myWorkCards([row("enter_price", { mittiLinked })]);
   expect(result.yourTurn.map(c => c.jobId)).toEqual(["test-own"]);
   expect(result.all[0]?.by).toBeNull();
   expect(result.all[0]?.overdue).toBe(false);

@@ -23,9 +23,9 @@ test("own job with a photo-quote claim and no measurement: waiting state, never 
   expect(JSON.stringify(p.nextStep)).not.toContain("Do it in Mitti");
   expect(p.photoQuote).toBe(true); // field.$jobId.tsx hides the Mitti/portal choice on this flag
 });
-test("control: no claim and no measurement is still the Ready Check", () => {
+test("control: no claim and no measurement is the Enter your price step", () => {
   const p = parts(undefined, false);
-  expect(p.nextStep.kind).toBe("own_ready_check");
+  expect(p.nextStep.kind).toBe("enter_price");
   expect(p.photoQuote).toBe(false);
 });
 test("signals: claim (own_customer) or failed event; an HIV-lead claim or other events are not", () => {

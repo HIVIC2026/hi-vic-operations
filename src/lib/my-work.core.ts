@@ -28,7 +28,6 @@ export const greeting = (business: string, yourTurnCount: number): { title: stri
 });
 
 const REASON: Record<NextStepKind, string> = {
-  own_ready_check: "Ready Check",
   book_ready_check: "New job", // approved (plan Task 4 test)
   ready_check_booked: "Ready Check booked", // DRAFT
   ready_check_missing: "Ready Check needs finishing", // DRAFT
@@ -72,12 +71,9 @@ const shortDate = (at: Date): string => new Intl.DateTimeFormat("en-AU", { timeZ
 function ownCustomerCard(r: MyWorkRow): Partial<MyWorkCard> {
   if (r.channel !== "installer_sourced") return {};
   const noDeadline = { by: null, overdue: false };
-  if (r.box.kind === "own_ready_check") return {
-    ...noDeadline, step: "Measure and quote", reason: "New job", // Jo 6 Nov 2026: just "New job" (no Mitti form suffix)
-    button: "Measure and quote", yours: true,
-  };
   if (r.box.kind === "enter_price") return {
-    ...noDeadline, step: "Enter your price", reason: "Mitti form done", button: "Enter price", yours: true,
+    // Jo 7 Nov 2026: no Mitti Ready Check for installers; a new job (price not entered yet) is just "New job".
+    ...noDeadline, step: "Enter your price", reason: r.box.title === NEXT_STEP_WORDS.enterPriceTitle ? "New job" : "Mitti form done", button: "Enter price", yours: true,
   };
   if (r.box.kind === "waiting_quote" && r.quoteSentAt) {
     const sent = new Date(r.quoteSentAt);
