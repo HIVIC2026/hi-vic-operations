@@ -102,6 +102,7 @@ function MyJobPage() {
       <main className="mx-auto max-w-[560px] space-y-4 px-4 pt-5 sm:px-5">
         {isLoading ? <p role="status" className="py-10 text-center text-sm">Opening your job…</p>
           : !data ? <Unavailable />
+          : data.scopeChangePending ? <GarageRequotePending v={data} />
           : screen === "review" ? <ReviewScreen token={token} initialStars={stars ?? null} />
           : screen === "turn" ? <TurnScreen token={token} />
           : screen === "taps" ? <TapsScreen v={data} token={token} only={only} />
@@ -121,6 +122,20 @@ function MyJobPage() {
       </main>
     </div>
   );
+}
+
+/** A received garage-only revision takes precedence over all old quote deep-links and VEU pricing.
+ * This is informational only; a retail quote is never auto-created from the owner's email. */
+function GarageRequotePending({ v }: { v: View }) {
+  return <section data-testid="garage-only-requote-pending" className="py-8">
+    <p className="text-sm font-semibold text-estimate-blue">{v.jobNumber}</p>
+    <h1 className="mt-2 font-display text-2xl font-extrabold">We're preparing your revised quote{v.firstName ? `, ${v.firstName}` : ""}.</h1>
+    <div className="mt-5 rounded-[22px] bg-card p-5 shadow-sm">
+      <p className="font-semibold">Garage ceiling only</p>
+      <p className="mt-2 text-sm leading-relaxed">We've received your request to insulate just the garage. The earlier whole-house quote is on hold and should not be accepted or paid.</p>
+      <p className="mt-3 text-sm leading-relaxed">We'll confirm the smaller scope and the minimum-job charge with your installer, then email you the correct price. There's nothing you need to do right now.</p>
+    </div>
+  </section>;
 }
 
 /** Nothing is needed from the owner. G8 (4), Jo 4 Nov 2026: when a visit is booked, the screen says which one, when and who

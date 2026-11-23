@@ -1735,6 +1735,14 @@ export const respondToQuoteImpl = createServerOnlyFn(async function respondToQuo
   const { data: q } = await admin.from("quotes").select("*").eq("id", data.quoteId).single();
   if (!q) throw new WorkflowError("Quote not found");
   await context.authorize(q.job_id);
+  // A clearly recorded owner request to change a released whole-house quote to garage-only
+  // must stop acceptance and any payment/signature work until a properly priced replacement exists.
+  // Read failure also refuses acceptance; never let a stale quote through on a missing email read.
+  if (q.kind === "installation" && data.accept && q.status === "issued") {
+    const { garageScopeChangeAfterQuote } = await import("./mates-rates-guard.server");
+    if (await garageScopeChangeAfterQuote(q.job_id, q.sent_at))
+      throw new WorkflowError("You asked to change this job to garage-only. Your earlier whole-house quote is on hold. Please wait for your revised quote.");
+  }
   if (q.kind === "installation" && data.accept && q.status === "accepted") {
     if (data.expectedVersion != null && data.expectedVersion !== q.version)
       throw new WorkflowError("This quote has been updated since you opened it. Please review the latest version before accepting.");

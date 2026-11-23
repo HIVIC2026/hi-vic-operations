@@ -58,8 +58,16 @@ export async function resolveOwnerJob(token: unknown) {
   // Held/queued quotes are office-only until released (source of truth: nothing goes to the owner while queued).
   const { ownerVisibleQuotes } = await import("./owner-quote-visibility.core");
   const shown = ownerVisibleQuotes(quotes ?? []);
-  const quote = shown.find((q) => q.status === "accepted") ?? shown[0] ?? null;
-  const rebate = quote ? n(quote.veec_discount_inc_gst) : n(est?.applied_discount);
+  const latestQuote = shown.find((q) => q.status === "accepted") ?? shown[0] ?? null;
+  // An owner-requested garage-only scope change makes the previous whole-house quote obsolete.
+  // Hide it from My job (including old ?screen=quote links); do not show its rebate or any payment button.
+  // The acceptance server independently checks this same owner-email fact before any payment/signature.
+  // Only held issued jobs need the extra inbound-email lookup; normal My job traffic remains fast.
+  const scopeChangePending = latestQuote?.status === "issued" && stage === "on_hold"
+    ? await (await import("./mates-rates-guard.server")).garageScopeChangeAfterQuote(jobId, latestQuote.sent_at)
+    : false;
+  const quote = scopeChangePending ? null : latestQuote;
+  const rebate = scopeChangePending ? 0 : quote ? n(quote.veec_discount_inc_gst) : n(est?.applied_discount);
   const now = Date.now();
   const upcoming = (bookings ?? []).find((b) => b.status === "confirmed" && b.scheduled_start && new Date(b.scheduled_start).getTime() > now - 6 * 3600_000) ?? null;
   let trade: { name: string; company: string | null; phone: string | null; initial: string } | null = null;
@@ -228,6 +236,7 @@ export async function resolveOwnerJob(token: unknown) {
     });
   })().catch(() => ({ cobrand: null, rows: null }));
   return {
+    scopeChangePending,
     replacementSentAt: quote?.sent_at ?? null,
     replacedQuoteIds: (await admin.from('quotes').select('id').eq('job_id',jobId).eq('kind','installation').eq('status','superseded').not('sent_at','is',null)).data?.map(q=>q.id) ?? [],
     currentAction,
