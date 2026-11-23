@@ -56,5 +56,6 @@ test("guard: genuine owner garage-only change after send holds stale quote, late
   expect(garageOnlyScopeChangeAfterQuote({quoteSentAt,ownerEmail,messages})).toBe(true);
   expect(garageOnlyScopeChangeAfterQuote({quoteSentAt:"2026-11-23T01:00:00Z",ownerEmail,messages})).toBe(false);
   expect(garageOnlyScopeChangeAfterQuote({quoteSentAt,ownerEmail:"another@example.com",messages})).toBe(false);
+  expect(garageOnlyScopeChangeAfterQuote({quoteSentAt,ownerEmail,messages:[{sender_text:"Spoof <fake.eric.stobbie@ausnetservices.com.au.evil.com>",body:messages[2]!.body,received_at:messages[2]!.received_at}]})).toBe(false);
   expect(()=>garageOnlyScopeChangeAfterQuote({quoteSentAt:"invalid",ownerEmail,messages})).toThrow();
 });
