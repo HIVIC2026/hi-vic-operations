@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { isGarageOnlyRequoteRequest, installerGarageRequoteMessage, NO_GAP_MINIMUM_BILLABLE_M2, priceGarageMatesRates } from "../src/lib/mates-rates.core";
+import { garageOnlyScopeChangeAfterQuote, isGarageOnlyRequoteRequest, installerGarageRequoteMessage, NO_GAP_MINIMUM_BILLABLE_M2, priceGarageMatesRates } from "../src/lib/mates-rates.core";
 const base = { scope: "garage_only" as const, product: "R5" as const, actualInstallM2: 42, minimumBillableM2: NO_GAP_MINIMUM_BILLABLE_M2, ownerRateIncGstPerM2: 28, installerRateExGstPerM2: 21.99, gstRate: 0.1, removeM2: 0 };
 test("Eric HV-2968: physical 42 m², minimum billed 100 m², rebate zero", () => {
  const q=priceGarageMatesRates(base);
@@ -44,4 +44,17 @@ test("installer notice distinguishes work area from billing",()=>{
  expect(msg).toContain("100 m²");
  expect(msg).toContain("does NOT increase the area to install");
  expect(msg).toContain("no rebate or VEEC");
+});
+
+test("guard: genuine owner garage-only change after send holds stale quote, later YES reply irrelevant",()=>{
+  const quoteSentAt="2026-11-22T23:47:04Z",ownerEmail="eric.stobbie@ausnetservices.com.au";
+  const messages=[
+    {sender_text:"Chris <info@homeinsulationvictoria.com.au>",body:"I only want the garage ceiling",received_at:"2026-11-22T23:55:00Z"},
+    {sender_text:"Eric Stobbie <eric.stobbie@ausnetservices.com.au>",body:"Yes please re-quote",received_at:"2026-11-23T00:06:25Z"},
+    {sender_text:"Eric Stobbie <eric.stobbie@ausnetservices.com.au>",body:"I don’t want the whole house insulated, just over the garage that was never insulated, total area is 42 sq metres",received_at:"2026-11-22T23:59:08Z"},
+  ];
+  expect(garageOnlyScopeChangeAfterQuote({quoteSentAt,ownerEmail,messages})).toBe(true);
+  expect(garageOnlyScopeChangeAfterQuote({quoteSentAt:"2026-11-23T01:00:00Z",ownerEmail,messages})).toBe(false);
+  expect(garageOnlyScopeChangeAfterQuote({quoteSentAt,ownerEmail:"another@example.com",messages})).toBe(false);
+  expect(()=>garageOnlyScopeChangeAfterQuote({quoteSentAt:"invalid",ownerEmail,messages})).toThrow();
 });
