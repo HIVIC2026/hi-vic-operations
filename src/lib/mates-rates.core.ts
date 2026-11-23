@@ -58,6 +58,22 @@ export function isGarageOnlyRequoteRequest(body: unknown): boolean {
     && /\b(insulat(?:e|ed|ion|ing)?|ceiling|roof|quote|job)\b/i.test(first)
     && /(?:\b(?:only|just|instead|rather than)\b|\bnot\s+(?:the\s+)?(?:whole|entire)\b|\bdon['’]?t\s+want\s+(?:the\s+)?(?:whole|entire)\b)/i.test(first);
 }
+/** Scope-change guard, extracted so the owner identity and mail dates can be tested without the database. */
+export function garageOnlyScopeChangeAfterQuote(i: {
+  quoteSentAt: string;
+  ownerEmail: string;
+  messages: readonly { sender_text?: string | null; body?: string | null; received_at?: string | null; created_at?: string | null }[];
+}): boolean {
+  const email = i.ownerEmail.trim().toLowerCase();
+  const sentMs = Date.parse(i.quoteSentAt);
+  if (!email || !Number.isFinite(sentMs)) throw new Error("A valid owner email and quote send date are required.");
+  return i.messages.some((m) => {
+    const sender = (m.sender_text ?? "").toLowerCase();
+    const receivedMs = Date.parse(m.received_at ?? m.created_at ?? "");
+    return sender.includes(email) && Number.isFinite(receivedMs) && receivedMs > sentMs
+      && isGarageOnlyRequoteRequest(m.body);
+  });
+}
 export function installerGarageRequoteMessage(i: { jobNumber: string; actualInstallM2: number; product: MatesRateProduct; minimumBillableM2: number }): string {
   if (!/^HV-\d+$/.test(i.jobNumber) || i.actualInstallM2 <= 0 || i.minimumBillableM2 < 0)
     throw new Error("A valid job and area are required.");
