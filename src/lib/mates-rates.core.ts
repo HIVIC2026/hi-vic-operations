@@ -68,9 +68,10 @@ export function garageOnlyScopeChangeAfterQuote(i: {
   const sentMs = Date.parse(i.quoteSentAt);
   if (!email || !Number.isFinite(sentMs)) throw new Error("A valid owner email and quote send date are required.");
   return i.messages.some((m) => {
-    const sender = (m.sender_text ?? "").toLowerCase();
+    const from = (m.sender_text ?? "").trim().toLowerCase();
+    const senderEmail = (/<([^<>\s]+@[^<>\s]+)>/.exec(from)?.[1] ?? from).trim();
     const receivedMs = Date.parse(m.received_at ?? m.created_at ?? "");
-    return sender.includes(email) && Number.isFinite(receivedMs) && receivedMs > sentMs
+    return senderEmail === email && Number.isFinite(receivedMs) && receivedMs > sentMs
       && isGarageOnlyRequoteRequest(m.body);
   });
 }
