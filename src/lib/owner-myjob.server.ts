@@ -62,7 +62,8 @@ export async function resolveOwnerJob(token: unknown) {
   // An owner-requested garage-only scope change makes the previous whole-house quote obsolete.
   // Hide it from My job (including old ?screen=quote links); do not show its rebate or any payment button.
   // The acceptance server independently checks this same owner-email fact before any payment/signature.
-  const scopeChangePending = latestQuote?.status === "issued"
+  // Only held issued jobs need the extra inbound-email lookup; normal My job traffic remains fast.
+  const scopeChangePending = latestQuote?.status === "issued" && stage === "on_hold"
     ? await (await import("./mates-rates-guard.server")).garageScopeChangeAfterQuote(jobId, latestQuote.sent_at)
     : false;
   const quote = scopeChangePending ? null : latestQuote;
